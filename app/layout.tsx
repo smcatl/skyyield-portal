@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import AuthProvider from "./providers";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SkyYield Partner Portal",
@@ -14,8 +14,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        {children}
       </body>
     </html>
   );
-}# Portal deployment Thu Nov 13 00:10:19 EST 2025
+}
