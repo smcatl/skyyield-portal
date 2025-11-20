@@ -1,38 +1,48 @@
 'use client'
 
-import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession()
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
   
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login")
-    }
-  }, [status, router])
+    setMounted(true)
+  }, [])
   
-  if (status === "loading") {
-    return <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a' }}></div>
+  if (!mounted) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        background: 'linear-gradient(135deg, #0A0F2C 0%, #0B0E28 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ color: '#94A3B8' }}>Loading...</div>
+      </div>
+    )
   }
-  
-  if (!session) {
-    return null
+
+  // Placeholder user data
+  const user = {
+    name: "Partner",
+    email: "partner@skyyield.com",
+    userType: "referral_partner"
   }
 
   return (
     <div style={{ 
       minHeight: '100vh', 
-      backgroundColor: '#0a0a0a',
+      background: 'linear-gradient(135deg, #0A0F2C 0%, #0B0E28 100%)',
       color: '#ffffff',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
     }}>
       {/* Navigation Bar */}
       <nav style={{
-        backgroundColor: '#111111',
-        borderBottom: '1px solid #222222',
+        backgroundColor: '#1A1F3A',
+        borderBottom: '1px solid #2D3B5F',
         padding: '0 2rem',
         height: '64px',
         display: 'flex',
@@ -51,31 +61,50 @@ export default function DashboardPage() {
         }}>
           {/* Logo */}
           <div style={{
-            fontSize: '20px',
-            fontWeight: '600',
-            letterSpacing: '-0.02em',
-            color: '#ffffff'
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
           }}>
-            SkyYield
+            <div style={{
+              width: '36px',
+              height: '36px',
+              background: 'linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%)',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}>
+              S
+            </div>
+            <span style={{
+              fontSize: '20px',
+              fontWeight: '600',
+              letterSpacing: '-0.02em',
+              color: '#ffffff'
+            }}>
+              SkyYield
+            </span>
           </div>
           
           {/* Right Side */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
             <div style={{ 
               fontSize: '13px', 
-              color: '#888888',
+              color: '#94A3B8',
               fontWeight: '500'
             }}>
-              {session.user?.email}
+              {user.email}
             </div>
             <button
               type="button"
-              onClick={() => signOut()}
+              onClick={() => router.push('/login')}
               style={{
                 padding: '8px 16px',
                 backgroundColor: 'transparent',
-                color: '#888888',
-                border: '1px solid #333333',
+                color: '#94A3B8',
+                border: '1px solid #2D3B5F',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: '13px',
@@ -84,12 +113,12 @@ export default function DashboardPage() {
                 letterSpacing: '-0.01em'
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = '#555555'
-                e.currentTarget.style.color = '#ffffff'
+                e.currentTarget.style.borderColor = '#0EA5E9'
+                e.currentTarget.style.color = '#0EA5E9'
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = '#333333'
-                e.currentTarget.style.color = '#888888'
+                e.currentTarget.style.borderColor = '#2D3B5F'
+                e.currentTarget.style.color = '#94A3B8'
               }}
             >
               Sign Out
@@ -117,11 +146,11 @@ export default function DashboardPage() {
           </h1>
           <p style={{ 
             fontSize: '14px', 
-            color: '#666666',
+            color: '#94A3B8',
             fontWeight: '400',
             letterSpacing: '-0.01em'
           }}>
-            Welcome back, {session.user?.email?.split('@')[0]}
+            Welcome back, {user.email.split('@')[0]}
           </p>
         </div>
 
@@ -134,15 +163,14 @@ export default function DashboardPage() {
         }}>
           {/* Stat Card 1 */}
           <div style={{
-            backgroundColor: '#111111',
-            border: '1px solid #222222',
-            borderRadius: '8px',
-            padding: '24px',
-            transition: 'border-color 0.2s'
+            backgroundColor: '#1A1F3A',
+            border: '1px solid #2D3B5F',
+            borderRadius: '12px',
+            padding: '24px'
           }}>
             <div style={{ 
               fontSize: '12px', 
-              color: '#666666', 
+              color: '#94A3B8', 
               fontWeight: '600',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
@@ -162,7 +190,7 @@ export default function DashboardPage() {
             </div>
             <div style={{ 
               fontSize: '12px', 
-              color: '#4ade80',
+              color: '#10F981',
               fontWeight: '500',
               display: 'flex',
               alignItems: 'center',
@@ -174,14 +202,14 @@ export default function DashboardPage() {
 
           {/* Stat Card 2 */}
           <div style={{
-            backgroundColor: '#111111',
-            border: '1px solid #222222',
-            borderRadius: '8px',
+            backgroundColor: '#1A1F3A',
+            border: '1px solid #2D3B5F',
+            borderRadius: '12px',
             padding: '24px'
           }}>
             <div style={{ 
               fontSize: '12px', 
-              color: '#666666', 
+              color: '#94A3B8', 
               fontWeight: '600',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
@@ -201,7 +229,7 @@ export default function DashboardPage() {
             </div>
             <div style={{ 
               fontSize: '12px', 
-              color: '#666666',
+              color: '#94A3B8',
               fontWeight: '500'
             }}>
               All time
@@ -210,14 +238,14 @@ export default function DashboardPage() {
 
           {/* Stat Card 3 */}
           <div style={{
-            backgroundColor: '#111111',
-            border: '1px solid #222222',
-            borderRadius: '8px',
+            backgroundColor: '#1A1F3A',
+            border: '1px solid #2D3B5F',
+            borderRadius: '12px',
             padding: '24px'
           }}>
             <div style={{ 
               fontSize: '12px', 
-              color: '#666666', 
+              color: '#94A3B8', 
               fontWeight: '600',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
@@ -237,7 +265,7 @@ export default function DashboardPage() {
             </div>
             <div style={{ 
               fontSize: '12px', 
-              color: '#666666',
+              color: '#94A3B8',
               fontWeight: '500'
             }}>
               November 2025
@@ -253,9 +281,9 @@ export default function DashboardPage() {
         }}>
           {/* Getting Started */}
           <div style={{
-            backgroundColor: '#111111',
-            border: '1px solid #222222',
-            borderRadius: '8px',
+            backgroundColor: '#1A1F3A',
+            border: '1px solid #2D3B5F',
+            borderRadius: '12px',
             padding: '24px'
           }}>
             <h2 style={{ 
@@ -275,14 +303,14 @@ export default function DashboardPage() {
                 gap: '12px',
                 padding: '12px',
                 borderRadius: '6px',
-                backgroundColor: '#0a0a0a',
-                border: '1px solid #1a1a1a'
+                backgroundColor: '#0A0F2C',
+                border: '1px solid #2D3B5F'
               }}>
                 <div style={{
                   width: '20px',
                   height: '20px',
                   borderRadius: '50%',
-                  backgroundColor: '#4ade80',
+                  backgroundColor: '#10F981',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -302,7 +330,7 @@ export default function DashboardPage() {
                   }}>
                     Authentication Complete
                   </div>
-                  <div style={{ fontSize: '12px', color: '#666666', lineHeight: '1.4' }}>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', lineHeight: '1.4' }}>
                     Your account is set up and ready to use
                   </div>
                 </div>
@@ -315,20 +343,20 @@ export default function DashboardPage() {
                 gap: '12px',
                 padding: '12px',
                 borderRadius: '6px',
-                backgroundColor: '#0a0a0a',
-                border: '1px solid #1a1a1a'
+                backgroundColor: '#0A0F2C',
+                border: '1px solid #2D3B5F'
               }}>
                 <div style={{
                   width: '20px',
                   height: '20px',
                   borderRadius: '50%',
-                  backgroundColor: '#333333',
+                  backgroundColor: '#2D3B5F',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '11px',
                   fontWeight: '600',
-                  color: '#666666',
+                  color: '#94A3B8',
                   flexShrink: 0
                 }}>
                   2
@@ -342,7 +370,7 @@ export default function DashboardPage() {
                   }}>
                     Connect Base44 Data
                   </div>
-                  <div style={{ fontSize: '12px', color: '#666666', lineHeight: '1.4' }}>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', lineHeight: '1.4' }}>
                     Link your portal to Base44 PortalUsers table
                   </div>
                 </div>
@@ -355,20 +383,20 @@ export default function DashboardPage() {
                 gap: '12px',
                 padding: '12px',
                 borderRadius: '6px',
-                backgroundColor: '#0a0a0a',
-                border: '1px solid #1a1a1a'
+                backgroundColor: '#0A0F2C',
+                border: '1px solid #2D3B5F'
               }}>
                 <div style={{
                   width: '20px',
                   height: '20px',
                   borderRadius: '50%',
-                  backgroundColor: '#333333',
+                  backgroundColor: '#2D3B5F',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '11px',
                   fontWeight: '600',
-                  color: '#666666',
+                  color: '#94A3B8',
                   flexShrink: 0
                 }}>
                   3
@@ -382,7 +410,7 @@ export default function DashboardPage() {
                   }}>
                     Build Partner Portals
                   </div>
-                  <div style={{ fontSize: '12px', color: '#666666', lineHeight: '1.4' }}>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', lineHeight: '1.4' }}>
                     Create dashboards for each partner type
                   </div>
                 </div>
@@ -392,9 +420,9 @@ export default function DashboardPage() {
 
           {/* System Info */}
           <div style={{
-            backgroundColor: '#111111',
-            border: '1px solid #222222',
-            borderRadius: '8px',
+            backgroundColor: '#1A1F3A',
+            border: '1px solid #2D3B5F',
+            borderRadius: '12px',
             padding: '24px'
           }}>
             <h2 style={{ 
@@ -407,28 +435,28 @@ export default function DashboardPage() {
               Session Details
             </h2>
             <div style={{
-              backgroundColor: '#0a0a0a',
-              border: '1px solid #1a1a1a',
+              backgroundColor: '#0A0F2C',
+              border: '1px solid #2D3B5F',
               borderRadius: '6px',
               padding: '16px',
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', color: '#666666' }}>Email:</span>
-                  <span style={{ fontSize: '12px', color: '#ffffff' }}>{session.user?.email}</span>
+                  <span style={{ fontSize: '12px', color: '#94A3B8' }}>Email:</span>
+                  <span style={{ fontSize: '12px', color: '#ffffff' }}>{user.email}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', color: '#666666' }}>User Type:</span>
+                  <span style={{ fontSize: '12px', color: '#94A3B8' }}>User Type:</span>
                   <span style={{ fontSize: '12px', color: '#ffffff' }}>
-                    {session.user?.userType || 'Not set'}
+                    {user.userType}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', color: '#666666' }}>Status:</span>
+                  <span style={{ fontSize: '12px', color: '#94A3B8' }}>Status:</span>
                   <span style={{ 
                     fontSize: '12px', 
-                    color: '#4ade80',
+                    color: '#10F981',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px'
@@ -436,7 +464,7 @@ export default function DashboardPage() {
                     <span style={{ 
                       width: '6px', 
                       height: '6px', 
-                      backgroundColor: '#4ade80', 
+                      backgroundColor: '#10F981', 
                       borderRadius: '50%' 
                     }}></span>
                     Active
