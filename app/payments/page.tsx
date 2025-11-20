@@ -1,44 +1,49 @@
 'use client'
 
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import TipaltiIFrame from "@/components/TipaltiIFrame"
 
 export default function PaymentHistoryPage() {
-  const { data: session, status } = useSession()
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
   const [viewType, setViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
   
+  // Simple mounted check to prevent hydration issues
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login")
-    }
-  }, [status, router])
+    setMounted(true)
+  }, [])
   
-  if (status === "loading") {
-    return <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a' }}></div>
-  }
-  
-  if (!session) {
-    return null
+  if (!mounted) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#0A0F2C',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ color: '#94A3B8' }}>Loading...</div>
+      </div>
+    )
   }
 
-  // In production, this would come from the user's database record
-  // For now, using email as payee ID (you'll want to use actual Tipalti payee ID)
-  const payeeId = session.user?.email?.replace('@', '_at_') || 'unknown'
+  // In production, this would come from the session/database
+  // For now, using a placeholder
+  const userEmail = "partner@skyyield.com"
+  const payeeId = userEmail.replace('@', '_at_')
 
   return (
     <div style={{ 
       minHeight: '100vh', 
-      backgroundColor: '#0a0a0a',
-      color: '#ffffff',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+      background: 'linear-gradient(135deg, #0A0F2C 0%, #0B0E28 100%)',
+      color: '#FFFFFF',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
       {/* Navigation Bar */}
       <nav style={{
-        backgroundColor: '#111111',
-        borderBottom: '1px solid #222222',
+        backgroundColor: '#1A1F3A',
+        borderBottom: '1px solid #2D3B5F',
         padding: '0 2rem',
         height: '64px',
         display: 'flex',
@@ -59,23 +64,41 @@ export default function PaymentHistoryPage() {
           <div 
             onClick={() => router.push('/dashboard')}
             style={{
-              fontSize: '20px',
-              fontWeight: '600',
-              letterSpacing: '-0.02em',
-              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
               cursor: 'pointer'
             }}
           >
-            SkyYield
+            <div style={{
+              width: '36px',
+              height: '36px',
+              background: 'linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%)',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}>
+              S
+            </div>
+            <span style={{
+              fontSize: '20px',
+              fontWeight: '600',
+              color: '#FFFFFF'
+            }}>
+              SkyYield Portal
+            </span>
           </div>
           
           {/* User Info */}
           <div style={{ 
-            fontSize: '13px', 
-            color: '#888888',
+            fontSize: '14px', 
+            color: '#94A3B8',
             fontWeight: '500'
           }}>
-            {session.user?.email}
+            {userEmail}
           </div>
         </div>
       </nav>
@@ -91,45 +114,44 @@ export default function PaymentHistoryPage() {
           <button
             onClick={() => router.push('/dashboard')}
             style={{
-              padding: '8px 12px',
+              padding: '8px 16px',
               backgroundColor: 'transparent',
-              color: '#666666',
-              border: '1px solid #333333',
+              color: '#94A3B8',
+              border: '1px solid #2D3B5F',
               borderRadius: '6px',
               cursor: 'pointer',
-              fontSize: '13px',
+              fontSize: '14px',
               fontWeight: '500',
-              marginBottom: '1rem',
-              display: 'flex',
+              marginBottom: '1.5rem',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              transition: 'all 0.2s'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = '#555555'
-              e.currentTarget.style.color = '#ffffff'
+              e.currentTarget.style.borderColor = '#0EA5E9'
+              e.currentTarget.style.color = '#0EA5E9'
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = '#333333'
-              e.currentTarget.style.color = '#666666'
+              e.currentTarget.style.borderColor = '#2D3B5F'
+              e.currentTarget.style.color = '#94A3B8'
             }}
           >
             ← Back to Dashboard
           </button>
           
           <h1 style={{ 
-            fontSize: '32px', 
+            fontSize: '42px', 
             fontWeight: '600', 
-            marginBottom: '8px',
-            letterSpacing: '-0.02em',
-            color: '#ffffff'
+            marginBottom: '12px',
+            color: '#FFFFFF'
           }}>
-            Payments
+            Payments & <span style={{ color: '#0EA5E9' }}>Invoices</span>
           </h1>
           <p style={{ 
-            fontSize: '14px', 
-            color: '#666666',
-            fontWeight: '400',
-            letterSpacing: '-0.01em'
+            fontSize: '18px', 
+            color: '#94A3B8',
+            margin: 0
           }}>
             View your payment history and manage payment details
           </p>
@@ -140,22 +162,20 @@ export default function PaymentHistoryPage() {
           display: 'flex',
           gap: '1rem',
           marginBottom: '2rem',
-          borderBottom: '1px solid #222222',
-          paddingBottom: '0'
+          borderBottom: '1px solid #2D3B5F'
         }}>
           <button
             onClick={() => setViewType('paymentHistory')}
             style={{
               padding: '12px 24px',
               backgroundColor: 'transparent',
-              color: viewType === 'paymentHistory' ? '#ffffff' : '#666666',
+              color: viewType === 'paymentHistory' ? '#FFFFFF' : '#94A3B8',
               border: 'none',
-              borderBottom: viewType === 'paymentHistory' ? '2px solid #ffffff' : '2px solid transparent',
+              borderBottom: viewType === 'paymentHistory' ? '2px solid #0EA5E9' : '2px solid transparent',
               cursor: 'pointer',
               fontSize: '14px',
               fontWeight: '500',
-              transition: 'all 0.2s',
-              letterSpacing: '-0.01em'
+              transition: 'all 0.2s'
             }}
           >
             Payment History
@@ -166,14 +186,13 @@ export default function PaymentHistoryPage() {
             style={{
               padding: '12px 24px',
               backgroundColor: 'transparent',
-              color: viewType === 'invoiceHistory' ? '#ffffff' : '#666666',
+              color: viewType === 'invoiceHistory' ? '#FFFFFF' : '#94A3B8',
               border: 'none',
-              borderBottom: viewType === 'invoiceHistory' ? '2px solid #ffffff' : '2px solid transparent',
+              borderBottom: viewType === 'invoiceHistory' ? '2px solid #0EA5E9' : '2px solid transparent',
               cursor: 'pointer',
               fontSize: '14px',
               fontWeight: '500',
-              transition: 'all 0.2s',
-              letterSpacing: '-0.01em'
+              transition: 'all 0.2s'
             }}
           >
             Invoice History
@@ -184,42 +203,48 @@ export default function PaymentHistoryPage() {
             style={{
               padding: '12px 24px',
               backgroundColor: 'transparent',
-              color: viewType === 'paymentDetails' ? '#ffffff' : '#666666',
+              color: viewType === 'paymentDetails' ? '#FFFFFF' : '#94A3B8',
               border: 'none',
-              borderBottom: viewType === 'paymentDetails' ? '2px solid #ffffff' : '2px solid transparent',
+              borderBottom: viewType === 'paymentDetails' ? '2px solid #0EA5E9' : '2px solid transparent',
               cursor: 'pointer',
               fontSize: '14px',
               fontWeight: '500',
-              transition: 'all 0.2s',
-              letterSpacing: '-0.01em'
+              transition: 'all 0.2s'
             }}
           >
             Payment Details
           </button>
         </div>
 
-        {/* Tipalti iFrame */}
-        <TipaltiIFrame 
-          payeeId={payeeId}
-          viewType={viewType}
-          environment="sandbox"
-        />
+        {/* Tipalti iFrame Container */}
+        <div style={{
+          backgroundColor: '#1A1F3A',
+          border: '1px solid #2D3B5F',
+          borderRadius: '16px',
+          padding: '24px',
+          marginBottom: '2rem'
+        }}>
+          <TipaltiIFrame 
+            payeeId={payeeId}
+            viewType={viewType}
+            environment="sandbox"
+          />
+        </div>
 
         {/* Info Box */}
         <div style={{
-          marginTop: '2rem',
-          padding: '16px',
-          backgroundColor: '#111111',
-          border: '1px solid #222222',
-          borderRadius: '8px'
+          padding: '20px',
+          backgroundColor: '#1A1F3A',
+          border: '1px solid #2D3B5F',
+          borderRadius: '12px'
         }}>
           <p style={{
-            fontSize: '12px',
-            color: '#666666',
+            fontSize: '14px',
+            color: '#94A3B8',
             margin: 0,
-            lineHeight: '1.5'
+            lineHeight: '1.6'
           }}>
-            <strong style={{ color: '#888888' }}>Note:</strong> Payment processing is handled securely by Tipalti. 
+            <strong style={{ color: '#FFFFFF' }}>Note:</strong> Payment processing is handled securely by Tipalti. 
             You can update your payment details, view past payments, and download invoices directly from this portal.
           </p>
         </div>
