@@ -2,26 +2,45 @@
 
 import { signIn } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 
-export default function LoginPage() {
+function LoadingFallback() {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #0A0F2C 0%, #0B0E28 100%)',
+    }}>
+      <div style={{
+        width: '48px',
+        height: '48px',
+        border: '4px solid #2D3B5F',
+        borderTopColor: '#0EA5E9',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+      }} />
+    </div>
+  )
+}
+
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showError, setShowError] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
-  // Show error from URL params
   useEffect(() => {
     if (searchParams.get('error')) {
       setShowError(true)
     }
   }, [searchParams])
 
-  // Clear error when user interacts with form
   const clearError = () => {
     if (showError) {
       setShowError(false)
-      router.replace('/login') // Remove error from URL
+      router.replace('/login')
     }
   }
 
@@ -84,7 +103,6 @@ export default function LoginPage() {
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Background decoration */}
       <div style={{
         position: 'absolute',
         top: 0,
@@ -106,7 +124,6 @@ export default function LoginPage() {
         position: 'relative',
         zIndex: 1
       }}>
-        {/* Logo */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -150,7 +167,6 @@ export default function LoginPage() {
           Partner Portal Access
         </p>
 
-        {/* Error Message */}
         {showError && (
           <div style={{
             padding: '14px 16px',
@@ -186,7 +202,6 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleLogin}>
-          {/* Portal Type Selector */}
           <div style={{ marginBottom: '20px' }}>
             <label 
               htmlFor="userType"
@@ -237,7 +252,6 @@ export default function LoginPage() {
             </select>
           </div>
 
-          {/* Email Field */}
           <div style={{ marginBottom: '20px' }}>
             <label 
               htmlFor="email"
@@ -272,7 +286,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Password Field */}
           <div style={{ marginBottom: '28px' }}>
             <label 
               htmlFor="password"
@@ -307,7 +320,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={isLoading}
@@ -331,7 +343,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Test Credentials Info */}
         <div style={{
           marginTop: '28px',
           padding: '16px',
@@ -360,5 +371,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <LoginForm />
+    </Suspense>
   )
 }
