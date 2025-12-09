@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // In-memory storage for demo (replace with database in production)
-let products = [
+const products = [
   {
     id: '1',
     name: 'SkyYield Indoor Hotspot',
@@ -76,16 +76,13 @@ let products = [
   },
 ]
 
-// Export products for use by other route handlers
-export { products }
-
 // GET - Fetch all products
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const category = searchParams.get('category')
   const approvedOnly = searchParams.get('approved') === 'true'
 
-  let filteredProducts = products
+  let filteredProducts = [...products]
 
   if (category && category !== 'all') {
     filteredProducts = filteredProducts.filter(p => p.category === category)
