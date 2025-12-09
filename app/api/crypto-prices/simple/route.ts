@@ -5,6 +5,8 @@ const TOKENS = {
   XNET: 'xnet-mobile-2'
 }
 
+const API_KEY = process.env.COINGECKO_API_KEY || ''
+
 export async function GET() {
   try {
     const [hntData, xnetData] = await Promise.all([
@@ -37,7 +39,7 @@ export async function GET() {
 
 async function fetchTokenData(coinId: string) {
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=30&interval=daily`
+    const url = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=30&interval=daily&x_cg_demo_api_key=${API_KEY}`
     
     const response = await fetch(url, {
       headers: { 'Accept': 'application/json' },

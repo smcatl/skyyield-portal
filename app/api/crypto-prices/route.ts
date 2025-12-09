@@ -1,53 +1,28 @@
 import { NextResponse } from 'next/server'
 
-// CoinGecko IDs for our tokens
 const TOKENS = {
   HNT: 'helium',
   XNET: 'xnet-mobile-2'
 }
 
-interface PriceData {
-  symbol: string
-  name: string
-  currentPrice: number
-  price24hAgo: number
-  change24h: number
-  change24hPercent: number
-  avg30d: number
-  high30d: number
-  low30d: number
-  lastUpdated: string
-}
+const API_KEY = process.env.COINGECKO_API_KEY || ''
 
-interface CryptoResponse {
-  success: boolean
-  data: {
-    HNT: PriceData
-    XNET: PriceData
-  }
-  timestamp: string
-  error?: string
-}
+let cache: { data: unknown; timestamp: number } | null = null
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
-// Cache prices for 5 minutes to avoid rate limits
-let cachedData: CryptoResponse | null = null
-let cacheTimestamp: number = 0
-const CACHE_DURATION = 5 * 60 * 1000
-
-async function fetchTokenPrices(): Promise<CryptoResponse> {
-  const now = Date.now()
-  
-  if (cachedData && (now - cacheTimestamp) < CACHE_DURATION) {
-    return cachedData
+export async function GET() {
+  // Return cached data if fresh
+  if (cache && Date.now() - cache.timestamp < CACHE_DURATION) {
+    return NextResponse.json(cache.data)
   }
 
   try {
     const [hntData, xnetData] = await Promise.all([
-      fetch30DayData(TOKENS.HNT, 'HNT', 'Helium'),
-      fetch30DayData(TOKENS.XNET, 'XNET', 'XNET Mobile')
+      fetchTokenData(TOKENS.HNT, 'HNT', 'Helium'),
+      fetchTokenData(TOKENS.XNET, 'XNET', 'XNET Mobile')
     ])
 
-    const response: CryptoResponse = {
+    const response = {
       success: true,
       data: {
         HNT: hntData,
@@ -56,44 +31,39 @@ async function fetchTokenPrices(): Promise<CryptoResponse> {
       timestamp: new Date().toISOString()
     }
 
-    cachedData = response
-    cacheTimestamp = now
+    // Update cache
+    cache = { data: response, timestamp: Date.now() }
 
-    return response
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error fetching crypto prices:', error)
-    
-    if (cachedData) {
-      return {
-        ...cachedData,
-        error: 'Using cached data - API temporarily unavailable'
-      }
-    }
-
-    return {
-      success: false,
-      data: {
-        HNT: createEmptyPriceData('HNT', 'Helium'),
-        XNET: createEmptyPriceData('XNET', 'XNET Mobile')
-      },
-      timestamp: new Date().toISOString(),
-      error: 'Failed to fetch price data'
-    }
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch price data' },
+      { status: 500 }
+    )
   }
 }
 
-async function fetch30DayData(coinId: string, symbol: string, name: string): Promise<PriceData> {
+// POST to force refresh cache
+export async function POST() {
+  cache = null
+  return GET()
+}
+
+async function fetchTokenData(coinId: string, symbol: string, name: string) {
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=30&interval=daily`
+    // Use the demo API key
+    const url = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=30&interval=daily&x_cg_demo_api_key=${API_KEY}`
     
     const response = await fetch(url, {
-      headers: {
+      headers: { 
         'Accept': 'application/json',
       },
       next: { revalidate: 300 }
     })
 
     if (!response.ok) {
+      console.error(`CoinGecko API error for ${coinId}: ${response.status}`)
       throw new Error(`CoinGecko API error: ${response.status}`)
     }
 
@@ -107,7 +77,7 @@ async function fetch30DayData(coinId: string, symbol: string, name: string): Pro
     const currentPrice = prices[prices.length - 1][1]
     const price24hAgo = prices.length > 1 ? prices[prices.length - 2][1] : currentPrice
     const change24h = currentPrice - price24hAgo
-    const change24hPercent = price24hAgo > 0 ? (change24h / price24hAgo) * 100 : 0
+    const change24hPercent = price24hAgo !== 0 ? (change24h / price24hAgo) * 100 : 0
 
     const priceValues = prices.map(p => p[1])
     const avg30d = priceValues.reduce((sum, p) => sum + p, 0) / priceValues.length
@@ -127,12 +97,12 @@ async function fetch30DayData(coinId: string, symbol: string, name: string): Pro
       lastUpdated: new Date().toISOString()
     }
   } catch (error) {
-    console.error(`Error fetching ${symbol} data:`, error)
+    console.error(`Error fetching ${coinId}:`, error)
     return createEmptyPriceData(symbol, name)
   }
 }
 
-function createEmptyPriceData(symbol: string, name: string): PriceData {
+function createEmptyPriceData(symbol: string, name: string) {
   return {
     symbol,
     name,
@@ -145,17 +115,4 @@ function createEmptyPriceData(symbol: string, name: string): PriceData {
     low30d: 0,
     lastUpdated: new Date().toISOString()
   }
-}
-
-export async function GET() {
-  const data = await fetchTokenPrices()
-  return NextResponse.json(data)
-}
-
-export async function POST() {
-  cachedData = null
-  cacheTimestamp = 0
-  
-  const data = await fetchTokenPrices()
-  return NextResponse.json(data)
 }
