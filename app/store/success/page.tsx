@@ -1,10 +1,31 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 
-export default function CheckoutSuccess() {
+function LoadingFallback() {
+  return (
+    <div style={{ 
+      minHeight: "100vh", 
+      background: "linear-gradient(135deg, #0A0F2C 0%, #0B0E28 100%)", 
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }}>
+      <div style={{
+        width: "48px",
+        height: "48px",
+        border: "4px solid #2D3B5F",
+        borderTopColor: "#0EA5E9",
+        borderRadius: "50%",
+        animation: "spin 1s linear infinite",
+      }} />
+    </div>
+  )
+}
+
+function CheckoutSuccessContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session_id")
   const [orderDetails, setOrderDetails] = useState<{
@@ -15,8 +36,6 @@ export default function CheckoutSuccess() {
 
   useEffect(() => {
     if (sessionId) {
-      // Optionally fetch order details from your API
-      // For now, we'll just show a success message
       setOrderDetails({ paymentStatus: "paid" })
     }
   }, [sessionId])
@@ -37,7 +56,6 @@ export default function CheckoutSuccess() {
         width: "100%",
         textAlign: "center"
       }}>
-        {/* Success Icon */}
         <div style={{
           width: "120px",
           height: "120px",
@@ -69,7 +87,6 @@ export default function CheckoutSuccess() {
           Thank you for your order! We&apos;ve received your payment and will begin processing your order immediately.
         </p>
 
-        {/* Order Info Card */}
         <div style={{
           backgroundColor: "#1A1F3A",
           borderRadius: "16px",
@@ -180,7 +197,6 @@ export default function CheckoutSuccess() {
           </div>
         </div>
 
-        {/* Session ID for reference */}
         {sessionId && (
           <div style={{
             backgroundColor: "#0A0F2C",
@@ -198,7 +214,6 @@ export default function CheckoutSuccess() {
           </div>
         )}
 
-        {/* Action Buttons */}
         <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
           <Link 
             href="/store"
@@ -231,12 +246,19 @@ export default function CheckoutSuccess() {
           </Link>
         </div>
 
-        {/* Support Info */}
         <div style={{ marginTop: "48px", fontSize: "14px", color: "#64748B" }}>
           <p>Questions about your order?</p>
           <p style={{ color: "#0EA5E9" }}>support@skyyield.io</p>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CheckoutSuccess() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <CheckoutSuccessContent />
+    </Suspense>
   )
 }
