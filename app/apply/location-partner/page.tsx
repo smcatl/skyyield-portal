@@ -1,22 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import Image from 'next/image'
 import { 
   Building2, User, Phone, Mail, MapPin, Globe, Wifi,
   ChevronRight, ChevronLeft, Check, AlertCircle, Loader2
 } from 'lucide-react'
 
 interface FormData {
-  // Contact Info
   contactFullName: string
   contactPreferredName: string
   contactTitle: string
   contactPhone: string
   contactEmail: string
-  
-  // Company Info
   companyLegalName: string
   companyDBA: string
   companyIndustry: string
@@ -26,16 +22,12 @@ interface FormData {
   companyState: string
   companyZip: string
   companyCountry: string
-  
-  // Additional Info
   linkedInProfile: string
   howDidYouHear: string
   numberOfLocations: string
   currentInternetProvider: string
   numberOfInternetLines: string
   currentGbsInPlan: string
-  
-  // Terms
   agreedToTerms: boolean
 }
 
@@ -71,7 +63,20 @@ const US_STATES = [
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
 ]
 
-export default function LocationPartnerApplicationPage() {
+// Loading fallback component
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 text-[#0EA5E9] animate-spin mx-auto mb-4" />
+        <p className="text-[#94A3B8]">Loading application...</p>
+      </div>
+    </div>
+  )
+}
+
+// Main form component that uses useSearchParams
+function LocationPartnerForm() {
   const searchParams = useSearchParams()
   const referralCode = searchParams.get('ref')
   
@@ -82,13 +87,11 @@ export default function LocationPartnerApplicationPage() {
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
   
-  // Dropdown options
   const [industries, setIndustries] = useState<{value: string; label: string}[]>([])
   const [referralSources, setReferralSources] = useState<{value: string; label: string}[]>([])
   const [isps, setIsps] = useState<{value: string; label: string}[]>([])
 
   useEffect(() => {
-    // Fetch dropdown options
     fetchDropdowns()
   }, [])
 
@@ -195,7 +198,6 @@ export default function LocationPartnerApplicationPage() {
     }
   }
 
-  // Success Screen
   if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center px-4">
@@ -235,7 +237,6 @@ export default function LocationPartnerApplicationPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28]">
-      {/* Header */}
       <header className="border-b border-[#2D3B5F]">
         <div className="max-w-4xl mx-auto px-4 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -252,9 +253,7 @@ export default function LocationPartnerApplicationPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 py-8">
-        {/* Title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Location Partner Application</h1>
           <p className="text-[#94A3B8]">
@@ -262,7 +261,6 @@ export default function LocationPartnerApplicationPage() {
           </p>
         </div>
 
-        {/* Progress Steps */}
         <div className="flex items-center justify-center gap-4 mb-8">
           {[
             { step: 1, label: 'Contact Info' },
@@ -287,10 +285,8 @@ export default function LocationPartnerApplicationPage() {
           ))}
         </div>
 
-        {/* Form Card */}
         <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-2xl p-6 sm:p-8">
           
-          {/* Step 1: Contact Information */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-6">
@@ -400,7 +396,6 @@ export default function LocationPartnerApplicationPage() {
             </div>
           )}
 
-          {/* Step 2: Company Details */}
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-6">
@@ -599,7 +594,6 @@ export default function LocationPartnerApplicationPage() {
             </div>
           )}
 
-          {/* Step 3: Review & Submit */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-6">
@@ -612,7 +606,6 @@ export default function LocationPartnerApplicationPage() {
                 </div>
               </div>
 
-              {/* Summary */}
               <div className="space-y-4">
                 <div className="bg-[#0A0F2C] rounded-lg p-4">
                   <h3 className="text-[#94A3B8] text-sm font-medium mb-3">Contact Information</h3>
@@ -640,7 +633,6 @@ export default function LocationPartnerApplicationPage() {
                 </div>
               </div>
 
-              {/* Terms */}
               <div className={`p-4 rounded-lg border ${errors.agreedToTerms ? 'border-red-500 bg-red-500/10' : 'border-[#2D3B5F]'}`}>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -650,7 +642,7 @@ export default function LocationPartnerApplicationPage() {
                     className="w-5 h-5 mt-0.5 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9]"
                   />
                   <span className="text-sm text-[#94A3B8]">
-                    I agree to SkyYield's <a href="/terms" className="text-[#0EA5E9] hover:underline">Terms of Service</a> and{' '}
+                    I agree to SkyYield&apos;s <a href="/terms" className="text-[#0EA5E9] hover:underline">Terms of Service</a> and{' '}
                     <a href="/privacy" className="text-[#0EA5E9] hover:underline">Privacy Policy</a>. 
                     I consent to being contacted about becoming a Location Partner.
                   </span>
@@ -669,7 +661,6 @@ export default function LocationPartnerApplicationPage() {
             </div>
           )}
 
-          {/* Navigation Buttons */}
           <div className="flex items-center justify-between mt-8 pt-6 border-t border-[#2D3B5F]">
             {currentStep > 1 ? (
               <button
@@ -713,11 +704,19 @@ export default function LocationPartnerApplicationPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="text-center mt-8 text-[#64748B] text-sm">
           <p>Need help? Contact us at <a href="mailto:support@skyyield.com" className="text-[#0EA5E9] hover:underline">support@skyyield.com</a></p>
         </div>
       </main>
     </div>
+  )
+}
+
+// Main page component with Suspense wrapper
+export default function LocationPartnerApplicationPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <LocationPartnerForm />
+    </Suspense>
   )
 }
