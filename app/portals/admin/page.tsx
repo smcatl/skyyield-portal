@@ -11,10 +11,145 @@ import {
   RefreshCw, Check, X, Search, Plus, Edit, Trash2, Eye, Star,
   Upload, ToggleLeft, ToggleRight, Calculator, MapPin, Target, 
   Activity, DollarSign, Building2, Lock, ClipboardList, ExternalLink,
-  Copy, Inbox
+  Copy, Inbox, Settings, Mail, Calendar, Send, GitBranch, List,
+  ChevronDown, ChevronRight, Save, AlertCircle, Sparkles, 
+  GripVertical, Phone, MoreVertical, Filter, UserPlus,
+  CreditCard, Wallet, PieChart
 } from 'lucide-react'
+import TipaltiIFrame from '@/components/TipaltiIFrame'
 
-type TabType = 'overview' | 'users' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'analytics'
+type TabType = 'overview' | 'users' | 'pipeline' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
+
+// Pipeline and Settings types
+interface LocationPartner {
+  id: string
+  stage: string
+  contactFullName: string
+  contactEmail: string
+  contactPhone: string
+  companyLegalName: string
+  companyDBA?: string
+  companyCity: string
+  companyState: string
+  initialReviewStatus: string
+  postCallReviewStatus: string
+  discoveryCallStatus: string
+  trialDaysRemaining?: number
+  createdAt: string
+  updatedAt: string
+  tags?: string[]
+}
+
+interface EmailTemplate {
+  id: string
+  name: string
+  subject: string
+  description: string
+  trigger: string
+  hasCalendly: boolean
+  enabled: boolean
+  greeting: string
+  bodyParagraphs: string[]
+  ctaText?: string
+  ctaType: 'calendly' | 'custom' | 'none'
+  footerText?: string
+}
+
+interface CalendlyLink {
+  id: string
+  name: string
+  slug: string
+  url: string
+  duration: number
+  description: string
+  active: boolean
+  color: string
+}
+
+interface Dropdown {
+  id: string
+  key: string
+  name: string
+  options: { value: string; label: string; isActive: boolean; order: number }[]
+  allowCustom: boolean
+}
+
+// Constants
+const USER_TYPES = [
+  'Administrator', 'Employee', 'Location Partner', 'Referral Partner',
+  'Channel Partner', 'Relationship Partner', 'Contractor', 'Customer', 'Calculator Access'
+]
+
+const PIPELINE_STAGES = [
+  { id: 'application', name: 'Application', color: 'border-blue-500', bgColor: 'bg-blue-500' },
+  { id: 'initial_review', name: 'Initial Review', color: 'border-yellow-500', bgColor: 'bg-yellow-500' },
+  { id: 'discovery_scheduled', name: 'Discovery', color: 'border-purple-500', bgColor: 'bg-purple-500' },
+  { id: 'discovery_complete', name: 'Post-Call', color: 'border-yellow-500', bgColor: 'bg-yellow-500' },
+  { id: 'venues_setup', name: 'Venues Setup', color: 'border-cyan-500', bgColor: 'bg-cyan-500' },
+  { id: 'loi_sent', name: 'LOI Sent', color: 'border-orange-500', bgColor: 'bg-orange-500' },
+  { id: 'loi_signed', name: 'LOI Signed', color: 'border-green-500', bgColor: 'bg-green-500' },
+  { id: 'install_scheduled', name: 'Install', color: 'border-pink-500', bgColor: 'bg-pink-500' },
+  { id: 'trial_active', name: 'Trial', color: 'border-indigo-500', bgColor: 'bg-indigo-500' },
+  { id: 'active', name: 'Active', color: 'border-green-500', bgColor: 'bg-green-500' },
+]
+
+const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
+  {
+    id: 'applicationApproved', name: 'Application Approved',
+    subject: '🎉 Welcome to SkyYield - Schedule Your Discovery Call',
+    description: 'Sent when admin approves initial application',
+    trigger: 'Initial Review → Approved', hasCalendly: true, enabled: true,
+    greeting: 'Welcome to SkyYield, {{name}}!',
+    bodyParagraphs: [
+      "Great news! Your application to become a SkyYield Location Partner has been approved.",
+      "We're excited to learn more about {{company}} and explore how we can help you monetize your WiFi infrastructure."
+    ],
+    ctaText: 'Schedule Discovery Call', ctaType: 'calendly',
+    footerText: "Can't make the available times? Reply to this email."
+  },
+  {
+    id: 'portalInvite', name: 'Portal Access Invite',
+    subject: '🔐 Your SkyYield Partner Portal is Ready',
+    description: 'Manual trigger to send portal access',
+    trigger: 'Manual', hasCalendly: false, enabled: true,
+    greeting: 'Access Your Partner Portal',
+    bodyParagraphs: [
+      "Hi {{name}},",
+      "Your SkyYield Partner Portal is ready! Click below to activate your account."
+    ],
+    ctaText: 'Activate Portal Access', ctaType: 'custom',
+    footerText: 'Bookmark this link for easy access: portal.skyyield.io'
+  },
+  {
+    id: 'tipaltiInvite', name: 'Tipalti Payment Invite',
+    subject: '💰 Set Up Your Payment Account',
+    description: 'Manual trigger to send payment setup',
+    trigger: 'Manual', hasCalendly: false, enabled: true,
+    greeting: 'Set Up Your Payment Account',
+    bodyParagraphs: [
+      "Hi {{name}},",
+      "To receive your SkyYield earnings, please set up your payment account through Tipalti."
+    ],
+    ctaText: 'Set Up Payments', ctaType: 'custom',
+    footerText: 'Payments are processed on the 15th of each month.'
+  }
+]
+
+// Calculator venue profiles
+const VENUE_PROFILES: Record<string, { name: string; wifiMultiplier: number; avgDwell: string }> = {
+  restaurant_fastfood: { name: "Fast Food Restaurant", wifiMultiplier: 1.3, avgDwell: "15-25 min" },
+  restaurant_sitdown: { name: "Sit-Down Restaurant", wifiMultiplier: 1.5, avgDwell: "45-90 min" },
+  cafe_coffee: { name: "Café / Coffee Shop", wifiMultiplier: 1.6, avgDwell: "30-60 min" },
+  bar: { name: "Bar", wifiMultiplier: 1.5, avgDwell: "60-120 min" },
+  hotel_single: { name: "Hotel (Single Level)", wifiMultiplier: 2.0, avgDwell: "1-3 nights" },
+  hotel_midrise: { name: "Hotel (Midrise)", wifiMultiplier: 2.2, avgDwell: "1-3 nights" },
+  coworking: { name: "Co-Working Space", wifiMultiplier: 2.0, avgDwell: "4-8 hrs" },
+  medical_office: { name: "Medical Office", wifiMultiplier: 1.4, avgDwell: "30-60 min" },
+  hair_salon: { name: "Hair Salon", wifiMultiplier: 1.5, avgDwell: "45-90 min" },
+  airport: { name: "Airport", wifiMultiplier: 2.3, avgDwell: "1-4 hrs" },
+  library: { name: "Library", wifiMultiplier: 1.8, avgDwell: "1-4 hrs" },
+  college: { name: "College/University", wifiMultiplier: 2.0, avgDwell: "2-8 hrs" },
+}
 
 interface User {
   id: string
@@ -122,6 +257,33 @@ export default function AdminPortalPage() {
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
   const [submissionStats, setSubmissionStats] = useState({ total: 0, new: 0, reviewed: 0, approved: 0, rejected: 0 })
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
+
+  // Pipeline state
+  const [partners, setPartners] = useState<LocationPartner[]>([])
+  const [pipelineLoading, setPipelineLoading] = useState(false)
+
+  // Settings state
+  const [settingsTab, setSettingsTab] = useState<'dropdowns' | 'stages' | 'calendly' | 'emails'>('emails')
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(DEFAULT_EMAIL_TEMPLATES)
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
+  const [dropdowns, setDropdowns] = useState<Dropdown[]>([])
+  const [calendlyLinks, setCalendlyLinks] = useState<CalendlyLink[]>([])
+
+  // Payments state
+  const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
+
+  // User modal states
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [showUserModal, setShowUserModal] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteUserType, setInviteUserType] = useState('Location Partner')
+  const [inviteSending, setInviteSending] = useState(false)
+  
+  // Additional calculator state
+  const [calcVenue, setCalcVenue] = useState<string>('cafe_coffee')
+  const [calcRatePerGB, setCalcRatePerGB] = useState(0.50)
+  const [calcInsideAdoption, setCalcInsideAdoption] = useState(35)
 
   // Load approved IDs from localStorage on mount
   useEffect(() => {
@@ -265,6 +427,73 @@ export default function AdminPortalPage() {
     }
   }
 
+  // Fetch pipeline partners
+  const fetchPipeline = async () => {
+    setPipelineLoading(true)
+    try {
+      const res = await fetch('/api/pipeline/partners')
+      if (res.ok) {
+        const data = await res.json()
+        setPartners(data.partners || [])
+      }
+    } catch (err) {
+      console.error('Error fetching pipeline:', err)
+    } finally {
+      setPipelineLoading(false)
+    }
+  }
+
+  // Fetch dropdowns for settings
+  const fetchDropdowns = async () => {
+    try {
+      const res = await fetch('/api/pipeline/dropdowns')
+      if (res.ok) {
+        const data = await res.json()
+        setDropdowns(data.dropdowns || [])
+      }
+    } catch (err) {
+      console.error('Error fetching dropdowns:', err)
+    }
+  }
+
+  // Fetch calendly links
+  const fetchCalendlyLinks = async () => {
+    try {
+      const res = await fetch('/api/pipeline/calendly')
+      if (res.ok) {
+        const data = await res.json()
+        setCalendlyLinks(data.eventTypes || [])
+      }
+    } catch (err) {
+      console.error('Error fetching calendly:', err)
+    }
+  }
+
+  // Send user invite
+  const sendInvite = async () => {
+    if (!inviteEmail.trim()) return
+    setInviteSending(true)
+    try {
+      await fetch('/api/pipeline/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateId: 'portalInvite',
+          to: inviteEmail,
+          variables: { name: inviteEmail.split('@')[0], userType: inviteUserType }
+        }),
+      })
+      alert(`Invitation sent to ${inviteEmail}!`)
+      setShowInviteModal(false)
+      setInviteEmail('')
+    } catch (err) {
+      console.error('Error sending invite:', err)
+      alert('Failed to send invitation')
+    } finally {
+      setInviteSending(false)
+    }
+  }
+
   // Update submission status
   const updateSubmissionStatus = async (submissionId: string, status: string) => {
     try {
@@ -300,9 +529,15 @@ export default function AdminPortalPage() {
       fetchForms()
       fetchSubmissions()
     }
+    if (activeTab === 'pipeline') fetchPipeline()
+    if (activeTab === 'settings') {
+      fetchDropdowns()
+      fetchCalendlyLinks()
+    }
     if (activeTab === 'overview') {
       fetchUsers()
       fetchProducts()
+      fetchPipeline()
     }
   }, [activeTab])
 
@@ -442,11 +677,14 @@ export default function AdminPortalPage() {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
+    { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
     { id: 'products', label: 'Store Products', icon: ShoppingBag },
     { id: 'approved-products', label: 'Approved Products', icon: Star },
     { id: 'blog', label: 'Blog', icon: FileText },
     { id: 'forms', label: 'Forms', icon: ClipboardList },
     { id: 'calculators', label: 'Calculators', icon: Calculator },
+    { id: 'payments', label: 'Payments', icon: Wallet },
+    { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   ]
 
@@ -514,6 +752,13 @@ export default function AdminPortalPage() {
                 Welcome back, {user?.firstName}! Manage your platform.
               </p>
             </div>
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />
+              Invite User
+            </button>
           </div>
 
           {/* Tabs */}
@@ -719,7 +964,11 @@ export default function AdminPortalPage() {
                     </tr>
                   ) : (
                     filteredUsers.map(u => (
-                      <tr key={u.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
+                      <tr 
+                        key={u.id} 
+                        className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30 cursor-pointer"
+                        onClick={() => { setSelectedUser(u); setShowUserModal(true) }}
+                      >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <img 
@@ -747,7 +996,7 @@ export default function AdminPortalPage() {
                           {new Date(u.createdAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                             {u.status !== 'approved' && (
                               <button
                                 onClick={() => updateUserStatus(u.id, 'approved')}
@@ -766,6 +1015,13 @@ export default function AdminPortalPage() {
                                 <X className="w-4 h-4" />
                               </button>
                             )}
+                            <button
+                              onClick={() => { setSelectedUser(u); setShowUserModal(true) }}
+                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1861,6 +2117,313 @@ export default function AdminPortalPage() {
           </div>
         )}
 
+        {/* Pipeline Tab */}
+        {activeTab === 'pipeline' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Partner Pipeline</h2>
+                <p className="text-[#94A3B8] text-sm">Track partner onboarding progress</p>
+              </div>
+              <button
+                onClick={fetchPipeline}
+                disabled={pipelineLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${pipelineLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+
+            {/* Pipeline Stages Summary */}
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {PIPELINE_STAGES.map(stage => {
+                const count = partners.filter(p => p.stage === stage.id).length
+                return (
+                  <div key={stage.id} className={`flex-shrink-0 px-4 py-2 rounded-lg border-l-4 ${stage.color} bg-[#1A1F3A]`}>
+                    <div className="text-white font-medium text-sm">{stage.name}</div>
+                    <div className="text-2xl font-bold text-white">{count}</div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Partners Table */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+              {pipelineLoading ? (
+                <div className="p-12 text-center text-[#64748B]">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
+                  Loading pipeline...
+                </div>
+              ) : partners.length === 0 ? (
+                <div className="p-12 text-center text-[#64748B]">
+                  <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No partners in pipeline</p>
+                  <p className="text-sm mt-1">Partners will appear here when they apply</p>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#2D3B5F]">
+                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Partner</th>
+                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Company</th>
+                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Stage</th>
+                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Location</th>
+                      <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partners.map(partner => (
+                      <tr key={partner.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
+                        <td className="px-6 py-4">
+                          <div className="text-white font-medium">{partner.contactFullName}</div>
+                          <div className="text-[#64748B] text-sm">{partner.contactEmail}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-white">{partner.companyLegalName}</div>
+                          {partner.companyDBA && <div className="text-[#64748B] text-sm">DBA: {partner.companyDBA}</div>}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            PIPELINE_STAGES.find(s => s.id === partner.stage)?.bgColor || 'bg-gray-500'
+                          } bg-opacity-20 text-white`}>
+                            {PIPELINE_STAGES.find(s => s.id === partner.stage)?.name || partner.stage}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-[#94A3B8]">
+                          {partner.companyCity}, {partner.companyState}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <Link
+                              href={`/admin/pipeline/partners/${partner.id}`}
+                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Payments Tab */}
+        {activeTab === 'payments' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold text-white">Payments & Invoices</h2>
+              <p className="text-[#94A3B8] text-sm">Manage partner payments through Tipalti</p>
+            </div>
+
+            {/* View Type Tabs */}
+            <div className="flex gap-2 border-b border-[#2D3B5F]">
+              {[
+                { id: 'paymentHistory', label: 'Payment History' },
+                { id: 'invoiceHistory', label: 'Invoice History' },
+                { id: 'paymentDetails', label: 'Payment Details' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setPaymentsViewType(tab.id as any)}
+                  className={`px-4 py-2 border-b-2 transition-colors ${
+                    paymentsViewType === tab.id
+                      ? 'border-[#0EA5E9] text-white'
+                      : 'border-transparent text-[#94A3B8] hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tipalti iFrame */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+              <TipaltiIFrame 
+                payeeId="admin_at_skyyield.io"
+                viewType={paymentsViewType}
+                environment="sandbox"
+              />
+            </div>
+
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+              <p className="text-[#94A3B8] text-sm">
+                <strong className="text-white">Note:</strong> Payment processing is handled securely by Tipalti.
+                Partners can update payment details, view past payments, and download invoices.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold text-white">System Settings</h2>
+              <p className="text-[#94A3B8] text-sm">Configure email templates, dropdowns, and integrations</p>
+            </div>
+
+            {/* Settings Sub-tabs */}
+            <div className="flex gap-2 border-b border-[#2D3B5F]">
+              {[
+                { id: 'emails', label: 'Email Templates', icon: Mail },
+                { id: 'dropdowns', label: 'Dropdowns', icon: List },
+                { id: 'calendly', label: 'Calendly', icon: Calendar },
+                { id: 'stages', label: 'Pipeline Stages', icon: GitBranch },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setSettingsTab(tab.id as any)}
+                  className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                    settingsTab === tab.id
+                      ? 'border-[#0EA5E9] text-white'
+                      : 'border-transparent text-[#94A3B8] hover:text-white'
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Email Templates */}
+            {settingsTab === 'emails' && (
+              <div className="space-y-4">
+                {emailTemplates.map(template => (
+                  <div key={template.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-5 h-5 text-[#0EA5E9]" />
+                        <div>
+                          <h3 className="text-white font-medium">{template.name}</h3>
+                          <p className="text-[#64748B] text-sm">{template.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          template.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {template.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <button
+                          onClick={() => setEditingTemplate(template)}
+                          className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-[#0A0F2C] rounded-lg p-4">
+                      <div className="text-[#94A3B8] text-sm mb-2">
+                        <strong>Subject:</strong> {template.subject}
+                      </div>
+                      <div className="text-[#64748B] text-sm">
+                        <strong>Trigger:</strong> {template.trigger}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Dropdowns */}
+            {settingsTab === 'dropdowns' && (
+              <div className="space-y-4">
+                {dropdowns.length === 0 ? (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <List className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
+                    <p className="text-[#94A3B8]">No dropdowns configured</p>
+                  </div>
+                ) : (
+                  dropdowns.map(dropdown => (
+                    <div key={dropdown.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-white font-medium">{dropdown.name}</h3>
+                          <p className="text-[#64748B] text-sm">{dropdown.options.length} options</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {dropdown.options.slice(0, 10).map(opt => (
+                          <span key={opt.value} className="px-2 py-1 bg-[#0A0F2C] text-[#94A3B8] rounded text-xs">
+                            {opt.label}
+                          </span>
+                        ))}
+                        {dropdown.options.length > 10 && (
+                          <span className="px-2 py-1 bg-[#2D3B5F] text-[#64748B] rounded text-xs">
+                            +{dropdown.options.length - 10} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Calendly */}
+            {settingsTab === 'calendly' && (
+              <div className="space-y-4">
+                {calendlyLinks.length === 0 ? (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <Calendar className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
+                    <p className="text-[#94A3B8]">No Calendly links configured</p>
+                    <p className="text-[#64748B] text-sm mt-2">Connect your Calendly account to manage event types</p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {calendlyLinks.map(link => (
+                      <div key={link.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: link.color || '#0EA5E9' }} />
+                          <h3 className="text-white font-medium">{link.name}</h3>
+                        </div>
+                        <p className="text-[#64748B] text-sm mb-3">{link.description || 'No description'}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#94A3B8] text-sm">{link.duration} min</span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(link.url)
+                              setCopiedLink(link.id)
+                              setTimeout(() => setCopiedLink(null), 2000)
+                            }}
+                            className="flex items-center gap-1 px-3 py-1 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
+                          >
+                            {copiedLink === link.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            {copiedLink === link.id ? 'Copied!' : 'Copy Link'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Pipeline Stages */}
+            {settingsTab === 'stages' && (
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                <div className="space-y-3">
+                  {PIPELINE_STAGES.map((stage, index) => (
+                    <div key={stage.id} className={`flex items-center gap-4 p-3 bg-[#0A0F2C] rounded-lg border-l-4 ${stage.color}`}>
+                      <GripVertical className="w-5 h-5 text-[#64748B]" />
+                      <div className="flex-1">
+                        <div className="text-white font-medium">{stage.name}</div>
+                        <div className="text-[#64748B] text-xs">{stage.id}</div>
+                      </div>
+                      <span className="text-[#64748B] text-sm">Stage {index + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Analytics Tab */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
@@ -1874,6 +2437,223 @@ export default function AdminPortalPage() {
           </div>
         )}
       </div>
+
+      {/* User Detail Modal */}
+      {showUserModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">User Details</h2>
+              <button onClick={() => setShowUserModal(false)} className="p-2 text-[#64748B] hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="flex items-center gap-4">
+                <img
+                  src={selectedUser.imageUrl || `https://ui-avatars.com/api/?name=${selectedUser.firstName}+${selectedUser.lastName}&background=0EA5E9&color=fff`}
+                  alt=""
+                  className="w-20 h-20 rounded-full"
+                />
+                <div>
+                  <h3 className="text-2xl font-bold text-white">
+                    {selectedUser.firstName} {selectedUser.lastName}
+                  </h3>
+                  <p className="text-[#94A3B8]">{selectedUser.email}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(selectedUser.userType)}`}>
+                      {selectedUser.userType || 'Unknown'}
+                    </span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedUser.status)}`}>
+                      {selectedUser.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
+                  <div className="text-[#64748B] text-sm mb-1">User ID</div>
+                  <div className="text-white font-mono text-sm break-all">{selectedUser.id}</div>
+                </div>
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
+                  <div className="text-[#64748B] text-sm mb-1">Joined</div>
+                  <div className="text-white">{new Date(selectedUser.createdAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {selectedUser.status !== 'approved' && (
+                  <button
+                    onClick={() => { updateUserStatus(selectedUser.id, 'approved'); setShowUserModal(false) }}
+                    className="flex-1 py-3 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors font-medium"
+                  >
+                    Approve User
+                  </button>
+                )}
+                {selectedUser.status !== 'rejected' && (
+                  <button
+                    onClick={() => { updateUserStatus(selectedUser.id, 'rejected'); setShowUserModal(false) }}
+                    className="flex-1 py-3 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors font-medium"
+                  >
+                    Reject User
+                  </button>
+                )}
+              </div>
+
+              <div className="border-t border-[#2D3B5F] pt-6">
+                <h4 className="text-white font-medium mb-3">Quick Actions</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] transition-colors text-sm text-left">
+                    <Mail className="w-4 h-4 mb-1" />
+                    Send Portal Invite
+                  </button>
+                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] transition-colors text-sm text-left">
+                    <Wallet className="w-4 h-4 mb-1" />
+                    Send Tipalti Invite
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite User Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-md w-full">
+            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">Invite User</h2>
+              <button onClick={() => setShowInviteModal(false)} className="p-2 text-[#64748B] hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[#94A3B8] text-sm mb-2">User Type</label>
+                <select
+                  value={inviteUserType}
+                  onChange={(e) => setInviteUserType(e.target.value)}
+                  className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                >
+                  {USER_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[#94A3B8] text-sm mb-2">Email Address</label>
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
+                />
+              </div>
+
+              <button
+                onClick={sendInvite}
+                disabled={inviteSending || !inviteEmail.trim()}
+                className="w-full py-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {inviteSending ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Send Invitation
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Template Edit Modal */}
+      {editingTemplate && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">Edit Email Template</h2>
+              <button onClick={() => setEditingTemplate(null)} className="p-2 text-[#64748B] hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[#94A3B8] text-sm mb-2">Template Name</label>
+                <input
+                  type="text"
+                  value={editingTemplate.name}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#94A3B8] text-sm mb-2">Subject Line</label>
+                <input
+                  type="text"
+                  value={editingTemplate.subject}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#94A3B8] text-sm mb-2">Greeting</label>
+                <input
+                  type="text"
+                  value={editingTemplate.greeting}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, greeting: e.target.value })}
+                  className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-[#94A3B8]">
+                  <input
+                    type="checkbox"
+                    checked={editingTemplate.enabled}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, enabled: e.target.checked })}
+                    className="w-4 h-4 rounded border-[#2D3B5F]"
+                  />
+                  Template Enabled
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4 border-t border-[#2D3B5F]">
+                <button
+                  onClick={() => setEditingTemplate(null)}
+                  className="flex-1 py-3 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setEmailTemplates(prev => prev.map(t => t.id === editingTemplate.id ? editingTemplate : t))
+                    setEditingTemplate(null)
+                  }}
+                  className="flex-1 py-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors font-medium flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  Save Template
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
