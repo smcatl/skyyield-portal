@@ -1,252 +1,364 @@
 'use client'
 
-import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, Suspense } from 'react'
+import { signIn } from "next-auth/react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react"
 
-function LoginForm() {
+export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [showError, setShowError] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+  // Show error from URL params
+  useEffect(() => {
+    if (searchParams.get('error')) {
+      setShowError(true)
+    }
+  }, [searchParams])
 
-    const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
-    const password = formData.get('password') as string
-
-    try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        setError('Invalid email or password')
-        setLoading(false)
-      } else if (result?.ok) {
-        router.push('/dashboard')
-        router.refresh()
-      }
-    } catch (error) {
-      console.error('Login error:', error)
-      setError('An error occurred. Please try again.')
-      setLoading(false)
+  // Clear error when user interacts with form
+  const clearError = () => {
+    if (showError) {
+      setShowError(false)
+      router.replace('/login') // Remove error from URL
     }
   }
+
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setIsLoading(true)
+    setShowError(false)
+    
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+    const userType = formData.get("userType") as string
+    
+    if (!userType) {
+      setIsLoading(false)
+      setShowError(true)
+      return
+    }
+    
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        userType,
+        redirect: false,
+      })
+      
+      console.log('SignIn result:', result)
+      
+      if (result?.ok && !result?.error) {
+        window.location.href = `/portals/${userType}`
+      } else {
+        setShowError(true)
+        setIsLoading(false)
+      }
+    } catch (err) {
+      console.error('Login error:', err)
+      setShowError(true)
+      setIsLoading(false)
+    }
+  }
+
+  const portalTypes = [
+    { value: 'referral', label: 'Referral Partner' },
+    { value: 'location', label: 'Location Partner' },
+    { value: 'relationship', label: 'Relationship Partner' },
+    { value: 'channel', label: 'Channel Partner' },
+    { value: 'contractor', label: 'Contractor' },
+    { value: 'employee', label: 'Employee' },
+    { value: 'admin', label: 'Administrator' },
+  ]
 
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#0a0a0a',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+      background: 'linear-gradient(135deg, #0A0F2C 0%, #0B0E28 100%)',
+      position: 'relative',
+      overflow: 'hidden'
     }}>
+      {/* Background decoration */}
       <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        opacity: 0.03,
+        backgroundImage: 'radial-gradient(circle at 50% 50%, #0EA5E9 0%, transparent 50%)'
+      }}></div>
+
+      <div style={{
+        backgroundColor: '#1A1F3A',
+        padding: '48px',
+        borderRadius: '16px',
+        border: '1px solid #2D3B5F',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
         width: '100%',
-        maxWidth: '420px',
-        padding: '2rem'
+        maxWidth: '440px',
+        position: 'relative',
+        zIndex: 1
       }}>
         {/* Logo */}
         <div style={{
-          textAlign: 'center',
-          marginBottom: '3rem'
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '32px',
+          justifyContent: 'center'
         }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            background: 'linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <span style={{
+              color: '#FFFFFF',
+              fontSize: '20px',
+              fontWeight: 'bold'
+            }}>
+              S
+            </span>
+          </div>
           <h1 style={{
-            fontSize: '32px',
-            fontWeight: '600',
-            color: '#ffffff',
-            marginBottom: '8px',
-            letterSpacing: '-0.02em'
+            fontSize: '28px',
+            fontWeight: 'bold',
+            color: '#FFFFFF',
+            margin: 0
           }}>
             SkyYield
           </h1>
-          <p style={{
-            fontSize: '14px',
-            color: '#666666',
-            fontWeight: '400'
-          }}>
-            Partner Portal
-          </p>
         </div>
-
-        {/* Login Form */}
-        <div style={{
-          backgroundColor: '#111111',
-          border: '1px solid #222222',
-          borderRadius: '12px',
-          padding: '32px'
+        
+        <p style={{
+          color: '#94A3B8',
+          textAlign: 'center',
+          marginBottom: '32px',
+          fontSize: '15px'
         }}>
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '24px' }}>
-              <label
-                htmlFor="email"
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  color: '#ffffff',
-                  marginBottom: '8px',
-                  letterSpacing: '-0.01em'
-                }}
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                defaultValue="test@skyyield.com"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  backgroundColor: '#0a0a0a',
-                  border: '1px solid #333333',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  color: '#ffffff',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = '#555555'}
-                onBlur={(e) => e.currentTarget.style.borderColor = '#333333'}
-              />
-            </div>
+          Partner Portal Access
+        </p>
 
-            <div style={{ marginBottom: '24px' }}>
-              <label
-                htmlFor="password"
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  color: '#ffffff',
-                  marginBottom: '8px',
-                  letterSpacing: '-0.01em'
-                }}
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                defaultValue="test123"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  backgroundColor: '#0a0a0a',
-                  border: '1px solid #333333',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  color: '#ffffff',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = '#555555'}
-                onBlur={(e) => e.currentTarget.style.borderColor = '#333333'}
-              />
-            </div>
-
-            {(error || searchParams?.get('error')) && (
-              <div style={{
-                padding: '12px',
-                backgroundColor: '#2a1a1a',
-                border: '1px solid #4a2222',
-                borderRadius: '6px',
-                marginBottom: '24px'
-              }}>
-                <p style={{
-                  fontSize: '13px',
-                  color: '#ff6b6b',
-                  margin: 0
-                }}>
-                  {error || 'Invalid email or password'}
-                </p>
-              </div>
-            )}
-
+        {/* Error Message */}
+        {showError && (
+          <div style={{
+            padding: '14px 16px',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '8px',
+            marginBottom: '24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <p style={{ 
+              color: '#FCA5A5', 
+              margin: 0, 
+              fontSize: '14px'
+            }}>
+              Invalid credentials for selected portal type
+            </p>
             <button
-              type="submit"
-              disabled={loading}
+              onClick={() => setShowError(false)}
               style={{
-                width: '100%',
-                padding: '12px',
-                backgroundColor: '#ffffff',
-                color: '#0a0a0a',
+                background: 'none',
                 border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1,
-                transition: 'all 0.2s',
-                letterSpacing: '-0.01em'
-              }}
-              onMouseOver={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.backgroundColor = '#f5f5f5'
-                }
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = '#ffffff'
+                color: '#FCA5A5',
+                cursor: 'pointer',
+                fontSize: '18px',
+                padding: '0 4px'
               }}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              ×
             </button>
-          </form>
-        </div>
-
-        {/* Test Credentials */}
-        <div style={{
-          marginTop: '24px',
-          padding: '16px',
-          backgroundColor: '#111111',
-          border: '1px solid #222222',
-          borderRadius: '8px'
-        }}>
-          <p style={{
-            fontSize: '12px',
-            color: '#666666',
-            margin: 0,
-            marginBottom: '8px',
-            fontWeight: '500',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-          }}>
-            Test Credentials
-          </p>
-          <div style={{
-            fontSize: '13px',
-            color: '#888888',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
-          }}>
-            <div style={{ marginBottom: '4px' }}>test@skyyield.com</div>
-            <div>test123</div>
           </div>
+        )}
+
+        <form onSubmit={handleLogin}>
+          {/* Portal Type Selector */}
+          <div style={{ marginBottom: '20px' }}>
+            <label 
+              htmlFor="userType"
+              style={{
+                display: 'block',
+                marginBottom: '8px',
+                fontWeight: '500',
+                color: '#FFFFFF',
+                fontSize: '14px'
+              }}
+            >
+              I am a...
+            </label>
+            <select
+              id="userType"
+              name="userType"
+              required
+              onChange={clearError}
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                backgroundColor: '#0A0F2C',
+                border: '1px solid #2D3B5F',
+                borderRadius: '8px',
+                fontSize: '15px',
+                color: '#FFFFFF',
+                boxSizing: 'border-box',
+                outline: 'none',
+                cursor: 'pointer',
+                appearance: 'none',
+                backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%2394A3B8\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 16px center'
+              }}
+            >
+              <option value="" style={{ backgroundColor: '#0A0F2C' }}>
+                Select portal type...
+              </option>
+              {portalTypes.map(type => (
+                <option 
+                  key={type.value} 
+                  value={type.value}
+                  style={{ backgroundColor: '#0A0F2C' }}
+                >
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Email Field */}
+          <div style={{ marginBottom: '20px' }}>
+            <label 
+              htmlFor="email"
+              style={{
+                display: 'block',
+                marginBottom: '8px',
+                fontWeight: '500',
+                color: '#FFFFFF',
+                fontSize: '14px'
+              }}
+            >
+              Email Address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              placeholder="partner@example.com"
+              onChange={clearError}
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                backgroundColor: '#0A0F2C',
+                border: '1px solid #2D3B5F',
+                borderRadius: '8px',
+                fontSize: '15px',
+                color: '#FFFFFF',
+                boxSizing: 'border-box',
+                outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Password Field */}
+          <div style={{ marginBottom: '28px' }}>
+            <label 
+              htmlFor="password"
+              style={{
+                display: 'block',
+                marginBottom: '8px',
+                fontWeight: '500',
+                color: '#FFFFFF',
+                fontSize: '14px'
+              }}
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              placeholder="••••••••"
+              onChange={clearError}
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                backgroundColor: '#0A0F2C',
+                border: '1px solid #2D3B5F',
+                borderRadius: '8px',
+                fontSize: '15px',
+                color: '#FFFFFF',
+                boxSizing: 'border-box',
+                outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            style={{
+              width: '100%',
+              padding: '14px',
+              background: isLoading 
+                ? '#64748B' 
+                : 'linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+              transition: 'all 0.2s'
+            }}
+          >
+            {isLoading ? 'Signing In...' : 'Sign In'}
+          </button>
+        </form>
+
+        {/* Test Credentials Info */}
+        <div style={{
+          marginTop: '28px',
+          padding: '16px',
+          backgroundColor: 'rgba(14, 165, 233, 0.1)',
+          borderRadius: '8px',
+          border: '1px solid rgba(14, 165, 233, 0.2)'
+        }}>
+          <p style={{ 
+            fontSize: '13px', 
+            color: '#0EA5E9',
+            margin: '0 0 8px 0',
+            fontWeight: '600'
+          }}>
+            Test Credentials:
+          </p>
+          <p style={{ 
+            fontSize: '12px', 
+            color: '#94A3B8',
+            margin: 0,
+            lineHeight: '1.6'
+          }}>
+            Portal: Referral Partner<br />
+            Email: referral@skyyield.com<br />
+            Password: test123
+          </p>
         </div>
       </div>
     </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <LoginForm />
-    </Suspense>
   )
 }

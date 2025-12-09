@@ -1,0 +1,24 @@
+{
+  "articles": [
+    {
+      "id": "article-1765114882049",
+      "slug": "test-article",
+      "title": "Test Article",
+      "summary": "This is a test",
+      "content": "## Test\n\nTest content here.",
+      "image": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80",
+      "author": "SkyYield Team",
+      "authorRole": "Content Team",
+      "authorBio": "The SkyYield content team curates the latest news and insights about WiFi offloading and wireless technology.",
+      "publishedAt": "2025-12-07",
+      "readTime": "1 min read",
+      "category": "Technology",
+      "tags": [
+        "test"
+      ],
+      "status": "pending",
+      "createdAt": "2025-12-07T13:41:22.049Z",
+      "updatedAt": "2025-12-07T13:41:22.049Z"
+    }
+  ]
+}

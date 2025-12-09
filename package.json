@@ -10,10 +10,16 @@
   },
   "dependencies": {
     "@base44/sdk": "^0.8.3",
-    "next": "16.0.1",
+    "@clerk/nextjs": "^6.36.0",
+    "@clerk/themes": "^2.4.42",
+    "lucide-react": "^0.556.0",
+    "next": "^16.0.7",
     "next-auth": "^5.0.0-beta.30",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "react-hot-toast": "^2.6.0",
+    "stripe": "^20.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
