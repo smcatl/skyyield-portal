@@ -2,6 +2,7 @@
 
 import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
+import CryptoPriceHeader from '@/components/CryptoPriceHeader'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { 
@@ -540,6 +541,9 @@ export default function AdminPortalPage() {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* Crypto Prices */}
+            <CryptoPriceHeader />
+            
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
