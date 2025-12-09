@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Wifi } from 'lucide-react'
+import { Wifi, Loader2 } from 'lucide-react'
 
 const userTypes = [
   { value: 'referral', label: 'Referral Partner' },
@@ -16,7 +16,18 @@ const userTypes = [
   { value: 'customer', label: 'Customer' },
 ]
 
-export default function CompleteSignupPage() {
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 text-[#0EA5E9] animate-spin mx-auto mb-4" />
+        <p className="text-[#94A3B8]">Loading...</p>
+      </div>
+    </div>
+  )
+}
+
+function CompleteSignupForm() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -25,7 +36,6 @@ export default function CompleteSignupPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // Check if userType was passed from OAuth redirect
     const typeParam = searchParams.get('userType')
     if (typeParam) {
       setUserType(typeParam)
@@ -33,7 +43,6 @@ export default function CompleteSignupPage() {
   }, [searchParams])
 
   useEffect(() => {
-    // If user already has a type set, redirect to pending
     if (isLoaded && user?.unsafeMetadata?.userType) {
       router.push('/pending-approval')
     }
@@ -75,7 +84,6 @@ export default function CompleteSignupPage() {
     <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-2xl p-8">
-          {/* Header */}
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2 mb-4">
               <div className="w-12 h-12 bg-gradient-to-br from-[#0EA5E9] to-[#06B6D4] rounded-xl flex items-center justify-center">
@@ -87,7 +95,6 @@ export default function CompleteSignupPage() {
             <p className="text-[#94A3B8] mt-1">One more step to finish signing up</p>
           </div>
 
-          {/* User Info */}
           {user && (
             <div className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-xl p-4 mb-6 flex items-center gap-3">
               <img
@@ -106,7 +113,6 @@ export default function CompleteSignupPage() {
             </div>
           )}
 
-          {/* User Type Selection Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm text-[#94A3B8] mb-2">What best describes you? *</label>
@@ -136,5 +142,13 @@ export default function CompleteSignupPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CompleteSignupPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <CompleteSignupForm />
+    </Suspense>
   )
 }
