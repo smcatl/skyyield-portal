@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { 
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3, 
   CheckCircle, Clock, Package, TrendingUp,
-  RefreshCw, Check, X, Search, Plus, Edit, Trash2, Eye, Star,
+  RefreshCw, Check, X, Search, Plus, Edit, Edit3, Trash2, Eye, Star,
   Upload, ToggleLeft, ToggleRight, Calculator, MapPin, Target, 
   Activity, DollarSign, Building2, Lock, ClipboardList, ExternalLink,
   Copy, Inbox, Settings, Mail, Calendar, Send, GitBranch, List,
@@ -184,6 +184,116 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     footerText: "Can't make the available times? Reply to this email."
   },
   {
+    id: 'applicationDenied', name: 'Application Denied',
+    subject: 'SkyYield Application Update',
+    description: 'Sent when admin denies initial application',
+    trigger: 'Initial Review → Denied', hasCalendly: false, enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: [
+      "Thank you for your interest in partnering with SkyYield.",
+      "After reviewing your application, we've determined that {{company}} isn't the right fit for our program at this time.",
+      "This decision may be based on location, venue type, or current network capacity. We encourage you to reapply in the future."
+    ],
+    ctaText: '', ctaType: 'none',
+    footerText: 'Questions? Reply to this email.'
+  },
+  {
+    id: 'postCallApproved', name: 'Post-Discovery Approved',
+    subject: '✅ Next Steps: Add Your Venues',
+    description: 'Sent after successful discovery call',
+    trigger: 'Discovery → Post-Call Approved', hasCalendly: false, enabled: true,
+    greeting: 'Great talking with you, {{name}}!',
+    bodyParagraphs: [
+      "Thanks for taking the time to discuss {{company}} with us. We're excited to move forward!",
+      "Your next step is to add your venue details. This helps us prepare the right equipment and estimate your earnings potential."
+    ],
+    ctaText: 'Add Venue Details', ctaType: 'custom',
+    footerText: 'Need help? Reply to this email or call us at (678) 203-5517.'
+  },
+  {
+    id: 'postCallDenied', name: 'Post-Discovery Declined',
+    subject: 'SkyYield Partnership Update',
+    description: 'Sent after discovery call if not proceeding',
+    trigger: 'Discovery → Post-Call Denied', hasCalendly: false, enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: [
+      "Thank you for speaking with us about {{company}}.",
+      "After our discovery call, we've determined that we're not able to move forward with a partnership at this time.",
+      "This could be due to technical requirements, location constraints, or other factors. Feel free to reach out in the future if circumstances change."
+    ],
+    ctaText: '', ctaType: 'none',
+    footerText: 'We appreciate your interest in SkyYield.'
+  },
+  {
+    id: 'loiSent', name: 'LOI Sent',
+    subject: '📝 Your SkyYield Letter of Intent is Ready',
+    description: 'Sent when LOI document is sent via PandaDoc',
+    trigger: 'Venues Setup → LOI Sent', hasCalendly: false, enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: [
+      "Great news! We've prepared your Letter of Intent for {{company}}.",
+      "This document outlines the terms of our trial partnership, including equipment installation, revenue sharing, and trial period details.",
+      "Please review and sign the document at your earliest convenience."
+    ],
+    ctaText: 'Review & Sign LOI', ctaType: 'custom',
+    footerText: 'Questions about the terms? Reply to this email or call us.'
+  },
+  {
+    id: 'loiSigned', name: 'LOI Signed - Schedule Install',
+    subject: '🎉 LOI Signed! Let\'s Schedule Your Installation',
+    description: 'Sent when partner signs LOI',
+    trigger: 'LOI Sent → LOI Signed', hasCalendly: true, enabled: true,
+    greeting: 'Congratulations, {{name}}!',
+    bodyParagraphs: [
+      "We've received your signed Letter of Intent. Welcome to the SkyYield family!",
+      "Next up: Let's schedule your equipment installation. Our technician will come to {{company}} and set everything up - typically takes 30-60 minutes."
+    ],
+    ctaText: 'Schedule Installation', ctaType: 'calendly',
+    footerText: 'Installation typically takes 30-60 minutes. Our tech brings all equipment.'
+  },
+  {
+    id: 'trialStarted', name: 'Trial Started',
+    subject: '🚀 Your SkyYield Trial Has Begun!',
+    description: 'Sent when trial period starts after installation',
+    trigger: 'Install → Trial Active', hasCalendly: false, enabled: true,
+    greeting: 'You\'re live, {{name}}!',
+    bodyParagraphs: [
+      "Your SkyYield equipment is installed and your 60-day trial has officially begun!",
+      "During the trial, you can monitor your network performance and earnings through your Partner Portal.",
+      "Trial End Date: {{trialEndDate}}"
+    ],
+    ctaText: 'View Your Dashboard', ctaType: 'custom',
+    footerText: 'Questions? Your dedicated account manager is here to help.'
+  },
+  {
+    id: 'trialEnding', name: 'Trial Ending - 10 Day Notice',
+    subject: '⏰ Your SkyYield Trial Ends in {{daysRemaining}} Days',
+    description: 'Sent 10 days before trial ends',
+    trigger: 'Auto: 10 days before trial end', hasCalendly: true, enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: [
+      "Your SkyYield trial at {{company}} is coming to an end in {{daysRemaining}} days.",
+      "So far, you've earned ${{trialEarnings}} during your trial period!",
+      "Let's schedule a quick call to review your results and discuss making this a permanent partnership."
+    ],
+    ctaText: 'Schedule Review Call', ctaType: 'calendly',
+    footerText: 'Don\'t want to continue? Let us know and we\'ll schedule equipment pickup.'
+  },
+  {
+    id: 'contractSent', name: 'Deployment Contract Sent',
+    subject: '📄 Your SkyYield Deployment Contract',
+    description: 'Sent when full contract is sent after successful trial',
+    trigger: 'Trial Review → Contract Sent', hasCalendly: false, enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: [
+      "Congratulations on a successful trial! We're ready to make this official.",
+      "We've sent your deployment contract for {{company}}. This document outlines our ongoing partnership terms.",
+      "Your trial earnings of ${{trialEarnings}} demonstrate the potential for continued passive income."
+    ],
+    ctaText: 'Review & Sign Contract', ctaType: 'custom',
+    footerText: 'Questions about the contract? Let\'s schedule a call.'
+  },
+  {
     id: 'portalInvite', name: 'Portal Access Invite',
     subject: '🔐 Your SkyYield Partner Portal is Ready',
     description: 'Manual trigger to send portal access',
@@ -191,40 +301,176 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     greeting: 'Access Your Partner Portal',
     bodyParagraphs: [
       "Hi {{name}},",
-      "Your SkyYield Partner Portal is ready! Click below to activate your account."
+      "Your SkyYield Partner Portal is ready! This is your dashboard for tracking earnings, viewing network status, and managing your account."
     ],
     ctaText: 'Activate Portal Access', ctaType: 'custom',
     footerText: 'Bookmark this link for easy access: portal.skyyield.io'
   },
   {
-    id: 'tipaltiInvite', name: 'Tipalti Payment Invite',
+    id: 'tipaltiInvite', name: 'Tipalti Payment Setup',
     subject: '💰 Set Up Your Payment Account',
     description: 'Manual trigger to send payment setup',
     trigger: 'Manual', hasCalendly: false, enabled: true,
     greeting: 'Set Up Your Payment Account',
     bodyParagraphs: [
       "Hi {{name}},",
-      "To receive your SkyYield earnings, please set up your payment account through Tipalti."
+      "To receive your SkyYield earnings, please set up your payment account through Tipalti.",
+      "Tipalti is our secure payment processor. You can choose direct deposit, PayPal, or check."
     ],
     ctaText: 'Set Up Payments', ctaType: 'custom',
     footerText: 'Payments are processed on the 15th of each month.'
+  },
+  {
+    id: 'reminderCalendly', name: 'Reminder: Schedule Call',
+    subject: '📅 Reminder: Schedule Your SkyYield Call',
+    description: 'Follow-up reminder for unscheduled Calendly',
+    trigger: 'Manual / Auto Follow-up', hasCalendly: true, enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: [
+      "We noticed you haven't scheduled your call yet. We're excited to connect with you!",
+      "Click below to pick a time that works for your schedule."
+    ],
+    ctaText: 'Schedule Now', ctaType: 'calendly',
+    footerText: 'Can\'t find a good time? Reply to this email and we\'ll work something out.'
+  },
+  {
+    id: 'reminderDocument', name: 'Reminder: Sign Document',
+    subject: '📝 Reminder: Your SkyYield Document Awaits',
+    description: 'Follow-up reminder for unsigned PandaDoc',
+    trigger: 'Manual / Auto Follow-up', hasCalendly: false, enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: [
+      "Just a friendly reminder that your document is waiting for your signature.",
+      "If you have any questions about the terms, please don't hesitate to reach out."
+    ],
+    ctaText: 'View Document', ctaType: 'custom',
+    footerText: 'Questions? Reply to this email or call (678) 203-5517.'
   }
 ]
 
-// Calculator venue profiles
-const VENUE_PROFILES: Record<string, { name: string; wifiMultiplier: number; avgDwell: string }> = {
-  restaurant_fastfood: { name: "Fast Food Restaurant", wifiMultiplier: 1.3, avgDwell: "15-25 min" },
-  restaurant_sitdown: { name: "Sit-Down Restaurant", wifiMultiplier: 1.5, avgDwell: "45-90 min" },
-  cafe_coffee: { name: "Café / Coffee Shop", wifiMultiplier: 1.6, avgDwell: "30-60 min" },
-  bar: { name: "Bar", wifiMultiplier: 1.5, avgDwell: "60-120 min" },
-  hotel_single: { name: "Hotel (Single Level)", wifiMultiplier: 2.0, avgDwell: "1-3 nights" },
-  hotel_midrise: { name: "Hotel (Midrise)", wifiMultiplier: 2.2, avgDwell: "1-3 nights" },
-  coworking: { name: "Co-Working Space", wifiMultiplier: 2.0, avgDwell: "4-8 hrs" },
-  medical_office: { name: "Medical Office", wifiMultiplier: 1.4, avgDwell: "30-60 min" },
-  hair_salon: { name: "Hair Salon", wifiMultiplier: 1.5, avgDwell: "45-90 min" },
-  airport: { name: "Airport", wifiMultiplier: 2.3, avgDwell: "1-4 hrs" },
-  library: { name: "Library", wifiMultiplier: 1.8, avgDwell: "1-4 hrs" },
-  college: { name: "College/University", wifiMultiplier: 2.0, avgDwell: "2-8 hrs" },
+// Default Calendly links (will be replaced by API data when connected)
+const DEFAULT_CALENDLY_LINKS: CalendlyLink[] = [
+  {
+    id: 'discovery-call',
+    name: 'Discovery Call',
+    slug: 'skyyield-discovery',
+    url: 'https://calendly.com/skyyield/discovery-call',
+    duration: 30,
+    description: 'Initial conversation to learn about your venue and discuss partnership potential',
+    active: true,
+    color: '#0EA5E9'
+  },
+  {
+    id: 'technical-review',
+    name: 'Technical Review',
+    slug: 'skyyield-technical',
+    url: 'https://calendly.com/skyyield/technical-review',
+    duration: 45,
+    description: 'Deep dive into technical requirements, network setup, and equipment needs',
+    active: true,
+    color: '#8B5CF6'
+  },
+  {
+    id: 'install-scheduling',
+    name: 'Install Scheduling',
+    slug: 'skyyield-install',
+    url: 'https://calendly.com/skyyield/install',
+    duration: 30,
+    description: 'Schedule your equipment installation appointment',
+    active: true,
+    color: '#10B981'
+  },
+  {
+    id: 'trial-review',
+    name: 'Trial Review Call',
+    slug: 'skyyield-trial-review',
+    url: 'https://calendly.com/skyyield/trial-review',
+    duration: 30,
+    description: 'Review your trial results and discuss next steps',
+    active: true,
+    color: '#F59E0B'
+  },
+  {
+    id: 'partner-onboarding',
+    name: 'Partner Onboarding',
+    slug: 'skyyield-onboarding',
+    url: 'https://calendly.com/skyyield/onboarding',
+    duration: 60,
+    description: 'Full onboarding session for new active partners',
+    active: true,
+    color: '#EC4899'
+  },
+  {
+    id: 'support-call',
+    name: 'Support Call',
+    slug: 'skyyield-support',
+    url: 'https://calendly.com/skyyield/support',
+    duration: 15,
+    description: 'Quick support call for existing partners',
+    active: true,
+    color: '#6366F1'
+  }
+]
+
+// Calculator venue profiles - expanded with all venue types
+const VENUE_CATEGORIES: Record<string, string[]> = {
+  "Food & Beverage": ["restaurant_fastfood", "restaurant_sitdown", "cafe_coffee", "bar", "nightclub"],
+  "Retail": ["convenience_gas", "convenience_nogas", "grocery", "retail_small", "retail_bigbox", "mall"],
+  "Residential": ["apartment_single", "apartment_midrise", "apartment_highrise", "student_housing"],
+  "Hospitality": ["hotel_single", "hotel_midrise", "hotel_highrise"],
+  "Services": ["hair_salon", "pet_groomer", "medical_office", "animal_hospital", "daycare"],
+  "Education": ["college", "school_k5", "school_middle", "school_high"],
+  "Recreation": ["dog_park", "stadium", "museum", "library", "gym"],
+  "Transportation": ["airport", "transit_station"],
+  "Workspace": ["coworking", "office_building"],
+}
+
+const VENUE_PROFILES: Record<string, { name: string; wifiMultiplier: number; avgDwell: string; description?: string }> = {
+  // Food & Beverage
+  restaurant_fastfood: { name: "Fast Food Restaurant", wifiMultiplier: 1.3, avgDwell: "15-25 min", description: "Quick service restaurants" },
+  restaurant_sitdown: { name: "Sit-Down Restaurant", wifiMultiplier: 1.5, avgDwell: "45-90 min", description: "Casual & fine dining" },
+  cafe_coffee: { name: "Café / Coffee Shop", wifiMultiplier: 1.6, avgDwell: "30-60 min", description: "Coffee shops, bakeries" },
+  bar: { name: "Bar / Pub", wifiMultiplier: 1.5, avgDwell: "60-120 min", description: "Sports bars, pubs, lounges" },
+  nightclub: { name: "Nightclub", wifiMultiplier: 1.4, avgDwell: "2-4 hrs", description: "Dance clubs, venues" },
+  // Retail
+  convenience_gas: { name: "Convenience Store (w/ Gas)", wifiMultiplier: 1.2, avgDwell: "5-10 min", description: "Gas stations with stores" },
+  convenience_nogas: { name: "Convenience Store", wifiMultiplier: 1.2, avgDwell: "5-15 min", description: "Standalone convenience stores" },
+  grocery: { name: "Grocery Store", wifiMultiplier: 1.3, avgDwell: "20-45 min", description: "Supermarkets, grocery chains" },
+  retail_small: { name: "Retail Store", wifiMultiplier: 1.3, avgDwell: "15-30 min", description: "Boutiques, specialty stores" },
+  retail_bigbox: { name: "Big Box Retail", wifiMultiplier: 1.3, avgDwell: "30-60 min", description: "Target, Walmart, Costco" },
+  mall: { name: "Shopping Mall", wifiMultiplier: 1.5, avgDwell: "1-3 hrs", description: "Indoor malls, outlets" },
+  // Residential
+  apartment_single: { name: "Apartment (Single Level)", wifiMultiplier: 2.0, avgDwell: "Resident", description: "Garden-style apartments" },
+  apartment_midrise: { name: "Apartment (Midrise)", wifiMultiplier: 2.0, avgDwell: "Resident", description: "4-12 story apartments" },
+  apartment_highrise: { name: "Apartment (Highrise)", wifiMultiplier: 2.0, avgDwell: "Resident", description: "12+ story apartments" },
+  student_housing: { name: "Student Housing", wifiMultiplier: 2.2, avgDwell: "Resident", description: "Dorms, off-campus housing" },
+  // Hospitality
+  hotel_single: { name: "Hotel (Single Level)", wifiMultiplier: 2.0, avgDwell: "1-3 nights", description: "Motels, budget hotels" },
+  hotel_midrise: { name: "Hotel (Midrise)", wifiMultiplier: 2.2, avgDwell: "1-3 nights", description: "Business hotels, mid-tier" },
+  hotel_highrise: { name: "Hotel (Highrise)", wifiMultiplier: 2.3, avgDwell: "1-5 nights", description: "Full-service, luxury hotels" },
+  // Services
+  hair_salon: { name: "Hair Salon / Spa", wifiMultiplier: 1.5, avgDwell: "45-90 min", description: "Salons, barbershops, spas" },
+  pet_groomer: { name: "Pet Groomer", wifiMultiplier: 1.5, avgDwell: "30-60 min", description: "Pet grooming services" },
+  medical_office: { name: "Medical Office", wifiMultiplier: 1.4, avgDwell: "30-60 min", description: "Clinics, doctor offices" },
+  animal_hospital: { name: "Animal Hospital", wifiMultiplier: 1.4, avgDwell: "30-90 min", description: "Vet clinics, emergency vet" },
+  daycare: { name: "Daycare", wifiMultiplier: 1.2, avgDwell: "Drop-off", description: "Childcare centers" },
+  // Education
+  college: { name: "College/University", wifiMultiplier: 2.0, avgDwell: "2-8 hrs", description: "Higher education campuses" },
+  school_k5: { name: "School (K-5)", wifiMultiplier: 1.3, avgDwell: "Staff hours", description: "Elementary schools" },
+  school_middle: { name: "School (6-8)", wifiMultiplier: 1.4, avgDwell: "Staff hours", description: "Middle schools" },
+  school_high: { name: "School (9-12)", wifiMultiplier: 1.5, avgDwell: "Staff hours", description: "High schools" },
+  // Recreation
+  dog_park: { name: "Dog Park", wifiMultiplier: 1.3, avgDwell: "30-60 min", description: "Off-leash parks" },
+  stadium: { name: "Stadium / Arena", wifiMultiplier: 1.5, avgDwell: "2-4 hrs", description: "Sports venues, concert halls" },
+  museum: { name: "Museum", wifiMultiplier: 1.4, avgDwell: "1-3 hrs", description: "Art, history, science museums" },
+  library: { name: "Library", wifiMultiplier: 1.8, avgDwell: "1-4 hrs", description: "Public & university libraries" },
+  gym: { name: "Gym / Fitness", wifiMultiplier: 1.6, avgDwell: "1-2 hrs", description: "Fitness centers, gyms" },
+  // Transportation
+  airport: { name: "Airport", wifiMultiplier: 2.3, avgDwell: "1-4 hrs", description: "Terminals, lounges" },
+  transit_station: { name: "Transit Station", wifiMultiplier: 1.4, avgDwell: "15-45 min", description: "Bus/train stations" },
+  // Workspace
+  coworking: { name: "Co-Working Space", wifiMultiplier: 2.0, avgDwell: "4-8 hrs", description: "Shared offices, WeWork" },
+  office_building: { name: "Office Building", wifiMultiplier: 1.8, avgDwell: "8+ hrs", description: "Commercial offices" },
 }
 
 interface User {
@@ -272,6 +518,16 @@ interface BlogArticle {
   createdAt: string
 }
 
+interface FormField {
+  id: string
+  type: 'text' | 'email' | 'phone' | 'select' | 'textarea' | 'number' | 'checkbox'
+  label: string
+  name: string
+  required: boolean
+  options?: string[]
+  placeholder?: string
+}
+
 interface Form {
   id: string
   name: string
@@ -283,13 +539,14 @@ interface Form {
   }
   submissionCount: number
   createdAt: string
+  fields?: FormField[]
 }
 
 interface FormSubmission {
   id: string
   formId: string
   formName: string
-  data: Record<string, any>
+  data: Record<string, string | boolean | number>
   submittedAt: string
   status: 'new' | 'reviewed' | 'approved' | 'rejected' | 'archived'
 }
@@ -324,6 +581,10 @@ export default function AdminPortalPage() {
   const [calcHoursOpen, setCalcHoursOpen] = useState(12)
   const [calcDaysOpen, setCalcDaysOpen] = useState(26)
   const [activeCalculator, setActiveCalculator] = useState<string>('earnings')
+  const [calcVenueType, setCalcVenueType] = useState<string>('cafe_coffee')
+  const [calcWifiAdoption, setCalcWifiAdoption] = useState(35)
+  const [calcRatePerGB, setCalcRatePerGB] = useState(0.50)
+  const [calcAddress, setCalcAddress] = useState('')
 
   // Forms state
   const [forms, setForms] = useState<Form[]>([])
@@ -333,10 +594,15 @@ export default function AdminPortalPage() {
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
   const [submissionStats, setSubmissionStats] = useState({ total: 0, new: 0, reviewed: 0, approved: 0, rejected: 0 })
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
+  const [showFormEditorModal, setShowFormEditorModal] = useState(false)
+  const [editingForm, setEditingForm] = useState<Form | null>(null)
+  const [showSubmissionDetailModal, setShowSubmissionDetailModal] = useState(false)
+  const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null)
 
   // Pipeline state
   const [partners, setPartners] = useState<LocationPartner[]>([])
   const [pipelineLoading, setPipelineLoading] = useState(false)
+  const [pipelineStageFilter, setPipelineStageFilter] = useState<string | null>(null)
 
   // Follow-ups state
   const [waitingItems, setWaitingItems] = useState<WaitingItem[]>([])
@@ -362,7 +628,7 @@ export default function AdminPortalPage() {
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(DEFAULT_EMAIL_TEMPLATES)
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
   const [dropdowns, setDropdowns] = useState<Dropdown[]>([])
-  const [calendlyLinks, setCalendlyLinks] = useState<CalendlyLink[]>([])
+  const [calendlyLinks, setCalendlyLinks] = useState<CalendlyLink[]>(DEFAULT_CALENDLY_LINKS)
 
   // Payments state
   const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
@@ -374,11 +640,6 @@ export default function AdminPortalPage() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteUserType, setInviteUserType] = useState('Location Partner')
   const [inviteSending, setInviteSending] = useState(false)
-  
-  // Additional calculator state
-  const [calcVenue, setCalcVenue] = useState<string>('cafe_coffee')
-  const [calcRatePerGB, setCalcRatePerGB] = useState(0.50)
-  const [calcInsideAdoption, setCalcInsideAdoption] = useState(35)
 
   // Load approved IDs from localStorage on mount
   useEffect(() => {
@@ -1912,6 +2173,17 @@ export default function AdminPortalPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
+                                setEditingForm(form)
+                                setShowFormEditorModal(true)
+                              }}
+                              className="p-1 hover:bg-[#2D3B5F] rounded transition-colors"
+                              title="Edit form fields"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-[#64748B] hover:text-[#0EA5E9]" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
                                 copyFormLink(form.slug)
                               }}
                               className="p-1 hover:bg-[#2D3B5F] rounded transition-colors"
@@ -2034,8 +2306,8 @@ export default function AdminPortalPage() {
                         <div className="flex items-center gap-2 pt-3 border-t border-[#2D3B5F]">
                           <button
                             onClick={() => {
-                              // Show full submission details (could open modal)
-                              alert(JSON.stringify(submission.data, null, 2))
+                              setSelectedSubmission(submission)
+                              setShowSubmissionDetailModal(true)
                             }}
                             className="px-3 py-1.5 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-xs"
                           >
@@ -2109,7 +2381,7 @@ export default function AdminPortalPage() {
               ))}
             </div>
 
-            {/* WiFi Earnings Calculator */}
+            {/* WiFi Earnings Calculator - Full Featured */}
             {activeCalculator === 'earnings' && (
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
@@ -2117,9 +2389,57 @@ export default function AdminPortalPage() {
                   WiFi Earnings Calculator
                 </h3>
 
-                <div className="grid md:grid-cols-2 gap-8">
-                  {/* Inputs */}
+                <div className="grid lg:grid-cols-3 gap-8">
+                  {/* Left Column - Location & Venue */}
                   <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm text-[#94A3B8] mb-2">Property Address</label>
+                      <input
+                        type="text"
+                        value={calcAddress}
+                        onChange={(e) => setCalcAddress(e.target.value)}
+                        placeholder="Enter address..."
+                        className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-[#94A3B8] mb-2">Venue Type</label>
+                      <select
+                        value={calcVenueType}
+                        onChange={(e) => setCalcVenueType(e.target.value)}
+                        className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      >
+                        {Object.entries(VENUE_CATEGORIES).map(([category, venueIds]) => (
+                          <optgroup key={category} label={category}>
+                            {venueIds.map(id => (
+                              <option key={id} value={id}>
+                                {VENUE_PROFILES[id]?.name || id}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Venue Details Box */}
+                    {calcVenueType && VENUE_PROFILES[calcVenueType] && (
+                      <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
+                        <div className="text-white font-medium mb-2">{VENUE_PROFILES[calcVenueType].name}</div>
+                        <div className="text-[#64748B] text-sm mb-3">{VENUE_PROFILES[calcVenueType].description}</div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-[#64748B]">Avg Dwell:</span>
+                            <span className="text-white ml-2">{VENUE_PROFILES[calcVenueType].avgDwell}</span>
+                          </div>
+                          <div>
+                            <span className="text-[#64748B]">WiFi Multiplier:</span>
+                            <span className="text-[#0EA5E9] ml-2">{VENUE_PROFILES[calcVenueType].wifiMultiplier}x</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
                         <span>Square Footage</span>
@@ -2139,7 +2459,10 @@ export default function AdminPortalPage() {
                         <span>50,000</span>
                       </div>
                     </div>
+                  </div>
 
+                  {/* Middle Column - Traffic & Hours */}
+                  <div className="space-y-6">
                     <div>
                       <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
                         <span>Daily Foot Traffic</span>
@@ -2157,6 +2480,25 @@ export default function AdminPortalPage() {
                       <div className="flex justify-between text-xs text-[#64748B] mt-1">
                         <span>50</span>
                         <span>10,000</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
+                        <span>WiFi Adoption Rate</span>
+                        <span className="text-white font-medium">{calcWifiAdoption}%</span>
+                      </label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="80"
+                        value={calcWifiAdoption}
+                        onChange={(e) => setCalcWifiAdoption(Number(e.target.value))}
+                        className="w-full h-2 bg-[#2D3B5F] rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
+                      />
+                      <div className="flex justify-between text-xs text-[#64748B] mt-1">
+                        <span>10%</span>
+                        <span>80%</span>
                       </div>
                     </div>
 
@@ -2197,44 +2539,103 @@ export default function AdminPortalPage() {
                         <span>31</span>
                       </div>
                     </div>
+
+                    <div>
+                      <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
+                        <span>Rate Per GB</span>
+                        <span className="text-white font-medium">${calcRatePerGB.toFixed(2)}</span>
+                      </label>
+                      <input
+                        type="range"
+                        min="0.10"
+                        max="1.00"
+                        step="0.05"
+                        value={calcRatePerGB}
+                        onChange={(e) => setCalcRatePerGB(Number(e.target.value))}
+                        className="w-full h-2 bg-[#2D3B5F] rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
+                      />
+                      <div className="flex justify-between text-xs text-[#64748B] mt-1">
+                        <span>$0.10</span>
+                        <span>$1.00</span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Results */}
+                  {/* Right Column - Results */}
                   <div className="space-y-4">
-                    <div className="bg-[#0A0F2C] rounded-xl p-6 border border-[#2D3B5F]">
-                      <div className="text-[#94A3B8] text-sm mb-1">Estimated Monthly Earnings</div>
-                      <div className="text-4xl font-bold text-green-400">
-                        ${(calcFootTraffic * 0.30 * 0.15 * 0.20 * calcDaysOpen).toFixed(0)}
-                      </div>
-                      <div className="text-[#64748B] text-xs mt-1">Based on 30% WiFi connection rate</div>
-                    </div>
+                    {(() => {
+                      const venueMultiplier = VENUE_PROFILES[calcVenueType]?.wifiMultiplier || 1.5
+                      const connectedUsers = Math.round(calcFootTraffic * (calcWifiAdoption / 100))
+                      const dataPerUserGB = 0.15 * venueMultiplier
+                      const dailyDataGB = connectedUsers * dataPerUserGB
+                      const monthlyDataGB = dailyDataGB * calcDaysOpen
+                      const monthlyEarnings = monthlyDataGB * calcRatePerGB
+                      const yearlyEarnings = monthlyEarnings * 12
+                      
+                      return (
+                        <>
+                          <div className="bg-gradient-to-br from-green-500/20 to-green-500/5 rounded-xl p-6 border border-green-500/30">
+                            <div className="text-green-300 text-sm mb-1">Estimated Monthly Earnings</div>
+                            <div className="text-4xl font-bold text-green-400">
+                              ${monthlyEarnings.toFixed(0)}
+                            </div>
+                            <div className="text-green-300/60 text-xs mt-1">Partner revenue share</div>
+                          </div>
 
-                    <div className="bg-[#0A0F2C] rounded-xl p-6 border border-[#2D3B5F]">
-                      <div className="text-[#94A3B8] text-sm mb-1">Estimated Yearly Earnings</div>
-                      <div className="text-3xl font-bold text-[#0EA5E9]">
-                        ${(calcFootTraffic * 0.30 * 0.15 * 0.20 * calcDaysOpen * 12).toFixed(0)}
-                      </div>
-                    </div>
+                          <div className="bg-[#0A0F2C] rounded-xl p-6 border border-[#2D3B5F]">
+                            <div className="text-[#94A3B8] text-sm mb-1">Estimated Yearly Earnings</div>
+                            <div className="text-3xl font-bold text-[#0EA5E9]">
+                              ${yearlyEarnings.toFixed(0)}
+                            </div>
+                          </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
-                        <div className="text-[#64748B] text-xs mb-1">Connected Users/Day</div>
-                        <div className="text-xl font-semibold text-white">
-                          {Math.round(calcFootTraffic * 0.30).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
-                        <div className="text-[#64748B] text-xs mb-1">Data Offloaded/Month</div>
-                        <div className="text-xl font-semibold text-white">
-                          {(calcFootTraffic * 0.30 * 0.15 * calcDaysOpen).toFixed(0)} GB
-                        </div>
-                      </div>
-                    </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
+                              <div className="text-[#64748B] text-xs mb-1">Connected Users/Day</div>
+                              <div className="text-xl font-semibold text-white">
+                                {connectedUsers.toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
+                              <div className="text-[#64748B] text-xs mb-1">Data Offloaded/Month</div>
+                              <div className="text-xl font-semibold text-white">
+                                {monthlyDataGB.toFixed(0)} GB
+                              </div>
+                            </div>
+                          </div>
 
-                    <div className="text-xs text-[#64748B] p-3 bg-[#0A0F2C] rounded-lg border border-[#2D3B5F]">
-                      <strong className="text-[#94A3B8]">Assumptions:</strong> 30% WiFi connection rate, 
-                      0.15 GB avg data per visitor, $0.20 per GB offload rate
-                    </div>
+                          <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
+                            <div className="text-[#64748B] text-xs mb-2">Calculation Breakdown</div>
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-[#64748B]">Daily visitors:</span>
+                                <span className="text-white">{calcFootTraffic.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#64748B]">WiFi adoption ({calcWifiAdoption}%):</span>
+                                <span className="text-white">{connectedUsers} users</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#64748B]">Data per user ({venueMultiplier}x):</span>
+                                <span className="text-white">{dataPerUserGB.toFixed(2)} GB</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#64748B]">Daily data:</span>
+                                <span className="text-white">{dailyDataGB.toFixed(1)} GB</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#64748B]">Monthly data ({calcDaysOpen} days):</span>
+                                <span className="text-white">{monthlyDataGB.toFixed(0)} GB</span>
+                              </div>
+                              <div className="flex justify-between border-t border-[#2D3B5F] pt-1 mt-1">
+                                <span className="text-[#94A3B8]">× ${calcRatePerGB.toFixed(2)}/GB:</span>
+                                <span className="text-green-400 font-medium">${monthlyEarnings.toFixed(0)}/mo</span>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
@@ -2454,30 +2855,69 @@ export default function AdminPortalPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-white">Partner Pipeline</h2>
-                <p className="text-[#94A3B8] text-sm">Track partner onboarding progress</p>
+                <p className="text-[#94A3B8] text-sm">Track partner onboarding progress - click a stage to filter</p>
               </div>
-              <button
-                onClick={fetchPipeline}
-                disabled={pipelineLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
-              >
-                <RefreshCw className={`w-4 h-4 ${pipelineLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
+              <div className="flex items-center gap-2">
+                {pipelineStageFilter && (
+                  <button
+                    onClick={() => setPipelineStageFilter(null)}
+                    className="flex items-center gap-2 px-3 py-2 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/30 transition-colors text-sm"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear Filter
+                  </button>
+                )}
+                <button
+                  onClick={fetchPipeline}
+                  disabled={pipelineLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 ${pipelineLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+              </div>
             </div>
 
-            {/* Pipeline Stages Summary */}
+            {/* Pipeline Stages Summary - Clickable */}
             <div className="flex gap-2 overflow-x-auto pb-2">
               {PIPELINE_STAGES.map(stage => {
                 const count = partners.filter(p => p.stage === stage.id).length
+                const isSelected = pipelineStageFilter === stage.id
+                const isFiltered = pipelineStageFilter !== null && !isSelected
                 return (
-                  <div key={stage.id} className={`flex-shrink-0 px-4 py-2 rounded-lg border-l-4 ${stage.color} bg-[#1A1F3A]`}>
+                  <button 
+                    key={stage.id} 
+                    onClick={() => setPipelineStageFilter(isSelected ? null : stage.id)}
+                    className={`flex-shrink-0 px-4 py-2 rounded-lg border-l-4 ${stage.color} transition-all cursor-pointer ${
+                      isSelected 
+                        ? 'bg-[#2D3B5F] ring-2 ring-[#0EA5E9]' 
+                        : isFiltered 
+                          ? 'bg-[#1A1F3A]/50 opacity-40' 
+                          : 'bg-[#1A1F3A] hover:bg-[#2D3B5F]'
+                    }`}
+                  >
                     <div className="text-white font-medium text-sm">{stage.name}</div>
                     <div className="text-2xl font-bold text-white">{count}</div>
-                  </div>
+                  </button>
                 )
               })}
             </div>
+
+            {/* Filter indicator */}
+            {pipelineStageFilter && (
+              <div className="bg-[#0EA5E9]/10 border border-[#0EA5E9]/30 rounded-lg px-4 py-2 flex items-center justify-between">
+                <span className="text-[#0EA5E9] text-sm">
+                  Showing partners in: <strong>{PIPELINE_STAGES.find(s => s.id === pipelineStageFilter)?.name}</strong>
+                  {' '}({partners.filter(p => p.stage === pipelineStageFilter).length} partners)
+                </span>
+                <button 
+                  onClick={() => setPipelineStageFilter(null)}
+                  className="text-[#0EA5E9] hover:text-white transition-colors"
+                >
+                  Show All
+                </button>
+              </div>
+            )}
 
             {/* Partners Table */}
             <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
@@ -2486,11 +2926,11 @@ export default function AdminPortalPage() {
                   <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
                   Loading pipeline...
                 </div>
-              ) : partners.length === 0 ? (
+              ) : partners.filter(p => !pipelineStageFilter || p.stage === pipelineStageFilter).length === 0 ? (
                 <div className="p-12 text-center text-[#64748B]">
                   <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No partners in pipeline</p>
-                  <p className="text-sm mt-1">Partners will appear here when they apply</p>
+                  <p>No partners {pipelineStageFilter ? 'in this stage' : 'in pipeline'}</p>
+                  <p className="text-sm mt-1">{pipelineStageFilter ? 'Try selecting a different stage' : 'Partners will appear here when they apply'}</p>
                 </div>
               ) : (
                 <table className="w-full">
@@ -2504,7 +2944,9 @@ export default function AdminPortalPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {partners.map(partner => (
+                    {partners
+                      .filter(p => !pipelineStageFilter || p.stage === pipelineStageFilter)
+                      .map(partner => (
                       <tr key={partner.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
                         <td className="px-6 py-4">
                           <div className="text-white font-medium">{partner.contactFullName}</div>
@@ -3168,11 +3610,11 @@ export default function AdminPortalPage() {
         )}
       </div>
 
-      {/* User Detail Modal */}
+      {/* User Detail Modal - Enhanced */}
       {showUserModal && selectedUser && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between sticky top-0 bg-[#1A1F3A] z-10">
               <h2 className="text-xl font-semibold text-white">User Details</h2>
               <button onClick={() => setShowUserModal(false)} className="p-2 text-[#64748B] hover:text-white transition-colors">
                 <X className="w-5 h-5" />
@@ -3180,18 +3622,19 @@ export default function AdminPortalPage() {
             </div>
             
             <div className="p-6 space-y-6">
-              <div className="flex items-center gap-4">
+              {/* Header with avatar and basic info */}
+              <div className="flex items-start gap-4">
                 <img
                   src={selectedUser.imageUrl || `https://ui-avatars.com/api/?name=${selectedUser.firstName}+${selectedUser.lastName}&background=0EA5E9&color=fff`}
                   alt=""
-                  className="w-20 h-20 rounded-full"
+                  className="w-20 h-20 rounded-full flex-shrink-0"
                 />
-                <div>
+                <div className="flex-1">
                   <h3 className="text-2xl font-bold text-white">
                     {selectedUser.firstName} {selectedUser.lastName}
                   </h3>
                   <p className="text-[#94A3B8]">{selectedUser.email}</p>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(selectedUser.userType)}`}>
                       {selectedUser.userType || 'Unknown'}
                     </span>
@@ -3200,48 +3643,243 @@ export default function AdminPortalPage() {
                     </span>
                   </div>
                 </div>
+                <div className="flex gap-2">
+                  {selectedUser.status !== 'approved' && (
+                    <button
+                      onClick={() => { updateUserStatus(selectedUser.id, 'approved'); setShowUserModal(false) }}
+                      className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors font-medium text-sm"
+                    >
+                      ✓ Approve
+                    </button>
+                  )}
+                  {selectedUser.status !== 'rejected' && (
+                    <button
+                      onClick={() => { updateUserStatus(selectedUser.id, 'rejected'); setShowUserModal(false) }}
+                      className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors font-medium text-sm"
+                    >
+                      ✗ Reject
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* System Info */}
+              <div className="grid grid-cols-3 gap-4">
                 <div className="bg-[#0A0F2C] rounded-lg p-4">
                   <div className="text-[#64748B] text-sm mb-1">User ID</div>
-                  <div className="text-white font-mono text-sm break-all">{selectedUser.id}</div>
+                  <div className="text-white font-mono text-xs break-all">{selectedUser.id}</div>
                 </div>
                 <div className="bg-[#0A0F2C] rounded-lg p-4">
                   <div className="text-[#64748B] text-sm mb-1">Joined</div>
                   <div className="text-white">{new Date(selectedUser.createdAt).toLocaleDateString()}</div>
                 </div>
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
+                  <div className="text-[#64748B] text-sm mb-1">Last Active</div>
+                  <div className="text-white">Today</div>
+                </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                {selectedUser.status !== 'approved' && (
-                  <button
-                    onClick={() => { updateUserStatus(selectedUser.id, 'approved'); setShowUserModal(false) }}
-                    className="flex-1 py-3 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors font-medium"
-                  >
-                    Approve User
-                  </button>
-                )}
-                {selectedUser.status !== 'rejected' && (
-                  <button
-                    onClick={() => { updateUserStatus(selectedUser.id, 'rejected'); setShowUserModal(false) }}
-                    className="flex-1 py-3 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors font-medium"
-                  >
-                    Reject User
-                  </button>
-                )}
+              {/* Pipeline Progress (for Location Partners) */}
+              {selectedUser.userType === 'Location Partner' && (
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
+                  <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                    <GitBranch className="w-4 h-4 text-[#0EA5E9]" />
+                    Pipeline Progress
+                  </h4>
+                  <div className="flex items-center gap-1 overflow-x-auto pb-2">
+                    {PIPELINE_STAGES.slice(0, 8).map((stage, index) => {
+                      const isCompleted = index < 3 // Mock: first 3 stages completed
+                      const isCurrent = index === 3 // Mock: current stage
+                      return (
+                        <div key={stage.id} className="flex items-center">
+                          <div className={`flex-shrink-0 px-3 py-1.5 rounded text-xs font-medium ${
+                            isCompleted 
+                              ? 'bg-green-500/20 text-green-400' 
+                              : isCurrent 
+                                ? 'bg-[#0EA5E9]/20 text-[#0EA5E9] ring-1 ring-[#0EA5E9]' 
+                                : 'bg-[#2D3B5F]/50 text-[#64748B]'
+                          }`}>
+                            {isCompleted && '✓ '}{stage.name}
+                          </div>
+                          {index < 7 && (
+                            <ChevronRight className={`w-4 h-4 mx-1 ${isCompleted ? 'text-green-400' : 'text-[#64748B]'}`} />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#2D3B5F]">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-[#64748B]">Current Stage:</span>
+                      <span className="text-[#0EA5E9] font-medium">Discovery Scheduled</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-1">
+                      <span className="text-[#64748B]">Days in Stage:</span>
+                      <span className="text-white">5 days</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Submission Data */}
+              <div className="bg-[#0A0F2C] rounded-lg p-4">
+                <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#0EA5E9]" />
+                  Application Form Data
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Contact Information */}
+                  <div className="space-y-3">
+                    <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide">Contact Info</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Full Name</span>
+                        <span className="text-white text-sm">{selectedUser.firstName} {selectedUser.lastName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Email</span>
+                        <span className="text-white text-sm">{selectedUser.email}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Phone</span>
+                        <span className="text-white text-sm">(555) 123-4567</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Preferred Contact</span>
+                        <span className="text-white text-sm">Email</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Company Information */}
+                  <div className="space-y-3">
+                    <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide">Company Info</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Company Name</span>
+                        <span className="text-white text-sm">Sample Business LLC</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">DBA</span>
+                        <span className="text-white text-sm">Sample Cafe</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Industry</span>
+                        <span className="text-white text-sm">Food & Beverage</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm"># of Locations</span>
+                        <span className="text-white text-sm">2</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Location Information */}
+                  <div className="space-y-3">
+                    <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide">Location</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Address</span>
+                        <span className="text-white text-sm">123 Main Street</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">City</span>
+                        <span className="text-white text-sm">Atlanta</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">State</span>
+                        <span className="text-white text-sm">GA</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Zip</span>
+                        <span className="text-white text-sm">30301</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Venue Details */}
+                  <div className="space-y-3">
+                    <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide">Venue Details</h5>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Venue Type</span>
+                        <span className="text-white text-sm">Café / Coffee Shop</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Sq Footage</span>
+                        <span className="text-white text-sm">2,500 sqft</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Daily Foot Traffic</span>
+                        <span className="text-white text-sm">150-200</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748B] text-sm">Has Existing WiFi</span>
+                        <span className="text-white text-sm">Yes</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Notes */}
+                <div className="mt-4 pt-4 border-t border-[#2D3B5F]">
+                  <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide mb-2">Additional Notes</h5>
+                  <p className="text-[#94A3B8] text-sm italic">
+                    &quot;Interested in expanding to all 3 locations if pilot goes well. Has existing Ubiquiti equipment at main location.&quot;
+                  </p>
+                </div>
               </div>
 
+              {/* Status Timeline */}
+              <div className="bg-[#0A0F2C] rounded-lg p-4">
+                <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#0EA5E9]" />
+                  Activity Timeline
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 rounded-full bg-green-400 mt-2"></div>
+                    <div>
+                      <div className="text-white text-sm">Application Approved</div>
+                      <div className="text-[#64748B] text-xs">Dec 7, 2025 at 2:30 PM by Admin</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 rounded-full bg-[#0EA5E9] mt-2"></div>
+                    <div>
+                      <div className="text-white text-sm">Discovery Call Scheduled</div>
+                      <div className="text-[#64748B] text-xs">Dec 8, 2025 at 10:00 AM</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 rounded-full bg-yellow-400 mt-2"></div>
+                    <div>
+                      <div className="text-white text-sm">Awaiting Discovery Call</div>
+                      <div className="text-[#64748B] text-xs">Scheduled for Dec 12, 2025</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
               <div className="border-t border-[#2D3B5F] pt-6">
                 <h4 className="text-white font-medium mb-3">Quick Actions</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] transition-colors text-sm text-left">
-                    <Mail className="w-4 h-4 mb-1" />
-                    Send Portal Invite
+                <div className="grid grid-cols-4 gap-3">
+                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] hover:text-white transition-colors text-sm text-center">
+                    <Mail className="w-5 h-5 mx-auto mb-1" />
+                    Send Email
                   </button>
-                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] transition-colors text-sm text-left">
-                    <Wallet className="w-4 h-4 mb-1" />
-                    Send Tipalti Invite
+                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] hover:text-white transition-colors text-sm text-center">
+                    <Calendar className="w-5 h-5 mx-auto mb-1" />
+                    Schedule Call
+                  </button>
+                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] hover:text-white transition-colors text-sm text-center">
+                    <FileText className="w-5 h-5 mx-auto mb-1" />
+                    Send LOI
+                  </button>
+                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] hover:text-white transition-colors text-sm text-center">
+                    <Wallet className="w-5 h-5 mx-auto mb-1" />
+                    Tipalti Invite
                   </button>
                 </div>
               </div>
@@ -3496,6 +4134,287 @@ export default function AdminPortalPage() {
                     </>
                   )}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Form Editor Modal */}
+      {showFormEditorModal && editingForm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between sticky top-0 bg-[#1A1F3A] z-10">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Edit Form: {editingForm.name}</h2>
+                <p className="text-[#64748B] text-sm">Manage form fields and settings</p>
+              </div>
+              <button onClick={() => { setShowFormEditorModal(false); setEditingForm(null) }} className="p-2 text-[#64748B] hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Form Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[#94A3B8] text-sm mb-2">Form Name</label>
+                  <input
+                    type="text"
+                    value={editingForm.name}
+                    onChange={(e) => setEditingForm({ ...editingForm, name: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#94A3B8] text-sm mb-2">Status</label>
+                  <select
+                    value={editingForm.settings.status}
+                    onChange={(e) => setEditingForm({ 
+                      ...editingForm, 
+                      settings: { ...editingForm.settings, status: e.target.value as 'active' | 'draft' | 'closed' } 
+                    })}
+                    className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  >
+                    <option value="active">Active</option>
+                    <option value="draft">Draft</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Form Fields */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-white font-medium">Form Fields ({editingForm.fields?.length || 0})</h3>
+                  <button
+                    onClick={() => {
+                      const newField: FormField = {
+                        id: `field_${Date.now()}`,
+                        type: 'text',
+                        label: 'New Field',
+                        name: `new_field_${Date.now()}`,
+                        required: false
+                      }
+                      setEditingForm({
+                        ...editingForm,
+                        fields: [...(editingForm.fields || []), newField]
+                      })
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/30 transition-colors text-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Field
+                  </button>
+                </div>
+                
+                <div className="space-y-3">
+                  {(editingForm.fields || []).map((field: FormField, index: number) => (
+                    <div key={field.id} className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg p-4">
+                      <div className="flex items-start gap-4">
+                        <div className="text-[#64748B] pt-2">
+                          <GripVertical className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 grid grid-cols-4 gap-4">
+                          <div>
+                            <label className="block text-[#64748B] text-xs mb-1">Label</label>
+                            <input
+                              type="text"
+                              value={field.label}
+                              onChange={(e) => {
+                                const newFields = [...(editingForm.fields || [])]
+                                newFields[index] = { ...field, label: e.target.value }
+                                setEditingForm({ ...editingForm, fields: newFields })
+                              }}
+                              className="w-full px-3 py-1.5 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[#64748B] text-xs mb-1">Type</label>
+                            <select
+                              value={field.type}
+                              onChange={(e) => {
+                                const newFields = [...(editingForm.fields || [])]
+                                newFields[index] = { ...field, type: e.target.value as 'text' | 'email' | 'phone' | 'select' | 'textarea' | 'number' | 'checkbox' }
+                                setEditingForm({ ...editingForm, fields: newFields })
+                              }}
+                              className="w-full px-3 py-1.5 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                            >
+                              <option value="text">Text</option>
+                              <option value="email">Email</option>
+                              <option value="phone">Phone</option>
+                              <option value="textarea">Textarea</option>
+                              <option value="number">Number</option>
+                              <option value="select">Dropdown</option>
+                              <option value="checkbox">Checkbox</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[#64748B] text-xs mb-1">Field Name</label>
+                            <input
+                              type="text"
+                              value={field.name}
+                              onChange={(e) => {
+                                const newFields = [...(editingForm.fields || [])]
+                                newFields[index] = { ...field, name: e.target.value }
+                                setEditingForm({ ...editingForm, fields: newFields })
+                              }}
+                              className="w-full px-3 py-1.5 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white text-sm font-mono focus:outline-none focus:border-[#0EA5E9]"
+                            />
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <label className="flex items-center gap-2 text-sm text-[#94A3B8]">
+                              <input
+                                type="checkbox"
+                                checked={field.required}
+                                onChange={(e) => {
+                                  const newFields = [...(editingForm.fields || [])]
+                                  newFields[index] = { ...field, required: e.target.checked }
+                                  setEditingForm({ ...editingForm, fields: newFields })
+                                }}
+                                className="rounded border-[#2D3B5F] bg-[#1A1F3A] text-[#0EA5E9] focus:ring-[#0EA5E9]"
+                              />
+                              Required
+                            </label>
+                            <button
+                              onClick={() => {
+                                const newFields = (editingForm.fields || []).filter((_: FormField, i: number) => i !== index)
+                                setEditingForm({ ...editingForm, fields: newFields })
+                              }}
+                              className="p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      {field.type === 'select' && (
+                        <div className="mt-3 ml-9">
+                          <label className="block text-[#64748B] text-xs mb-1">Options (comma separated)</label>
+                          <input
+                            type="text"
+                            value={field.options?.join(', ') || ''}
+                            onChange={(e) => {
+                              const newFields = [...(editingForm.fields || [])]
+                              newFields[index] = { ...field, options: e.target.value.split(',').map(o => o.trim()) }
+                              setEditingForm({ ...editingForm, fields: newFields })
+                            }}
+                            placeholder="Option 1, Option 2, Option 3"
+                            className="w-full px-3 py-1.5 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex items-center gap-3 pt-4 border-t border-[#2D3B5F]">
+                <button
+                  onClick={() => { setShowFormEditorModal(false); setEditingForm(null) }}
+                  className="px-6 py-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setForms(forms.map(f => f.id === editingForm.id ? editingForm : f))
+                    setShowFormEditorModal(false)
+                    setEditingForm(null)
+                  }}
+                  className="px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors font-medium"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submission Detail Modal */}
+      {showSubmissionDetailModal && selectedSubmission && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between sticky top-0 bg-[#1A1F3A] z-10">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Submission Details</h2>
+                <p className="text-[#64748B] text-sm">{selectedSubmission.formName}</p>
+              </div>
+              <button onClick={() => { setShowSubmissionDetailModal(false); setSelectedSubmission(null) }} className="p-2 text-[#64748B] hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Status & Meta */}
+              <div className="flex items-center gap-4">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  selectedSubmission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
+                  selectedSubmission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
+                  selectedSubmission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
+                  {selectedSubmission.status}
+                </span>
+                <span className="text-[#64748B] text-sm">
+                  Submitted {new Date(selectedSubmission.submittedAt).toLocaleString()}
+                </span>
+              </div>
+
+              {/* All Submission Data */}
+              <div className="space-y-4">
+                <h3 className="text-white font-medium">Form Data</h3>
+                <div className="bg-[#0A0F2C] rounded-lg divide-y divide-[#2D3B5F]">
+                  {Object.entries(selectedSubmission.data).map(([key, value]) => (
+                    <div key={key} className="flex justify-between items-start p-3">
+                      <span className="text-[#64748B] text-sm capitalize">
+                        {key.replace(/_/g, ' ')}
+                      </span>
+                      <span className="text-white text-sm text-right max-w-[60%]">
+                        {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value) || '-'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-4 border-t border-[#2D3B5F]">
+                {selectedSubmission.status === 'new' && (
+                  <button
+                    onClick={() => {
+                      updateSubmissionStatus(selectedSubmission.id, 'reviewed')
+                      setSelectedSubmission({ ...selectedSubmission, status: 'reviewed' })
+                    }}
+                    className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+                  >
+                    Mark Reviewed
+                  </button>
+                )}
+                {selectedSubmission.status !== 'approved' && (
+                  <button
+                    onClick={() => {
+                      updateSubmissionStatus(selectedSubmission.id, 'approved')
+                      setSelectedSubmission({ ...selectedSubmission, status: 'approved' })
+                    }}
+                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                  >
+                    Approve
+                  </button>
+                )}
+                {selectedSubmission.status !== 'rejected' && (
+                  <button
+                    onClick={() => {
+                      updateSubmissionStatus(selectedSubmission.id, 'rejected')
+                      setSelectedSubmission({ ...selectedSubmission, status: 'rejected' })
+                    }}
+                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                  >
+                    Reject
+                  </button>
+                )}
               </div>
             </div>
           </div>
