@@ -1,31 +1,26 @@
 'use client'
 
+// removed TipaltiIFrame import
 import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import CryptoPriceHeader from '@/components/CryptoPriceHeader'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
-  CheckCircle, Clock, Package, TrendingUp,
-  RefreshCw, Check, X, Search, Plus, Edit, Edit3, Trash2, Eye, Star,
-  Upload, ToggleLeft, ToggleRight, Calculator, MapPin, Target,
-  Activity, DollarSign, Building2, Lock, ClipboardList, ExternalLink,
-  Copy, Inbox, Settings, Mail, Calendar, Send, GitBranch, List,
-  ChevronDown, ChevronRight, Save, AlertCircle, Sparkles,
-  GripVertical, Phone, MoreVertical, Filter, UserPlus,
-  CreditCard, Wallet, PieChart, MessageSquare, Bell,
-  SkipForward, AlertTriangle, Pause, Play, Archive, History
+  Users, Package, FileText, Shield, LayoutDashboard, XCircle, ChevronLeft, Wifi,
+  Bell, Search, Plus, Edit, Trash2, Eye, CheckCircle, Clock, Calendar, Mail,
+  Send, Phone, MapPin, Building2, DollarSign, TrendingUp, BarChart3, Settings,
+  GitBranch, Calculator, ClipboardList, Copy, Check, RefreshCw, ChevronDown,
+  GripVertical, AlertCircle, SkipForward, X, UserPlus
 } from 'lucide-react'
-import TipaltiIFrame from '@/components/TipaltiIFrame'
 
-type TabType = 'overview' | 'users' | 'pipeline' | 'followups' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
 
-// Pipeline and Settings types
+type TabType = 'overview' | 'users' | 'pipeline' | 'follow-ups' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
+
 interface FollowUpAttempt {
   id: string
-  type: 'email' | 'sms' | 'call'
   sentAt: string
+  type: 'email' | 'sms' | 'call'
   sentBy: string
   note?: string
   response?: string
@@ -48,7 +43,6 @@ interface LocationPartner {
   createdAt: string
   updatedAt: string
   tags?: string[]
-  // Follow-up tracking fields
   waitingFor?: 'calendly_discovery' | 'calendly_install' | 'calendly_review' | 'pandadoc_loi' | 'pandadoc_contract' | 'tipalti_setup' | 'portal_setup' | 'equipment_delivery' | 'other'
   waitingForLabel?: string
   waitingSince?: string
@@ -60,7 +54,6 @@ interface LocationPartner {
   partnerType?: string
 }
 
-// Waiting item for the follow-up queue
 interface WaitingItem {
   partnerId: string
   partnerName: string
@@ -89,27 +82,30 @@ interface WaitingItem {
 interface EmailTemplate {
   id: string
   name: string
-  subject: string
   description: string
   trigger: string
-  hasCalendly: boolean
-  enabled: boolean
-  greeting: string
-  bodyParagraphs: string[]
+  subject: string
+  body: string
+  isActive: boolean
+  hasCalendly?: boolean
+  enabled?: boolean
+  greeting?: string
+  bodyParagraphs?: string[]
   ctaText?: string
-  ctaType: 'calendly' | 'custom' | 'none'
+  ctaType?: string
   footerText?: string
 }
 
 interface CalendlyLink {
   id: string
   name: string
-  slug: string
-  url: string
   duration: number
-  description: string
+  description?: string
   active: boolean
-  color: string
+  schedulingUrl: string
+  slug?: string
+  url?: string
+  color?: string
 }
 
 interface Dropdown {
@@ -120,7 +116,6 @@ interface Dropdown {
   allowCustom: boolean
 }
 
-// Constants
 const USER_TYPES = [
   'Administrator', 'Employee', 'Location Partner', 'Referral Partner',
   'Channel Partner', 'Relationship Partner', 'Contractor', 'Customer', 'Calculator Access'
@@ -156,263 +151,421 @@ const WAITING_TYPES = [
   { id: 'other', label: 'Waiting: Other', shortLabel: 'Other', icon: '⏳', category: 'other', description: 'Other pending item' },
 ]
 
-// Partner status options for filtering
-const PARTNER_STATUSES = ['active', 'inactive', 'paused', 'pending']
+const EMAIL_TRIGGERS = [
+  { id: 'application_approved', label: 'Application Approved', stage: 'initial_review' },
+  { id: 'application_denied', label: 'Application Denied', stage: 'initial_review' },
+  { id: 'discovery_scheduled', label: 'Discovery Call Scheduled', stage: 'discovery_scheduled' },
+  { id: 'post_call_approved', label: 'Post-Call Approved', stage: 'discovery_complete' },
+  { id: 'post_call_denied', label: 'Post-Call Denied', stage: 'discovery_complete' },
+  { id: 'venues_setup_complete', label: 'Venues Setup Complete', stage: 'venues_setup' },
+  { id: 'loi_sent', label: 'LOI Sent', stage: 'loi_sent' },
+  { id: 'loi_signed', label: 'LOI Signed', stage: 'loi_signed' },
+  { id: 'install_scheduled', label: 'Install Scheduled', stage: 'install_scheduled' },
+  { id: 'trial_started', label: 'Trial Started', stage: 'trial_active' },
+  { id: 'trial_ending_10_days', label: 'Trial Ending (10 days)', stage: 'trial_ending' },
+  { id: 'trial_ending_3_days', label: 'Trial Ending (3 days)', stage: 'trial_ending' },
+  { id: 'contract_sent', label: 'Contract Sent', stage: 'contract_sent' },
+  { id: 'contract_signed', label: 'Contract Signed', stage: 'active' },
+  { id: 'manual', label: 'Manual Send Only', stage: null },
+]
 
-// Partner types for filtering
+const PARTNER_STATUSES = ['active', 'inactive', 'paused', 'pending']
 const PARTNER_TYPES = ['Location Partner', 'Referral Partner', 'Channel Partner', 'Relationship Partner']
 
 const REMINDER_THRESHOLDS = {
-  first: 3,      // Days before first reminder
-  second: 7,     // Days before second reminder  
-  third: 14,     // Days before third reminder
-  inactive: 30,  // Days before marking inactive
+  first: 3,
+  second: 7,
+  third: 14,
+  inactive: 30,
 }
 
 const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
   {
-    id: 'applicationApproved', name: 'Application Approved',
-    subject: '🎉 Welcome to SkyYield - Schedule Your Discovery Call',
-    description: 'Sent when admin approves initial application',
-    trigger: 'Initial Review → Approved', hasCalendly: true, enabled: true,
-    greeting: 'Welcome to SkyYield, {{name}}!',
-    bodyParagraphs: [
-      "Great news! Your application to become a SkyYield Location Partner has been approved.",
-      "We're excited to learn more about {{company}} and explore how we can help you monetize your WiFi infrastructure."
-    ],
-    ctaText: 'Schedule Discovery Call', ctaType: 'calendly',
-    footerText: "Can't make the available times? Reply to this email."
-  },
-  {
-    id: 'applicationDenied', name: 'Application Denied',
-    subject: 'SkyYield Application Update',
-    description: 'Sent when admin denies initial application',
-    trigger: 'Initial Review → Denied', hasCalendly: false, enabled: true,
+    id: 'welcome',
+    name: 'Welcome Email',
+    subject: 'Welcome to SkyYield Partner Program!',
+    description: 'Sent when a new partner signs up',
+    trigger: 'partner_signup',
+    body: 'Welcome to SkyYield! We are excited to have you join our partner program. Our team will be in touch shortly to help you get started.',
+    isActive: true,
+    hasCalendly: true,
+    enabled: true,
     greeting: 'Hi {{name}},',
-    bodyParagraphs: [
-      "Thank you for your interest in partnering with SkyYield.",
-      "After reviewing your application, we've determined that {{company}} isn't the right fit for our program at this time.",
-      "This decision may be based on location, venue type, or current network capacity. We encourage you to reapply in the future."
-    ],
-    ctaText: '', ctaType: 'none',
-    footerText: 'Questions? Reply to this email.'
+    bodyParagraphs: ['Welcome to the SkyYield Partner Program! We are thrilled to have you on board.', 'Our team will guide you through the onboarding process and answer any questions you may have.'],
+    ctaText: 'Schedule Onboarding Call',
+    ctaType: 'calendly',
+    footerText: 'Best regards, The SkyYield Team',
   },
   {
-    id: 'postCallApproved', name: 'Post-Discovery Approved',
-    subject: '✅ Next Steps: Add Your Venues',
-    description: 'Sent after successful discovery call',
-    trigger: 'Discovery → Post-Call Approved', hasCalendly: false, enabled: true,
-    greeting: 'Great talking with you, {{name}}!',
-    bodyParagraphs: [
-      "Thanks for taking the time to discuss {{company}} with us. We're excited to move forward!",
-      "Your next step is to add your venue details. This helps us prepare the right equipment and estimate your earnings potential."
-    ],
-    ctaText: 'Add Venue Details', ctaType: 'custom',
-    footerText: 'Need help? Reply to this email or call us at (678) 203-5517.'
-  },
-  {
-    id: 'postCallDenied', name: 'Post-Discovery Declined',
-    subject: 'SkyYield Partnership Update',
-    description: 'Sent after discovery call if not proceeding',
-    trigger: 'Discovery → Post-Call Denied', hasCalendly: false, enabled: true,
+    id: 'contract_sent',
+    name: 'Contract Sent',
+    subject: 'Your SkyYield Partnership Agreement is Ready',
+    description: 'Sent when contract is sent via PandaDoc',
+    trigger: 'contract_sent',
+    body: 'Your partnership agreement is ready for review and signature. Please click the link below to access your document.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
     greeting: 'Hi {{name}},',
-    bodyParagraphs: [
-      "Thank you for speaking with us about {{company}}.",
-      "After our discovery call, we've determined that we're not able to move forward with a partnership at this time.",
-      "This could be due to technical requirements, location constraints, or other factors. Feel free to reach out in the future if circumstances change."
-    ],
-    ctaText: '', ctaType: 'none',
-    footerText: 'We appreciate your interest in SkyYield.'
+    bodyParagraphs: ['Your SkyYield Partnership Agreement is ready for your review.', 'Please take a moment to review the terms and sign the document at your earliest convenience.'],
+    ctaText: 'Review Contract',
+    ctaType: 'none',
+    footerText: 'If you have any questions, please don\'t hesitate to reach out.',
   },
   {
-    id: 'loiSent', name: 'LOI Sent',
-    subject: '📝 Your SkyYield Letter of Intent is Ready',
-    description: 'Sent when LOI document is sent via PandaDoc',
-    trigger: 'Venues Setup → LOI Sent', hasCalendly: false, enabled: true,
+    id: 'contract_signed',
+    name: 'Contract Signed Confirmation',
+    subject: 'Partnership Agreement Confirmed - Welcome Aboard!',
+    description: 'Sent after partner signs the contract',
+    trigger: 'contract_signed',
+    body: 'Thank you for signing your partnership agreement! We are excited to officially welcome you to the SkyYield family.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
     greeting: 'Hi {{name}},',
-    bodyParagraphs: [
-      "Great news! We've prepared your Letter of Intent for {{company}}.",
-      "This document outlines the terms of our trial partnership, including equipment installation, revenue sharing, and trial period details.",
-      "Please review and sign the document at your earliest convenience."
-    ],
-    ctaText: 'Review & Sign LOI', ctaType: 'custom',
-    footerText: 'Questions about the terms? Reply to this email or call us.'
+    bodyParagraphs: ['Congratulations! Your partnership agreement has been signed and confirmed.', 'Next steps: Our team will reach out to schedule your technical setup and installation.'],
+    ctaText: 'View Dashboard',
+    ctaType: 'custom',
+    footerText: 'Welcome to the SkyYield family!',
   },
   {
-    id: 'loiSigned', name: 'LOI Signed - Schedule Install',
-    subject: '🎉 LOI Signed! Let\'s Schedule Your Installation',
-    description: 'Sent when partner signs LOI',
-    trigger: 'LOI Sent → LOI Signed', hasCalendly: true, enabled: true,
-    greeting: 'Congratulations, {{name}}!',
-    bodyParagraphs: [
-      "We've received your signed Letter of Intent. Welcome to the SkyYield family!",
-      "Next up: Let's schedule your equipment installation. Our technician will come to {{company}} and set everything up - typically takes 30-60 minutes."
-    ],
-    ctaText: 'Schedule Installation', ctaType: 'calendly',
-    footerText: 'Installation typically takes 30-60 minutes. Our tech brings all equipment.'
-  },
-  {
-    id: 'trialStarted', name: 'Trial Started',
-    subject: '🚀 Your SkyYield Trial Has Begun!',
-    description: 'Sent when trial period starts after installation',
-    trigger: 'Install → Trial Active', hasCalendly: false, enabled: true,
-    greeting: 'You\'re live, {{name}}!',
-    bodyParagraphs: [
-      "Your SkyYield equipment is installed and your 60-day trial has officially begun!",
-      "During the trial, you can monitor your network performance and earnings through your Partner Portal.",
-      "Trial End Date: {{trialEndDate}}"
-    ],
-    ctaText: 'View Your Dashboard', ctaType: 'custom',
-    footerText: 'Questions? Your dedicated account manager is here to help.'
-  },
-  {
-    id: 'trialEnding', name: 'Trial Ending - 10 Day Notice',
-    subject: '⏰ Your SkyYield Trial Ends in {{daysRemaining}} Days',
-    description: 'Sent 10 days before trial ends',
-    trigger: 'Auto: 10 days before trial end', hasCalendly: true, enabled: true,
+    id: 'tipalti_setup',
+    name: 'Payment Setup Required',
+    subject: 'Set Up Your Payment Account - Action Required',
+    description: 'Sent to prompt Tipalti payment setup',
+    trigger: 'tipalti_setup',
+    body: 'To receive your earnings, please complete your payment account setup through our secure payment portal.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
     greeting: 'Hi {{name}},',
-    bodyParagraphs: [
-      "Your SkyYield trial at {{company}} is coming to an end in {{daysRemaining}} days.",
-      "So far, you've earned ${{trialEarnings}} during your trial period!",
-      "Let's schedule a quick call to review your results and discuss making this a permanent partnership."
-    ],
-    ctaText: 'Schedule Review Call', ctaType: 'calendly',
-    footerText: 'Don\'t want to continue? Let us know and we\'ll schedule equipment pickup.'
+    bodyParagraphs: ['To ensure you receive your earnings on time, please set up your payment account.', 'This secure process only takes a few minutes and ensures fast, reliable payments.'],
+    ctaText: 'Set Up Payments',
+    ctaType: 'none',
+    footerText: 'Questions? Contact our support team.',
   },
   {
-    id: 'contractSent', name: 'Deployment Contract Sent',
-    subject: '📄 Your SkyYield Deployment Contract',
-    description: 'Sent when full contract is sent after successful trial',
-    trigger: 'Trial Review → Contract Sent', hasCalendly: false, enabled: true,
+    id: 'payment_sent',
+    name: 'Payment Sent',
+    subject: 'Your SkyYield Payment Has Been Sent',
+    description: 'Sent when a payment is processed',
+    trigger: 'payment_sent',
+    body: 'Great news! Your payment has been processed and is on its way to your account.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
     greeting: 'Hi {{name}},',
-    bodyParagraphs: [
-      "Congratulations on a successful trial! We're ready to make this official.",
-      "We've sent your deployment contract for {{company}}. This document outlines our ongoing partnership terms.",
-      "Your trial earnings of ${{trialEarnings}} demonstrate the potential for continued passive income."
-    ],
-    ctaText: 'Review & Sign Contract', ctaType: 'custom',
-    footerText: 'Questions about the contract? Let\'s schedule a call.'
+    bodyParagraphs: ['Your payment of {{amount}} has been processed and sent to your account.', 'Funds typically arrive within 2-3 business days depending on your payment method.'],
+    ctaText: 'View Payment Details',
+    ctaType: 'custom',
+    footerText: 'Thank you for being a SkyYield partner!',
   },
   {
-    id: 'portalInvite', name: 'Portal Access Invite',
-    subject: '🔐 Your SkyYield Partner Portal is Ready',
-    description: 'Manual trigger to send portal access',
-    trigger: 'Manual', hasCalendly: false, enabled: true,
-    greeting: 'Access Your Partner Portal',
-    bodyParagraphs: [
-      "Hi {{name}},",
-      "Your SkyYield Partner Portal is ready! This is your dashboard for tracking earnings, viewing network status, and managing your account."
-    ],
-    ctaText: 'Activate Portal Access', ctaType: 'custom',
-    footerText: 'Bookmark this link for easy access: portal.skyyield.io'
-  },
-  {
-    id: 'tipaltiInvite', name: 'Tipalti Payment Setup',
-    subject: '💰 Set Up Your Payment Account',
-    description: 'Manual trigger to send payment setup',
-    trigger: 'Manual', hasCalendly: false, enabled: true,
-    greeting: 'Set Up Your Payment Account',
-    bodyParagraphs: [
-      "Hi {{name}},",
-      "To receive your SkyYield earnings, please set up your payment account through Tipalti.",
-      "Tipalti is our secure payment processor. You can choose direct deposit, PayPal, or check."
-    ],
-    ctaText: 'Set Up Payments', ctaType: 'custom',
-    footerText: 'Payments are processed on the 15th of each month.'
-  },
-  {
-    id: 'reminderCalendly', name: 'Reminder: Schedule Call',
-    subject: '📅 Reminder: Schedule Your SkyYield Call',
-    description: 'Follow-up reminder for unscheduled Calendly',
-    trigger: 'Manual / Auto Follow-up', hasCalendly: true, enabled: true,
+    id: 'installation_scheduled',
+    name: 'Installation Scheduled',
+    subject: 'Your SkyYield Installation is Confirmed',
+    description: 'Sent when installation appointment is scheduled',
+    trigger: 'installation_scheduled',
+    body: 'Your WiFi access point installation has been scheduled. Our technician will arrive at the confirmed date and time.',
+    isActive: true,
+    hasCalendly: true,
+    enabled: true,
     greeting: 'Hi {{name}},',
-    bodyParagraphs: [
-      "We noticed you haven't scheduled your call yet. We're excited to connect with you!",
-      "Click below to pick a time that works for your schedule."
-    ],
-    ctaText: 'Schedule Now', ctaType: 'calendly',
-    footerText: 'Can\'t find a good time? Reply to this email and we\'ll work something out.'
+    bodyParagraphs: ['Your installation appointment has been confirmed!', 'Our certified technician will arrive at {{date}} to complete your setup.'],
+    ctaText: 'Reschedule if Needed',
+    ctaType: 'calendly',
+    footerText: 'Please ensure someone is available to provide access.',
   },
   {
-    id: 'reminderDocument', name: 'Reminder: Sign Document',
-    subject: '📝 Reminder: Your SkyYield Document Awaits',
-    description: 'Follow-up reminder for unsigned PandaDoc',
-    trigger: 'Manual / Auto Follow-up', hasCalendly: false, enabled: true,
+    id: 'installation_complete',
+    name: 'Installation Complete',
+    subject: 'Your SkyYield System is Now Live!',
+    description: 'Sent after successful installation',
+    trigger: 'installation_complete',
+    body: 'Congratulations! Your SkyYield WiFi system has been successfully installed and is now live.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
     greeting: 'Hi {{name}},',
-    bodyParagraphs: [
-      "Just a friendly reminder that your document is waiting for your signature.",
-      "If you have any questions about the terms, please don't hesitate to reach out."
-    ],
-    ctaText: 'View Document', ctaType: 'custom',
-    footerText: 'Questions? Reply to this email or call (678) 203-5517.'
-  }
+    bodyParagraphs: ['Great news! Your SkyYield system is now live and ready to start generating revenue.', 'You can monitor your performance and earnings through your partner dashboard.'],
+    ctaText: 'View Dashboard',
+    ctaType: 'custom',
+    footerText: 'Start earning passive income today!',
+  },
+  {
+    id: 'followup_reminder',
+    name: 'Follow-up Reminder',
+    subject: 'Checking In - SkyYield Partnership',
+    description: 'Sent as a follow-up for pending actions',
+    trigger: 'followup_reminder',
+    body: 'We noticed there are some pending items on your account. Let us help you complete your setup.',
+    isActive: true,
+    hasCalendly: true,
+    enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: ['We wanted to follow up on your SkyYield partnership.', 'It looks like there are some items that need your attention to complete your setup.'],
+    ctaText: 'Schedule a Call',
+    ctaType: 'calendly',
+    footerText: 'We\'re here to help!',
+  },
+  {
+    id: 'monthly_report',
+    name: 'Monthly Performance Report',
+    subject: 'Your SkyYield Monthly Report - {{month}}',
+    description: 'Sent monthly with performance summary',
+    trigger: 'monthly_report',
+    body: 'Your monthly performance report is ready. See how your location performed this month.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: ['Your monthly performance report for {{month}} is ready!', 'This month you earned {{amount}} from {{data_usage}} of data offloaded.'],
+    ctaText: 'View Full Report',
+    ctaType: 'custom',
+    footerText: 'Keep up the great work!',
+  },
+  {
+    id: 'referral_bonus',
+    name: 'Referral Bonus Earned',
+    subject: 'You Earned a Referral Bonus!',
+    description: 'Sent when a referral bonus is credited',
+    trigger: 'referral_bonus',
+    body: 'Congratulations! You\'ve earned a referral bonus for bringing a new partner to SkyYield.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: ['Great news! Your referral {{referral_name}} has completed their setup.', 'A bonus of {{amount}} has been added to your account.'],
+    ctaText: 'Refer More Partners',
+    ctaType: 'custom',
+    footerText: 'Thank you for spreading the word!',
+  },
+  {
+    id: 'equipment_shipped',
+    name: 'Equipment Shipped',
+    subject: 'Your SkyYield Equipment is On the Way',
+    description: 'Sent when equipment is shipped',
+    trigger: 'equipment_shipped',
+    body: 'Your WiFi equipment has been shipped and is on its way to you.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: ['Your SkyYield equipment has been shipped!', 'Tracking number: {{tracking_number}}. Expected delivery: {{delivery_date}}.'],
+    ctaText: 'Track Shipment',
+    ctaType: 'custom',
+    footerText: 'Get ready for installation!',
+  },
+  {
+    id: 'support_ticket',
+    name: 'Support Ticket Received',
+    subject: 'Support Request Received - Ticket #{{ticket_id}}',
+    description: 'Sent when a support ticket is created',
+    trigger: 'support_ticket',
+    body: 'We\'ve received your support request and our team is working on it.',
+    isActive: true,
+    hasCalendly: true,
+    enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: ['We\'ve received your support request (Ticket #{{ticket_id}}).', 'Our team will review your issue and respond within 24 hours.'],
+    ctaText: 'Schedule Support Call',
+    ctaType: 'calendly',
+    footerText: 'We\'re here to help!',
+  },
+  {
+    id: 'account_inactive',
+    name: 'Account Inactive Notice',
+    subject: 'We Miss You - SkyYield Partnership',
+    description: 'Sent when account has been inactive',
+    trigger: 'account_inactive',
+    body: 'We noticed your SkyYield account has been inactive. Let us help you get back on track.',
+    isActive: true,
+    hasCalendly: false,
+    enabled: true,
+    greeting: 'Hi {{name}},',
+    bodyParagraphs: ['We noticed it\'s been a while since we\'ve seen activity on your account.', 'Is there anything we can help with? We\'d love to help you maximize your earnings.'],
+    ctaText: 'Contact Support',
+    ctaType: 'custom',
+    footerText: 'We\'re here when you\'re ready!',
+  },
 ]
 
-// Default Calendly links (will be replaced by API data when connected)
+interface PaymentPartner {
+  id: string
+  name: string
+  email: string
+  company?: string
+  partnerType: string
+  payeeId?: string
+  totalEarned: number
+  totalPaid: number
+  pendingAmount: number
+  tipaltiStatus: 'active' | 'pending' | 'inactive' | 'not_setup'
+  tipaltiPayeeId: string
+  lastPaymentDate?: string
+  lastPaymentAmount?: number
+  totalEarnings?: number
+  paymentStatus?: string
+}
+
+const MOCK_PAYMENT_PARTNERS: PaymentPartner[] = [
+  {
+    id: 'pay-1',
+    name: 'John Smith',
+    email: 'john@coffeeshop.com',
+    company: 'Downtown Coffee Shop',
+    partnerType: 'Location Partner',
+    payeeId: 'tip-001',
+    tipaltiPayeeId: 'tip-001',
+    tipaltiStatus: 'active',
+    totalEarned: 4500,
+    totalPaid: 3200,
+    pendingAmount: 1300,
+    lastPaymentDate: '2024-11-15',
+    lastPaymentAmount: 850,
+  },
+  {
+    id: 'pay-2',
+    name: 'Sarah Johnson',
+    email: 'sarah@fitnesscenter.com',
+    company: 'FitLife Gym',
+    partnerType: 'Location Partner',
+    payeeId: 'tip-002',
+    tipaltiPayeeId: 'tip-002',
+    tipaltiStatus: 'active',
+    totalEarned: 8200,
+    totalPaid: 7000,
+    pendingAmount: 1200,
+    lastPaymentDate: '2024-11-20',
+    lastPaymentAmount: 1200,
+  },
+  {
+    id: 'pay-3',
+    name: 'Mike Chen',
+    email: 'mike@techsolutions.com',
+    company: 'Tech Solutions Inc',
+    partnerType: 'Channel Partner',
+    payeeId: 'tip-003',
+    tipaltiPayeeId: 'tip-003',
+    tipaltiStatus: 'pending',
+    totalEarned: 2500,
+    totalPaid: 0,
+    pendingAmount: 2500,
+  },
+  {
+    id: 'pay-4',
+    name: 'Emily Davis',
+    email: 'emily@retailgroup.com',
+    company: 'Retail Group LLC',
+    partnerType: 'Location Partner',
+    payeeId: 'tip-004',
+    tipaltiPayeeId: 'tip-004',
+    tipaltiStatus: 'not_setup',
+    totalEarned: 1800,
+    totalPaid: 0,
+    pendingAmount: 1800,
+  },
+  {
+    id: 'pay-5',
+    name: 'David Wilson',
+    email: 'david@hotelchain.com',
+    company: 'Comfort Inn Downtown',
+    partnerType: 'Location Partner',
+    payeeId: 'tip-005',
+    tipaltiPayeeId: 'tip-005',
+    tipaltiStatus: 'active',
+    totalEarned: 12500,
+    totalPaid: 11000,
+    pendingAmount: 1500,
+    lastPaymentDate: '2024-11-18',
+    lastPaymentAmount: 2200,
+  },
+  {
+    id: 'pay-6',
+    name: 'Lisa Martinez',
+    email: 'lisa@networksales.com',
+    company: 'Network Sales Pro',
+    partnerType: 'Referral Partner',
+    payeeId: 'tip-006',
+    tipaltiPayeeId: 'tip-006',
+    tipaltiStatus: 'active',
+    totalEarned: 3400,
+    totalPaid: 2800,
+    pendingAmount: 600,
+    lastPaymentDate: '2024-11-10',
+    lastPaymentAmount: 600,
+  },
+]
+
 const DEFAULT_CALENDLY_LINKS: CalendlyLink[] = [
   {
-    id: 'discovery-call',
+    id: 'cal-1',
     name: 'Discovery Call',
-    slug: 'skyyield-discovery',
-    url: 'https://calendly.com/skyyield/discovery-call',
+    slug: 'discovery-call',
+    url: 'https://calendly.com/skyyield/discovery',
+    schedulingUrl: 'https://calendly.com/skyyield/discovery',
     duration: 30,
-    description: 'Initial conversation to learn about your venue and discuss partnership potential',
+    description: 'Initial discovery call with potential partners',
     active: true,
-    color: '#0EA5E9'
+    color: '#0EA5E9',
   },
   {
-    id: 'technical-review',
-    name: 'Technical Review',
-    slug: 'skyyield-technical',
-    url: 'https://calendly.com/skyyield/technical-review',
-    duration: 45,
-    description: 'Deep dive into technical requirements, network setup, and equipment needs',
-    active: true,
-    color: '#8B5CF6'
-  },
-  {
-    id: 'install-scheduling',
-    name: 'Install Scheduling',
-    slug: 'skyyield-install',
-    url: 'https://calendly.com/skyyield/install',
-    duration: 30,
-    description: 'Schedule your equipment installation appointment',
-    active: true,
-    color: '#10B981'
-  },
-  {
-    id: 'trial-review',
-    name: 'Trial Review Call',
-    slug: 'skyyield-trial-review',
-    url: 'https://calendly.com/skyyield/trial-review',
-    duration: 30,
-    description: 'Review your trial results and discuss next steps',
-    active: true,
-    color: '#F59E0B'
-  },
-  {
-    id: 'partner-onboarding',
+    id: 'cal-2',
     name: 'Partner Onboarding',
-    slug: 'skyyield-onboarding',
+    slug: 'partner-onboarding',
     url: 'https://calendly.com/skyyield/onboarding',
+    schedulingUrl: 'https://calendly.com/skyyield/onboarding',
     duration: 60,
-    description: 'Full onboarding session for new active partners',
+    description: 'Full onboarding session for new partners',
     active: true,
-    color: '#EC4899'
+    color: '#10F981',
   },
   {
-    id: 'support-call',
-    name: 'Support Call',
-    slug: 'skyyield-support',
-    url: 'https://calendly.com/skyyield/support',
-    duration: 15,
-    description: 'Quick support call for existing partners',
+    id: 'cal-3',
+    name: 'Technical Setup',
+    slug: 'technical-setup',
+    url: 'https://calendly.com/skyyield/technical',
+    schedulingUrl: 'https://calendly.com/skyyield/technical',
+    duration: 45,
+    description: 'Technical installation and configuration support',
     active: true,
-    color: '#6366F1'
-  }
+    color: '#8B5CF6',
+  },
+  {
+    id: 'cal-4',
+    name: 'Contract Review',
+    slug: 'contract-review',
+    url: 'https://calendly.com/skyyield/contract',
+    schedulingUrl: 'https://calendly.com/skyyield/contract',
+    duration: 30,
+    description: 'Review and discuss partnership agreement',
+    active: true,
+    color: '#F59E0B',
+  },
+  {
+    id: 'cal-5',
+    name: 'Support Call',
+    slug: 'support-call',
+    url: 'https://calendly.com/skyyield/support',
+    schedulingUrl: 'https://calendly.com/skyyield/support',
+    duration: 30,
+    description: 'General support and troubleshooting',
+    active: true,
+    color: '#EF4444',
+  },
+  {
+    id: 'cal-6',
+    name: 'Quarterly Review',
+    slug: 'quarterly-review',
+    url: 'https://calendly.com/skyyield/quarterly',
+    schedulingUrl: 'https://calendly.com/skyyield/quarterly',
+    duration: 45,
+    description: 'Quarterly performance review with partners',
+    active: true,
+    color: '#06B6D4',
+  },
 ]
 
-// Calculator venue profiles - expanded with all venue types
 const VENUE_CATEGORIES: Record<string, string[]> = {
   "Food & Beverage": ["restaurant_fastfood", "restaurant_sitdown", "cafe_coffee", "bar", "nightclub"],
   "Retail": ["convenience_gas", "convenience_nogas", "grocery", "retail_small", "retail_bigbox", "mall"],
@@ -425,68 +578,203 @@ const VENUE_CATEGORIES: Record<string, string[]> = {
   "Workspace": ["coworking", "office_building"],
 }
 
-const VENUE_PROFILES: Record<string, { name: string; wifiMultiplier: number; avgDwell: string; description?: string }> = {
+type VenueProfile = {
+  name: string
+  label: string
+  wifiMultiplier: number
+  avgDwell: string
+  avgDataGB: number
+  description?: string
+}
+
+const VENUE_PROFILES: Record<string, VenueProfile> = {
   // Food & Beverage
-  restaurant_fastfood: { name: "Fast Food Restaurant", wifiMultiplier: 1.3, avgDwell: "15-25 min", description: "Quick service restaurants" },
-  restaurant_sitdown: { name: "Sit-Down Restaurant", wifiMultiplier: 1.5, avgDwell: "45-90 min", description: "Casual & fine dining" },
-  cafe_coffee: { name: "Café / Coffee Shop", wifiMultiplier: 1.6, avgDwell: "30-60 min", description: "Coffee shops, bakeries" },
-  bar: { name: "Bar / Pub", wifiMultiplier: 1.5, avgDwell: "60-120 min", description: "Sports bars, pubs, lounges" },
-  nightclub: { name: "Nightclub", wifiMultiplier: 1.4, avgDwell: "2-4 hrs", description: "Dance clubs, venues" },
+  cafe_coffee: { name: 'Coffee Shop', label: 'Coffee Shop', wifiMultiplier: 1.2, avgDwell: '45 min', avgDataGB: 0.5, description: 'High WiFi usage during work sessions' },
+  restaurant_casual: { name: 'Casual Restaurant', label: 'Casual Restaurant', wifiMultiplier: 0.8, avgDwell: '60 min', avgDataGB: 0.3, description: 'Moderate usage during meals' },
+  restaurant_fine: { name: 'Fine Dining', label: 'Fine Dining', wifiMultiplier: 0.4, avgDwell: '90 min', avgDataGB: 0.2, description: 'Lower usage, focus on experience' },
+  bar_lounge: { name: 'Bar/Lounge', label: 'Bar/Lounge', wifiMultiplier: 0.6, avgDwell: '120 min', avgDataGB: 0.4, description: 'Social venue with moderate usage' },
+  fast_food: { name: 'Fast Food', label: 'Fast Food', wifiMultiplier: 0.9, avgDwell: '20 min', avgDataGB: 0.2, description: 'Quick visits, mobile-focused' },
+  bakery: { name: 'Bakery', label: 'Bakery', wifiMultiplier: 1.0, avgDwell: '30 min', avgDataGB: 0.4, description: 'Morning rush work sessions' },
+  food_court: { name: 'Food Court', label: 'Food Court', wifiMultiplier: 0.7, avgDwell: '40 min', avgDataGB: 0.3, description: 'High volume, shorter sessions' },
+  juice_bar: { name: 'Juice Bar', label: 'Juice Bar', wifiMultiplier: 1.1, avgDwell: '25 min', avgDataGB: 0.3, description: 'Health-conscious, quick visits' },
+  brewery: { name: 'Brewery', label: 'Brewery', wifiMultiplier: 0.7, avgDwell: '90 min', avgDataGB: 0.4, description: 'Social atmosphere, moderate usage' },
+  winery: { name: 'Winery', label: 'Winery', wifiMultiplier: 0.5, avgDwell: '120 min', avgDataGB: 0.3, description: 'Tasting room experience' },
+  ice_cream: { name: 'Ice Cream Shop', label: 'Ice Cream Shop', wifiMultiplier: 0.6, avgDwell: '20 min', avgDataGB: 0.2, description: 'Quick treat visits' },
+  deli: { name: 'Deli', label: 'Deli', wifiMultiplier: 0.7, avgDwell: '25 min', avgDataGB: 0.2, description: 'Quick lunch stops' },
+  food_truck: { name: 'Food Truck', label: 'Food Truck', wifiMultiplier: 0.4, avgDwell: '15 min', avgDataGB: 0.1, description: 'Outdoor quick service' },
+  catering: { name: 'Catering Venue', label: 'Catering Venue', wifiMultiplier: 0.8, avgDwell: '180 min', avgDataGB: 0.5, description: 'Event-based usage' },
+
   // Retail
-  convenience_gas: { name: "Convenience Store (w/ Gas)", wifiMultiplier: 1.2, avgDwell: "5-10 min", description: "Gas stations with stores" },
-  convenience_nogas: { name: "Convenience Store", wifiMultiplier: 1.2, avgDwell: "5-15 min", description: "Standalone convenience stores" },
-  grocery: { name: "Grocery Store", wifiMultiplier: 1.3, avgDwell: "20-45 min", description: "Supermarkets, grocery chains" },
-  retail_small: { name: "Retail Store", wifiMultiplier: 1.3, avgDwell: "15-30 min", description: "Boutiques, specialty stores" },
-  retail_bigbox: { name: "Big Box Retail", wifiMultiplier: 1.3, avgDwell: "30-60 min", description: "Target, Walmart, Costco" },
-  mall: { name: "Shopping Mall", wifiMultiplier: 1.5, avgDwell: "1-3 hrs", description: "Indoor malls, outlets" },
-  // Residential
-  apartment_single: { name: "Apartment (Single Level)", wifiMultiplier: 2.0, avgDwell: "Resident", description: "Garden-style apartments" },
-  apartment_midrise: { name: "Apartment (Midrise)", wifiMultiplier: 2.0, avgDwell: "Resident", description: "4-12 story apartments" },
-  apartment_highrise: { name: "Apartment (Highrise)", wifiMultiplier: 2.0, avgDwell: "Resident", description: "12+ story apartments" },
-  student_housing: { name: "Student Housing", wifiMultiplier: 2.2, avgDwell: "Resident", description: "Dorms, off-campus housing" },
+  retail_large: { name: 'Large Retail Store', label: 'Large Retail Store', wifiMultiplier: 0.5, avgDwell: '45 min', avgDataGB: 0.2, description: 'Shopping-focused visits' },
+  retail_small: { name: 'Small Retail Shop', label: 'Small Retail Shop', wifiMultiplier: 0.4, avgDwell: '20 min', avgDataGB: 0.1, description: 'Quick shopping trips' },
+  mall: { name: 'Shopping Mall', label: 'Shopping Mall', wifiMultiplier: 0.6, avgDwell: '90 min', avgDataGB: 0.4, description: 'Extended shopping sessions' },
+  grocery: { name: 'Grocery Store', label: 'Grocery Store', wifiMultiplier: 0.3, avgDwell: '30 min', avgDataGB: 0.1, description: 'Task-focused visits' },
+  pharmacy: { name: 'Pharmacy', label: 'Pharmacy', wifiMultiplier: 0.3, avgDwell: '15 min', avgDataGB: 0.1, description: 'Quick prescription pickups' },
+  electronics: { name: 'Electronics Store', label: 'Electronics Store', wifiMultiplier: 0.8, avgDwell: '40 min', avgDataGB: 0.3, description: 'Tech-savvy customers' },
+  bookstore: { name: 'Bookstore', label: 'Bookstore', wifiMultiplier: 1.1, avgDwell: '60 min', avgDataGB: 0.5, description: 'Browsing and reading time' },
+  clothing: { name: 'Clothing Store', label: 'Clothing Store', wifiMultiplier: 0.5, avgDwell: '35 min', avgDataGB: 0.2, description: 'Shopping and trying on' },
+  furniture: { name: 'Furniture Store', label: 'Furniture Store', wifiMultiplier: 0.4, avgDwell: '45 min', avgDataGB: 0.2, description: 'Browsing large items' },
+  home_improvement: { name: 'Home Improvement', label: 'Home Improvement', wifiMultiplier: 0.5, avgDwell: '50 min', avgDataGB: 0.2, description: 'Project shopping' },
+  pet_store: { name: 'Pet Store', label: 'Pet Store', wifiMultiplier: 0.4, avgDwell: '25 min', avgDataGB: 0.1, description: 'Pet supply shopping' },
+  sporting_goods: { name: 'Sporting Goods', label: 'Sporting Goods', wifiMultiplier: 0.5, avgDwell: '35 min', avgDataGB: 0.2, description: 'Equipment shopping' },
+  jewelry: { name: 'Jewelry Store', label: 'Jewelry Store', wifiMultiplier: 0.3, avgDwell: '30 min', avgDataGB: 0.1, description: 'High-value browsing' },
+  convenience: { name: 'Convenience Store', label: 'Convenience Store', wifiMultiplier: 0.3, avgDwell: '10 min', avgDataGB: 0.1, description: 'Quick grab-and-go' },
+  liquor_store: { name: 'Liquor Store', label: 'Liquor Store', wifiMultiplier: 0.3, avgDwell: '15 min', avgDataGB: 0.1, description: 'Quick beverage purchase' },
+  florist: { name: 'Florist', label: 'Florist', wifiMultiplier: 0.3, avgDwell: '20 min', avgDataGB: 0.1, description: 'Gift shopping' },
+  gift_shop: { name: 'Gift Shop', label: 'Gift Shop', wifiMultiplier: 0.4, avgDwell: '25 min', avgDataGB: 0.1, description: 'Browsing for gifts' },
+  thrift_store: { name: 'Thrift Store', label: 'Thrift Store', wifiMultiplier: 0.5, avgDwell: '45 min', avgDataGB: 0.2, description: 'Treasure hunting' },
+  outlet: { name: 'Outlet Store', label: 'Outlet Store', wifiMultiplier: 0.5, avgDwell: '60 min', avgDataGB: 0.3, description: 'Deal shopping' },
+
+  // Healthcare
+  hospital: { name: 'Hospital', label: 'Hospital', wifiMultiplier: 1.5, avgDwell: '180 min', avgDataGB: 0.8, description: 'Long waits, high usage' },
+  clinic: { name: 'Medical Clinic', label: 'Medical Clinic', wifiMultiplier: 1.2, avgDwell: '45 min', avgDataGB: 0.4, description: 'Waiting room usage' },
+  dental: { name: 'Dental Office', label: 'Dental Office', wifiMultiplier: 1.0, avgDwell: '60 min', avgDataGB: 0.3, description: 'Appointment-based visits' },
+  veterinary: { name: 'Veterinary Clinic', label: 'Veterinary Clinic', wifiMultiplier: 0.9, avgDwell: '40 min', avgDataGB: 0.3, description: 'Pet owner waiting time' },
+  urgent_care: { name: 'Urgent Care', label: 'Urgent Care', wifiMultiplier: 1.3, avgDwell: '90 min', avgDataGB: 0.5, description: 'Extended wait times' },
+  physical_therapy: { name: 'Physical Therapy', label: 'Physical Therapy', wifiMultiplier: 1.0, avgDwell: '60 min', avgDataGB: 0.4, description: 'Treatment sessions' },
+  chiropractic: { name: 'Chiropractic', label: 'Chiropractic', wifiMultiplier: 0.8, avgDwell: '45 min', avgDataGB: 0.3, description: 'Adjustment appointments' },
+  optometry: { name: 'Optometry', label: 'Optometry', wifiMultiplier: 0.9, avgDwell: '50 min', avgDataGB: 0.3, description: 'Eye exams and fitting' },
+  dermatology: { name: 'Dermatology', label: 'Dermatology', wifiMultiplier: 0.9, avgDwell: '40 min', avgDataGB: 0.3, description: 'Skin care appointments' },
+  mental_health: { name: 'Mental Health', label: 'Mental Health', wifiMultiplier: 0.7, avgDwell: '60 min', avgDataGB: 0.2, description: 'Therapy sessions' },
+  dialysis: { name: 'Dialysis Center', label: 'Dialysis Center', wifiMultiplier: 1.8, avgDwell: '240 min', avgDataGB: 1.0, description: 'Long treatment sessions' },
+  imaging: { name: 'Imaging Center', label: 'Imaging Center', wifiMultiplier: 1.0, avgDwell: '60 min', avgDataGB: 0.4, description: 'Diagnostic appointments' },
+  lab: { name: 'Lab/Blood Draw', label: 'Lab/Blood Draw', wifiMultiplier: 0.6, avgDwell: '30 min', avgDataGB: 0.2, description: 'Quick testing visits' },
+  nursing_home: { name: 'Nursing Home', label: 'Nursing Home', wifiMultiplier: 1.4, avgDwell: '120 min', avgDataGB: 0.6, description: 'Visitor waiting' },
+  assisted_living: { name: 'Assisted Living', label: 'Assisted Living', wifiMultiplier: 1.3, avgDwell: '90 min', avgDataGB: 0.5, description: 'Resident and visitor usage' },
+
   // Hospitality
-  hotel_single: { name: "Hotel (Single Level)", wifiMultiplier: 2.0, avgDwell: "1-3 nights", description: "Motels, budget hotels" },
-  hotel_midrise: { name: "Hotel (Midrise)", wifiMultiplier: 2.2, avgDwell: "1-3 nights", description: "Business hotels, mid-tier" },
-  hotel_highrise: { name: "Hotel (Highrise)", wifiMultiplier: 2.3, avgDwell: "1-5 nights", description: "Full-service, luxury hotels" },
-  // Services
-  hair_salon: { name: "Hair Salon / Spa", wifiMultiplier: 1.5, avgDwell: "45-90 min", description: "Salons, barbershops, spas" },
-  pet_groomer: { name: "Pet Groomer", wifiMultiplier: 1.5, avgDwell: "30-60 min", description: "Pet grooming services" },
-  medical_office: { name: "Medical Office", wifiMultiplier: 1.4, avgDwell: "30-60 min", description: "Clinics, doctor offices" },
-  animal_hospital: { name: "Animal Hospital", wifiMultiplier: 1.4, avgDwell: "30-90 min", description: "Vet clinics, emergency vet" },
-  daycare: { name: "Daycare", wifiMultiplier: 1.2, avgDwell: "Drop-off", description: "Childcare centers" },
-  // Education
-  college: { name: "College/University", wifiMultiplier: 2.0, avgDwell: "2-8 hrs", description: "Higher education campuses" },
-  school_k5: { name: "School (K-5)", wifiMultiplier: 1.3, avgDwell: "Staff hours", description: "Elementary schools" },
-  school_middle: { name: "School (6-8)", wifiMultiplier: 1.4, avgDwell: "Staff hours", description: "Middle schools" },
-  school_high: { name: "School (9-12)", wifiMultiplier: 1.5, avgDwell: "Staff hours", description: "High schools" },
-  // Recreation
-  dog_park: { name: "Dog Park", wifiMultiplier: 1.3, avgDwell: "30-60 min", description: "Off-leash parks" },
-  stadium: { name: "Stadium / Arena", wifiMultiplier: 1.5, avgDwell: "2-4 hrs", description: "Sports venues, concert halls" },
-  museum: { name: "Museum", wifiMultiplier: 1.4, avgDwell: "1-3 hrs", description: "Art, history, science museums" },
-  library: { name: "Library", wifiMultiplier: 1.8, avgDwell: "1-4 hrs", description: "Public & university libraries" },
-  gym: { name: "Gym / Fitness", wifiMultiplier: 1.6, avgDwell: "1-2 hrs", description: "Fitness centers, gyms" },
+  hotel_luxury: { name: 'Luxury Hotel', label: 'Luxury Hotel', wifiMultiplier: 1.8, avgDwell: '720 min', avgDataGB: 2.0, description: 'Extended stays, high expectations' },
+  hotel_business: { name: 'Business Hotel', label: 'Business Hotel', wifiMultiplier: 2.0, avgDwell: '480 min', avgDataGB: 1.5, description: 'Work-focused travelers' },
+  hotel_budget: { name: 'Budget Hotel', label: 'Budget Hotel', wifiMultiplier: 1.4, avgDwell: '480 min', avgDataGB: 1.0, description: 'Cost-conscious travelers' },
+  hostel: { name: 'Hostel', label: 'Hostel', wifiMultiplier: 1.6, avgDwell: '360 min', avgDataGB: 1.2, description: 'Young travelers, social spaces' },
+  resort: { name: 'Resort', label: 'Resort', wifiMultiplier: 1.3, avgDwell: '720 min', avgDataGB: 1.0, description: 'Vacation-focused, poolside usage' },
+  motel: { name: 'Motel', label: 'Motel', wifiMultiplier: 1.2, avgDwell: '480 min', avgDataGB: 0.8, description: 'Road trip stays' },
+  bed_breakfast: { name: 'Bed & Breakfast', label: 'Bed & Breakfast', wifiMultiplier: 1.3, avgDwell: '600 min', avgDataGB: 0.9, description: 'Cozy getaway stays' },
+  vacation_rental: { name: 'Vacation Rental', label: 'Vacation Rental', wifiMultiplier: 1.5, avgDwell: '1440 min', avgDataGB: 1.5, description: 'Extended home-like stays' },
+  campground: { name: 'Campground', label: 'Campground', wifiMultiplier: 0.8, avgDwell: '720 min', avgDataGB: 0.5, description: 'Outdoor recreation' },
+  rv_park: { name: 'RV Park', label: 'RV Park', wifiMultiplier: 1.2, avgDwell: '1440 min', avgDataGB: 1.0, description: 'Mobile living' },
+  event_venue: { name: 'Event Venue', label: 'Event Venue', wifiMultiplier: 1.0, avgDwell: '180 min', avgDataGB: 0.5, description: 'Weddings and conferences' },
+  convention_center: { name: 'Convention Center', label: 'Convention Center', wifiMultiplier: 1.5, avgDwell: '360 min', avgDataGB: 0.8, description: 'Trade shows and events' },
+
   // Transportation
-  airport: { name: "Airport", wifiMultiplier: 2.3, avgDwell: "1-4 hrs", description: "Terminals, lounges" },
-  transit_station: { name: "Transit Station", wifiMultiplier: 1.4, avgDwell: "15-45 min", description: "Bus/train stations" },
-  // Workspace
-  coworking: { name: "Co-Working Space", wifiMultiplier: 2.0, avgDwell: "4-8 hrs", description: "Shared offices, WeWork" },
-  office_building: { name: "Office Building", wifiMultiplier: 1.8, avgDwell: "8+ hrs", description: "Commercial offices" },
+  airport: { name: 'Airport', label: 'Airport', wifiMultiplier: 1.8, avgDwell: '120 min', avgDataGB: 0.8, description: 'High usage during delays' },
+  train_station: { name: 'Train Station', label: 'Train Station', wifiMultiplier: 1.2, avgDwell: '30 min', avgDataGB: 0.3, description: 'Commuter usage' },
+  bus_station: { name: 'Bus Station', label: 'Bus Station', wifiMultiplier: 1.0, avgDwell: '45 min', avgDataGB: 0.3, description: 'Transit waiting time' },
+  gas_station: { name: 'Gas Station', label: 'Gas Station', wifiMultiplier: 0.4, avgDwell: '10 min', avgDataGB: 0.1, description: 'Quick stops' },
+  truck_stop: { name: 'Truck Stop', label: 'Truck Stop', wifiMultiplier: 1.3, avgDwell: '60 min', avgDataGB: 0.6, description: 'Driver rest stops' },
+  car_dealership: { name: 'Car Dealership', label: 'Car Dealership', wifiMultiplier: 1.1, avgDwell: '90 min', avgDataGB: 0.5, description: 'Service waiting area' },
+  car_wash: { name: 'Car Wash', label: 'Car Wash', wifiMultiplier: 0.6, avgDwell: '20 min', avgDataGB: 0.2, description: 'Waiting for wash' },
+  parking_garage: { name: 'Parking Garage', label: 'Parking Garage', wifiMultiplier: 0.3, avgDwell: '15 min', avgDataGB: 0.1, description: 'Minimal dwell time' },
+  ferry_terminal: { name: 'Ferry Terminal', label: 'Ferry Terminal', wifiMultiplier: 1.1, avgDwell: '45 min', avgDataGB: 0.4, description: 'Waiting for departure' },
+  cruise_terminal: { name: 'Cruise Terminal', label: 'Cruise Terminal', wifiMultiplier: 1.4, avgDwell: '120 min', avgDataGB: 0.6, description: 'Check-in and boarding' },
+  rest_area: { name: 'Rest Area', label: 'Rest Area', wifiMultiplier: 0.8, avgDwell: '25 min', avgDataGB: 0.3, description: 'Highway break stops' },
+  marina: { name: 'Marina', label: 'Marina', wifiMultiplier: 1.0, avgDwell: '180 min', avgDataGB: 0.5, description: 'Boat owners and visitors' },
+
+  // Entertainment
+  gym_fitness: { name: 'Gym/Fitness Center', label: 'Gym/Fitness Center', wifiMultiplier: 1.3, avgDwell: '75 min', avgDataGB: 0.6, description: 'Streaming during workouts' },
+  movie_theater: { name: 'Movie Theater', label: 'Movie Theater', wifiMultiplier: 0.5, avgDwell: '150 min', avgDataGB: 0.2, description: 'Pre/post show usage' },
+  bowling: { name: 'Bowling Alley', label: 'Bowling Alley', wifiMultiplier: 0.7, avgDwell: '120 min', avgDataGB: 0.4, description: 'Social entertainment' },
+  arcade: { name: 'Arcade', label: 'Arcade', wifiMultiplier: 0.6, avgDwell: '90 min', avgDataGB: 0.3, description: 'Gaming-focused venue' },
+  museum: { name: 'Museum', label: 'Museum', wifiMultiplier: 0.8, avgDwell: '120 min', avgDataGB: 0.4, description: 'Educational content access' },
+  stadium: { name: 'Stadium/Arena', label: 'Stadium/Arena', wifiMultiplier: 1.5, avgDwell: '180 min', avgDataGB: 0.7, description: 'Event-based high density' },
+  amusement_park: { name: 'Amusement Park', label: 'Amusement Park', wifiMultiplier: 0.9, avgDwell: '360 min', avgDataGB: 0.6, description: 'Family entertainment' },
+  water_park: { name: 'Water Park', label: 'Water Park', wifiMultiplier: 0.6, avgDwell: '300 min', avgDataGB: 0.4, description: 'Outdoor water fun' },
+  zoo: { name: 'Zoo', label: 'Zoo', wifiMultiplier: 0.7, avgDwell: '180 min', avgDataGB: 0.4, description: 'Family outings' },
+  aquarium: { name: 'Aquarium', label: 'Aquarium', wifiMultiplier: 0.8, avgDwell: '120 min', avgDataGB: 0.4, description: 'Educational visits' },
+  theater: { name: 'Theater', label: 'Theater', wifiMultiplier: 0.4, avgDwell: '150 min', avgDataGB: 0.2, description: 'Live performances' },
+  concert_venue: { name: 'Concert Venue', label: 'Concert Venue', wifiMultiplier: 1.2, avgDwell: '180 min', avgDataGB: 0.6, description: 'Live music events' },
+  nightclub: { name: 'Nightclub', label: 'Nightclub', wifiMultiplier: 0.8, avgDwell: '180 min', avgDataGB: 0.5, description: 'Nightlife entertainment' },
+  casino: { name: 'Casino', label: 'Casino', wifiMultiplier: 1.1, avgDwell: '240 min', avgDataGB: 0.6, description: 'Gaming and entertainment' },
+  golf_course: { name: 'Golf Course', label: 'Golf Course', wifiMultiplier: 0.6, avgDwell: '240 min', avgDataGB: 0.4, description: 'Clubhouse usage' },
+  ski_resort: { name: 'Ski Resort', label: 'Ski Resort', wifiMultiplier: 1.0, avgDwell: '360 min', avgDataGB: 0.6, description: 'Lodge and base area' },
+  escape_room: { name: 'Escape Room', label: 'Escape Room', wifiMultiplier: 0.5, avgDwell: '90 min', avgDataGB: 0.2, description: 'Team entertainment' },
+  trampoline_park: { name: 'Trampoline Park', label: 'Trampoline Park', wifiMultiplier: 0.7, avgDwell: '90 min', avgDataGB: 0.3, description: 'Active entertainment' },
+  go_kart: { name: 'Go Kart Track', label: 'Go Kart Track', wifiMultiplier: 0.6, avgDwell: '75 min', avgDataGB: 0.3, description: 'Racing entertainment' },
+  mini_golf: { name: 'Mini Golf', label: 'Mini Golf', wifiMultiplier: 0.5, avgDwell: '60 min', avgDataGB: 0.2, description: 'Family entertainment' },
+  laser_tag: { name: 'Laser Tag', label: 'Laser Tag', wifiMultiplier: 0.6, avgDwell: '75 min', avgDataGB: 0.3, description: 'Active gaming' },
+  pool_hall: { name: 'Pool Hall', label: 'Pool Hall', wifiMultiplier: 0.8, avgDwell: '120 min', avgDataGB: 0.5, description: 'Social gaming' },
+  country_club: { name: 'Country Club', label: 'Country Club', wifiMultiplier: 0.9, avgDwell: '180 min', avgDataGB: 0.5, description: 'Member amenities' },
+
+  // Services
+  salon_spa: { name: 'Salon/Spa', label: 'Salon/Spa', wifiMultiplier: 1.4, avgDwell: '90 min', avgDataGB: 0.6, description: 'Service wait time' },
+  auto_service: { name: 'Auto Service Center', label: 'Auto Service Center', wifiMultiplier: 1.5, avgDwell: '120 min', avgDataGB: 0.7, description: 'Extended wait times' },
+  laundromat: { name: 'Laundromat', label: 'Laundromat', wifiMultiplier: 1.6, avgDwell: '60 min', avgDataGB: 0.8, description: 'Captive audience' },
+  bank: { name: 'Bank', label: 'Bank', wifiMultiplier: 0.6, avgDwell: '20 min', avgDataGB: 0.2, description: 'Quick transactions' },
+  dry_cleaner: { name: 'Dry Cleaner', label: 'Dry Cleaner', wifiMultiplier: 0.3, avgDwell: '10 min', avgDataGB: 0.1, description: 'Quick drop-off/pickup' },
+  barbershop: { name: 'Barbershop', label: 'Barbershop', wifiMultiplier: 1.2, avgDwell: '45 min', avgDataGB: 0.4, description: 'Haircut waiting' },
+  nail_salon: { name: 'Nail Salon', label: 'Nail Salon', wifiMultiplier: 1.4, avgDwell: '60 min', avgDataGB: 0.5, description: 'Service time' },
+  tattoo_parlor: { name: 'Tattoo Parlor', label: 'Tattoo Parlor', wifiMultiplier: 1.3, avgDwell: '120 min', avgDataGB: 0.6, description: 'Long session time' },
+  massage: { name: 'Massage Therapy', label: 'Massage Therapy', wifiMultiplier: 0.8, avgDwell: '75 min', avgDataGB: 0.3, description: 'Relaxation services' },
+  real_estate: { name: 'Real Estate Office', label: 'Real Estate Office', wifiMultiplier: 0.7, avgDwell: '45 min', avgDataGB: 0.3, description: 'Client meetings' },
+  insurance: { name: 'Insurance Office', label: 'Insurance Office', wifiMultiplier: 0.6, avgDwell: '30 min', avgDataGB: 0.2, description: 'Policy discussions' },
+  legal: { name: 'Law Office', label: 'Law Office', wifiMultiplier: 0.7, avgDwell: '60 min', avgDataGB: 0.3, description: 'Client consultations' },
+  accounting: { name: 'Accounting Office', label: 'Accounting Office', wifiMultiplier: 0.6, avgDwell: '45 min', avgDataGB: 0.2, description: 'Tax and finance meetings' },
+  print_shop: { name: 'Print Shop', label: 'Print Shop', wifiMultiplier: 0.8, avgDwell: '30 min', avgDataGB: 0.3, description: 'Waiting for printing' },
+  shipping_store: { name: 'Shipping Store', label: 'Shipping Store', wifiMultiplier: 0.7, avgDwell: '20 min', avgDataGB: 0.2, description: 'Package services' },
+  storage_facility: { name: 'Storage Facility', label: 'Storage Facility', wifiMultiplier: 0.4, avgDwell: '30 min', avgDataGB: 0.1, description: 'Access visits' },
+  funeral_home: { name: 'Funeral Home', label: 'Funeral Home', wifiMultiplier: 0.6, avgDwell: '120 min', avgDataGB: 0.3, description: 'Service attendance' },
+  wedding_venue: { name: 'Wedding Venue', label: 'Wedding Venue', wifiMultiplier: 0.9, avgDwell: '240 min', avgDataGB: 0.5, description: 'Event attendance' },
+
+  // Education
+  library: { name: 'Library', label: 'Library', wifiMultiplier: 1.8, avgDwell: '120 min', avgDataGB: 0.9, description: 'Study sessions' },
+  university: { name: 'University', label: 'University', wifiMultiplier: 2.0, avgDwell: '240 min', avgDataGB: 1.2, description: 'Student heavy usage' },
+  coworking: { name: 'Coworking Space', label: 'Coworking Space', wifiMultiplier: 2.2, avgDwell: '300 min', avgDataGB: 1.5, description: 'Work-focused, all day' },
+  school_k12: { name: 'K-12 School', label: 'K-12 School', wifiMultiplier: 1.5, avgDwell: '360 min', avgDataGB: 0.8, description: 'Student and visitor usage' },
+  tutoring: { name: 'Tutoring Center', label: 'Tutoring Center', wifiMultiplier: 1.4, avgDwell: '90 min', avgDataGB: 0.6, description: 'Learning sessions' },
+  driving_school: { name: 'Driving School', label: 'Driving School', wifiMultiplier: 1.0, avgDwell: '60 min', avgDataGB: 0.4, description: 'Classroom time' },
+  language_school: { name: 'Language School', label: 'Language School', wifiMultiplier: 1.3, avgDwell: '90 min', avgDataGB: 0.5, description: 'Class sessions' },
+  dance_studio: { name: 'Dance Studio', label: 'Dance Studio', wifiMultiplier: 0.9, avgDwell: '75 min', avgDataGB: 0.4, description: 'Class and practice' },
+  music_school: { name: 'Music School', label: 'Music School', wifiMultiplier: 0.8, avgDwell: '60 min', avgDataGB: 0.3, description: 'Lesson time' },
+  art_studio: { name: 'Art Studio', label: 'Art Studio', wifiMultiplier: 0.9, avgDwell: '120 min', avgDataGB: 0.4, description: 'Creative sessions' },
+  cooking_school: { name: 'Cooking School', label: 'Cooking School', wifiMultiplier: 0.7, avgDwell: '150 min', avgDataGB: 0.3, description: 'Class time' },
+  trade_school: { name: 'Trade School', label: 'Trade School', wifiMultiplier: 1.2, avgDwell: '240 min', avgDataGB: 0.7, description: 'Vocational training' },
+  daycare: { name: 'Daycare', label: 'Daycare', wifiMultiplier: 0.5, avgDwell: '30 min', avgDataGB: 0.2, description: 'Parent drop-off/pickup' },
+  preschool: { name: 'Preschool', label: 'Preschool', wifiMultiplier: 0.5, avgDwell: '30 min', avgDataGB: 0.2, description: 'Parent visits' },
+  test_center: { name: 'Testing Center', label: 'Testing Center', wifiMultiplier: 1.0, avgDwell: '180 min', avgDataGB: 0.4, description: 'Exam sessions' },
+
+  // Other
+  church: { name: 'Church/Religious', label: 'Church/Religious', wifiMultiplier: 0.5, avgDwell: '90 min', avgDataGB: 0.2, description: 'Service-based attendance' },
+  community_center: { name: 'Community Center', label: 'Community Center', wifiMultiplier: 1.0, avgDwell: '120 min', avgDataGB: 0.5, description: 'Various activities' },
+  office_building: { name: 'Office Building', label: 'Office Building', wifiMultiplier: 0.8, avgDwell: '480 min', avgDataGB: 0.6, description: 'Visitor/lobby usage' },
+  government: { name: 'Government Office', label: 'Government Office', wifiMultiplier: 1.2, avgDwell: '60 min', avgDataGB: 0.4, description: 'Waiting for services' },
+  post_office: { name: 'Post Office', label: 'Post Office', wifiMultiplier: 0.8, avgDwell: '25 min', avgDataGB: 0.2, description: 'Mail services' },
+  dmv: { name: 'DMV', label: 'DMV', wifiMultiplier: 1.5, avgDwell: '90 min', avgDataGB: 0.6, description: 'Long wait times' },
+  courthouse: { name: 'Courthouse', label: 'Courthouse', wifiMultiplier: 1.3, avgDwell: '180 min', avgDataGB: 0.6, description: 'Legal proceedings' },
+  fire_station: { name: 'Fire Station', label: 'Fire Station', wifiMultiplier: 0.4, avgDwell: '20 min', avgDataGB: 0.1, description: 'Community visits' },
+  police_station: { name: 'Police Station', label: 'Police Station', wifiMultiplier: 0.8, avgDwell: '45 min', avgDataGB: 0.3, description: 'Public services' },
+  military_base: { name: 'Military Base', label: 'Military Base', wifiMultiplier: 1.0, avgDwell: '120 min', avgDataGB: 0.5, description: 'Visitor areas' },
+  embassy: { name: 'Embassy/Consulate', label: 'Embassy/Consulate', wifiMultiplier: 1.2, avgDwell: '120 min', avgDataGB: 0.5, description: 'Visa appointments' },
+  nonprofit: { name: 'Nonprofit Office', label: 'Nonprofit Office', wifiMultiplier: 0.8, avgDwell: '60 min', avgDataGB: 0.4, description: 'Client services' },
+  shelter: { name: 'Shelter', label: 'Shelter', wifiMultiplier: 1.4, avgDwell: '480 min', avgDataGB: 0.7, description: 'Resident services' },
+  senior_center: { name: 'Senior Center', label: 'Senior Center', wifiMultiplier: 1.0, avgDwell: '180 min', avgDataGB: 0.4, description: 'Daily activities' },
+  youth_center: { name: 'Youth Center', label: 'Youth Center', wifiMultiplier: 1.3, avgDwell: '150 min', avgDataGB: 0.6, description: 'After-school programs' },
+  rec_center: { name: 'Recreation Center', label: 'Recreation Center', wifiMultiplier: 1.1, avgDwell: '120 min', avgDataGB: 0.5, description: 'Sports and activities' },
+  park: { name: 'Park', label: 'Park', wifiMultiplier: 0.6, avgDwell: '60 min', avgDataGB: 0.3, description: 'Outdoor recreation' },
+  beach: { name: 'Beach', label: 'Beach', wifiMultiplier: 0.5, avgDwell: '180 min', avgDataGB: 0.3, description: 'Outdoor leisure' },
+  campsite: { name: 'Campsite', label: 'Campsite', wifiMultiplier: 0.7, avgDwell: '720 min', avgDataGB: 0.4, description: 'Outdoor stays' },
+  farm: { name: 'Farm/Ranch', label: 'Farm/Ranch', wifiMultiplier: 0.5, avgDwell: '120 min', avgDataGB: 0.3, description: 'Agricultural tourism' },
+  vineyard: { name: 'Vineyard', label: 'Vineyard', wifiMultiplier: 0.6, avgDwell: '150 min', avgDataGB: 0.3, description: 'Wine tasting' },
+  other: { name: 'Other', label: 'Other', wifiMultiplier: 0.8, avgDwell: '60 min', avgDataGB: 0.4, description: 'General venue' },
 }
 
 interface User {
   id: string
-  firstName: string | null
-  lastName: string | null
+  name: string
   email: string
   imageUrl: string
   userType: string
   status: string
   createdAt: number
+  lastActive?: string
+
 }
 
 interface Product {
   id: string
   priceId?: string
+  price: number
+  imageUrl?: string
+  stock: number
   name: string
   description?: string
   sku?: string
@@ -511,6 +799,7 @@ interface BlogArticle {
   id: string
   title: string
   excerpt?: string
+  author: string
   category?: string
   source?: string
   status: 'pending' | 'published' | 'draft' | 'rejected'
@@ -550,7 +839,6 @@ interface FormSubmission {
   submittedAt: string
   status: 'new' | 'reviewed' | 'approved' | 'rejected' | 'archived'
 }
-
 export default function AdminPortalPage() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
@@ -561,6 +849,7 @@ export default function AdminPortalPage() {
   const [usersLoading, setUsersLoading] = useState(false)
   const [userSearch, setUserSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
 
   // Products state
   const [products, setProducts] = useState<Product[]>([])
@@ -644,11 +933,23 @@ export default function AdminPortalPage() {
   const [inviteUserType, setInviteUserType] = useState('Location Partner')
   const [inviteSending, setInviteSending] = useState(false)
 
+  const [selectedPayeeId, setSelectedPayeeId] = useState<string | null>(null)
+  const [selectedPayeeName, setSelectedPayeeName] = useState<string>('')
+  const [paymentPartners, setPaymentPartners] = useState<PaymentPartner[]>([])
+  const [paymentsLoading, setPaymentsLoading] = useState(false)
+
+  const [showCalendlyEmailModal, setShowCalendlyEmailModal] = useState(false)
+  const [selectedCalendlyLink, setSelectedCalendlyLink] = useState<CalendlyLink | null>(null)
+  const [calendlyEmailRecipient, setCalendlyEmailRecipient] = useState('')
+  const [calendlyEmailSubject, setCalendlyEmailSubject] = useState('')
+  const [calendlyEmailMessage, setCalendlyEmailMessage] = useState('')
+  const [sendingCalendlyEmail, setSendingCalendlyEmail] = useState(false)
+
   // Load approved IDs from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem('skyyield-approved-products')
     if (saved) {
-      setApprovedIds(new Set(JSON.parse(saved)))
+      setApprovedIds(new Set<string>(JSON.parse(saved)))
     }
   }, [])
 
@@ -730,7 +1031,6 @@ export default function AdminPortalPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
-      // Update local state
       setArticles(prev => prev.map(a =>
         a.id === articleId ? { ...a, status: status as BlogArticle['status'] } : a
       ))
@@ -794,7 +1094,6 @@ export default function AdminPortalPage() {
       if (res.ok) {
         const data = await res.json()
         setPartners(data.partners || [])
-        // Also generate waiting items from partners
         generateWaitingItems(data.partners || [])
       }
     } catch (err) {
@@ -810,7 +1109,6 @@ export default function AdminPortalPage() {
     const now = new Date()
 
     partnerList.forEach(partner => {
-      // Find what stage requires waiting
       const stage = PIPELINE_STAGES.find(s => s.id === partner.stage)
       if (stage?.waitingFor || partner.waitingFor) {
         const waitingFor = partner.waitingFor || stage?.waitingFor || 'other'
@@ -820,7 +1118,6 @@ export default function AdminPortalPage() {
         const daysPending = Math.floor((now.getTime() - waitingDate.getTime()) / (1000 * 60 * 60 * 24))
         const attemptCount = partner.followUpAttempts?.length || 0
 
-        // Determine priority based on days pending and attempts
         let priority: 'high' | 'medium' | 'low' = 'low'
         if (daysPending >= REMINDER_THRESHOLDS.inactive || attemptCount >= 3) {
           priority = 'high'
@@ -855,7 +1152,6 @@ export default function AdminPortalPage() {
       }
     })
 
-    // Don't sort here - let the UI handle sorting based on user preference
     setWaitingItems(items)
   }
 
@@ -863,7 +1159,6 @@ export default function AdminPortalPage() {
   const getFilteredWaitingItems = () => {
     let filtered = [...waitingItems]
 
-    // Apply search filter
     if (followUpSearch) {
       const search = followUpSearch.toLowerCase()
       filtered = filtered.filter(item =>
@@ -873,12 +1168,10 @@ export default function AdminPortalPage() {
       )
     }
 
-    // Apply status filter
     if (followUpStatusFilter !== 'all') {
       filtered = filtered.filter(item => item.partnerStatus === followUpStatusFilter)
     }
 
-    // Apply item type filter
     if (followUpItemTypeFilter !== 'all') {
       if (followUpItemTypeFilter === 'calendly') {
         filtered = filtered.filter(item => item.waitingForCategory === 'calendly')
@@ -891,1001 +1184,869 @@ export default function AdminPortalPage() {
       }
     }
 
-    // Apply partner type filter
     if (followUpPartnerTypeFilter !== 'all') {
       filtered = filtered.filter(item => item.partnerType === followUpPartnerTypeFilter)
     }
 
-    // Apply days range filter
     filtered = filtered.filter(item =>
       item.daysPending >= followUpMinDays && item.daysPending <= followUpMaxDays
     )
 
-    // Apply sorting
     filtered.sort((a, b) => {
       switch (followUpSortBy) {
-        case 'days_desc':
-          return b.daysPending - a.daysPending
-        case 'days_asc':
-          return a.daysPending - b.daysPending
-        case 'name':
-          return a.partnerName.localeCompare(b.partnerName)
-        case 'company':
-          return a.companyName.localeCompare(b.companyName)
-        case 'attempts':
-          return b.attemptCount - a.attemptCount
-        default:
-          return b.daysPending - a.daysPending
+        case 'days_desc': return b.daysPending - a.daysPending
+        case 'days_asc': return a.daysPending - b.daysPending
+        case 'name': return a.partnerName.localeCompare(b.partnerName)
+        case 'company': return a.companyName.localeCompare(b.companyName)
+        case 'attempts': return b.attemptCount - a.attemptCount
+        default: return b.daysPending - a.daysPending
       }
     })
 
     return filtered
   }
-
-  // Send reminder (email or SMS)
-  const sendReminder = async (partnerId: string, type: 'email' | 'sms', note?: string) => {
+  // Send reminder to partner
+  const sendReminder = async () => {
+    if (!selectedPartnerForFollowUp) return
     setSendingReminder(true)
+
     try {
-      const partner = partners.find(p => p.id === partnerId)
-      if (!partner) throw new Error('Partner not found')
-
-      const waitingType = WAITING_TYPES.find(w => w.id === partner.waitingFor)
-
-      await fetch('/api/pipeline/reminder', {
+      const res = await fetch('/api/pipeline/follow-up', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          partnerId,
-          type,
-          to: type === 'email' ? partner.contactEmail : partner.contactPhone,
-          waitingFor: partner.waitingFor,
-          waitingForLabel: waitingType?.label,
-          note,
+          partnerId: selectedPartnerForFollowUp.id,
+          type: reminderType,
+          note: reminderNote,
+          templateId: selectedPartnerForFollowUp.waitingFor,
         }),
       })
 
-      // Refresh pipeline to get updated attempt counts
-      await fetchPipeline()
-      setShowReminderModal(false)
-      setReminderNote('')
-      alert(`${type === 'email' ? 'Email' : 'SMS'} reminder sent successfully!`)
+      if (res.ok) {
+        // Update local state
+        setPartners(prev => prev.map(p => {
+          if (p.id === selectedPartnerForFollowUp.id) {
+            const newAttempt: FollowUpAttempt = {
+              id: crypto.randomUUID(),
+              sentAt: new Date().toISOString(),
+              type: reminderType,
+              note: reminderNote,
+              sentBy: user?.primaryEmailAddress?.emailAddress || 'admin',
+            }
+            return {
+              ...p,
+              followUpAttempts: [...(p.followUpAttempts || []), newAttempt],
+            }
+          }
+          return p
+        }))
+        generateWaitingItems(partners)
+        setShowReminderModal(false)
+        setReminderNote('')
+      }
     } catch (err) {
       console.error('Error sending reminder:', err)
-      alert('Failed to send reminder')
     } finally {
       setSendingReminder(false)
     }
   }
 
-  // Skip step (move to next stage)
-  const skipStep = async (partnerId: string, currentStage: string) => {
+  // Skip current step for partner
+  const skipStep = async (partnerId: string) => {
+    if (!confirm('Are you sure you want to skip this step?')) return
+
     try {
-      const stageIndex = PIPELINE_STAGES.findIndex(s => s.id === currentStage)
-      if (stageIndex === -1 || stageIndex >= PIPELINE_STAGES.length - 1) return
+      const partner = partners.find(p => p.id === partnerId)
+      if (!partner) return
 
-      const nextStage = PIPELINE_STAGES[stageIndex + 1].id
+      const currentStageIndex = PIPELINE_STAGES.findIndex(s => s.id === partner.stage)
+      const nextStage = PIPELINE_STAGES[currentStageIndex + 1]
 
-      await fetch('/api/pipeline/partners/' + partnerId, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stage: nextStage,
-          waitingFor: null,
-          waitingSince: null,
-          skipReason: 'Manually skipped by admin'
-        }),
-      })
-
-      await fetchPipeline()
-      alert('Step skipped successfully!')
+      if (nextStage) {
+        await fetch(`/api/pipeline/partners/${partnerId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stage: nextStage.id,
+            waitingFor: nextStage.waitingFor || null,
+            waitingSince: new Date().toISOString(),
+          }),
+        })
+        fetchPipeline()
+      }
     } catch (err) {
       console.error('Error skipping step:', err)
-      alert('Failed to skip step')
     }
   }
 
   // Mark partner as inactive
-  const markInactive = async (partnerId: string, reason?: string) => {
-    if (!confirm('Are you sure you want to mark this partner as inactive? This will remove them from active follow-ups.')) return
+  const markInactive = async (partnerId: string) => {
+    if (!confirm('Mark this partner as inactive? They will be removed from follow-ups.')) return
 
     try {
-      await fetch('/api/pipeline/partners/' + partnerId, {
+      await fetch(`/api/pipeline/partners/${partnerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'inactive' }),
+      })
+      fetchPipeline()
+    } catch (err) {
+      console.error('Error marking inactive:', err)
+    }
+  }
+
+  // Update partner stage
+  const updatePartnerStage = async (partnerId: string, newStage: string) => {
+    try {
+      const stage = PIPELINE_STAGES.find(s => s.id === newStage)
+      await fetch(`/api/pipeline/partners/${partnerId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          stage: 'inactive',
-          status: 'inactive',
-          inactiveReason: reason || 'No response after multiple follow-ups',
-          inactiveDate: new Date().toISOString()
+          stage: newStage,
+          waitingFor: stage?.waitingFor || null,
+          waitingSince: new Date().toISOString(),
         }),
       })
-
-      await fetchPipeline()
-      alert('Partner marked as inactive')
+      fetchPipeline()
     } catch (err) {
-      console.error('Error marking inactive:', err)
-      alert('Failed to mark inactive')
+      console.error('Error updating stage:', err)
     }
   }
 
-  // Pause follow-ups for a partner
-  const pauseFollowUps = async (partnerId: string) => {
-    try {
-      await fetch('/api/pipeline/partners/' + partnerId, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'paused' }),
-      })
-      await fetchPipeline()
-    } catch (err) {
-      console.error('Error pausing:', err)
-    }
-  }
-
-  // Resume follow-ups for a partner
-  const resumeFollowUps = async (partnerId: string) => {
-    try {
-      await fetch('/api/pipeline/partners/' + partnerId, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      })
-      await fetchPipeline()
-    } catch (err) {
-      console.error('Error resuming:', err)
-    }
-  }
-
-  // Fetch dropdowns for settings
-  const fetchDropdowns = async () => {
-    try {
-      const res = await fetch('/api/pipeline/dropdowns')
-      if (res.ok) {
-        const data = await res.json()
-        setDropdowns(data.dropdowns || [])
-      }
-    } catch (err) {
-      console.error('Error fetching dropdowns:', err)
-    }
-  }
-
-  // Fetch calendly links from real API
+  // Fetch Calendly links
   const fetchCalendlyLinks = async () => {
     setCalendlyLoading(true)
     setCalendlyError(null)
     try {
-      const res = await fetch('/api/pipeline/calendly')
-      const data = await res.json()
-
-      if (data.success) {
-        setCalendlyLinks(data.links || [])
+      const res = await fetch('/api/calendly/event-types')
+      if (res.ok) {
+        const data = await res.json()
+        setCalendlyLinks(data.eventTypes || [])
         setCalendlyUser(data.user || null)
       } else {
-        setCalendlyError(data.error || 'Failed to fetch Calendly data')
+        const error = await res.json()
+        setCalendlyError(error.message || 'Failed to fetch Calendly links')
       }
     } catch (err) {
-      console.error('Calendly fetch error:', err)
-      setCalendlyError('Failed to connect to Calendly API')
+      console.error('Error fetching Calendly:', err)
+      setCalendlyError('Failed to connect to Calendly')
     } finally {
       setCalendlyLoading(false)
     }
   }
 
-  // Send user invite
-  const sendInvite = async () => {
-    if (!inviteEmail.trim()) return
-    setInviteSending(true)
+  // Copy link to clipboard
+  const copyToClipboard = (link: string, id: string) => {
+    navigator.clipboard.writeText(link)
+    setCopiedLink(id)
+    setTimeout(() => setCopiedLink(null), 2000)
+  }
+
+  // Open send email modal for Calendly link
+  const openCalendlyEmailModal = (link: CalendlyLink) => {
+    setSelectedCalendlyLink(link)
+    setCalendlyEmailSubject(`Schedule Your ${link.name}`)
+    setCalendlyEmailMessage(`Hi,\n\nPlease use the link below to schedule your ${link.name}:\n\n${link.schedulingUrl}\n\nLooking forward to connecting with you!\n\nBest regards,\nSkyYield Team`)
+    setShowCalendlyEmailModal(true)
+  }
+
+  // Send Calendly email
+  const sendCalendlyEmail = async () => {
+    if (!calendlyEmailRecipient || !selectedCalendlyLink) return
+    setSendingCalendlyEmail(true)
+
     try {
-      await fetch('/api/pipeline/email', {
+      const res = await fetch('/api/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          templateId: 'portalInvite',
-          to: inviteEmail,
-          variables: { name: inviteEmail.split('@')[0], userType: inviteUserType }
+          to: calendlyEmailRecipient,
+          subject: calendlyEmailSubject,
+          body: calendlyEmailMessage,
+          templateType: 'calendly_invite',
         }),
       })
-      alert(`Invitation sent to ${inviteEmail}!`)
-      setShowInviteModal(false)
-      setInviteEmail('')
+
+      if (res.ok) {
+        setShowCalendlyEmailModal(false)
+        setCalendlyEmailRecipient('')
+        setSelectedCalendlyLink(null)
+      }
     } catch (err) {
-      console.error('Error sending invite:', err)
-      alert('Failed to send invitation')
+      console.error('Error sending email:', err)
     } finally {
-      setInviteSending(false)
+      setSendingCalendlyEmail(false)
+    }
+  }
+
+  // Filter users
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = userSearch === '' ||
+      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(userSearch.toLowerCase())
+    const matchesStatus = statusFilter === 'all' || u.status === statusFilter
+    const matchesType = typeFilter === 'all' || u.userType === typeFilter
+    return matchesSearch && matchesStatus && matchesType
+  })
+
+  // Filter products
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = productSearch === '' ||
+      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+      (p.sku?.toLowerCase() || '').includes(productSearch.toLowerCase())
+    const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter
+    return matchesSearch && matchesCategory
+  })
+
+  // Filter articles
+  const filteredArticles = articles.filter(a => {
+    const matchesSearch = articleSearch === '' ||
+      a.title.toLowerCase().includes(articleSearch.toLowerCase())
+    const matchesStatus = articleStatusFilter === 'all' || a.status === articleStatusFilter
+    return matchesSearch && matchesStatus
+  })
+
+  // Approved products
+  const approvedProducts = products.filter(p => approvedIds.has(p.id))
+
+  // Toggle product approval
+  const toggleApproval = (productId: string) => {
+    const newIds = new Set(approvedIds)
+    if (newIds.has(productId)) {
+      newIds.delete(productId)
+    } else {
+      newIds.add(productId)
+    }
+    saveApprovedIds(newIds)
+  }
+
+  // Fetch payment partners
+  const fetchPaymentPartners = async () => {
+    setPaymentsLoading(true)
+    try {
+      // For now, use mock data
+      setPaymentPartners(MOCK_PAYMENT_PARTNERS)
+    } catch (err) {
+      console.error('Error fetching payment partners:', err)
+    } finally {
+      setPaymentsLoading(false)
     }
   }
 
   // Update submission status
   const updateSubmissionStatus = async (submissionId: string, status: string) => {
     try {
-      await fetch('/api/forms/submissions', {
+      await fetch(`/api/forms/submissions/${submissionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: submissionId, status }),
+        body: JSON.stringify({ status }),
       })
       setSubmissions(prev => prev.map(s =>
         s.id === submissionId ? { ...s, status: status as FormSubmission['status'] } : s
       ))
-      // Update stats
-      fetchSubmissions(selectedFormId || undefined)
     } catch (err) {
       console.error('Error updating submission:', err)
     }
   }
 
-  // Copy form link
-  const copyFormLink = (slug: string) => {
-    const link = `${window.location.origin}/forms/${slug}`
-    navigator.clipboard.writeText(link)
-    setCopiedLink(slug)
-    setTimeout(() => setCopiedLink(null), 2000)
-  }
+  // Send invite email
+  const sendInvite = async () => {
+    if (!inviteEmail) return
+    setInviteSending(true)
 
-  // Load data when tab changes
-  useEffect(() => {
-    if (activeTab === 'users') fetchUsers()
-    if (activeTab === 'products' || activeTab === 'approved-products') fetchProducts()
-    if (activeTab === 'blog') fetchArticles()
-    if (activeTab === 'forms') {
-      fetchForms()
-      fetchSubmissions()
+    try {
+      const res = await fetch('/api/admin/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail,
+          userType: inviteUserType,
+        }),
+      })
+
+      if (res.ok) {
+        setShowInviteModal(false)
+        setInviteEmail('')
+      }
+    } catch (err) {
+      console.error('Error sending invite:', err)
+    } finally {
+      setInviteSending(false)
     }
-    if (activeTab === 'pipeline') fetchPipeline()
-    if (activeTab === 'followups') fetchPipeline() // Uses same data as pipeline
-    if (activeTab === 'settings') {
-      fetchDropdowns()
-      fetchCalendlyLinks()
-    }
-    if (activeTab === 'overview') {
-      fetchUsers()
-      fetchProducts()
-      fetchPipeline()
-    }
-  }, [activeTab])
+  }
 
   // Update user status
   const updateUserStatus = async (userId: string, status: string) => {
     try {
-      await fetch('/api/admin/users', {
-        method: 'PUT',
+      await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, status }),
+        body: JSON.stringify({ status }),
       })
-      fetchUsers()
+      setUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, status: status as User['status'] } : u
+      ))
+      if (selectedUser?.id === userId) {
+        setSelectedUser({ ...selectedUser, status: status as User['status'] })
+      }
     } catch (err) {
       console.error('Error updating user:', err)
     }
   }
 
-  // Toggle product visibility (showInStore)
-  const toggleProductVisibility = async (product: Product) => {
-    const currentVisibility = product.showInStore !== false
-    const newVisibility = !currentVisibility
-
-    // Update local state immediately
-    setProducts(prev => prev.map(p =>
-      p.id === product.id ? { ...p, showInStore: newVisibility } : p
+  // Save email template
+  const saveEmailTemplate = (template: EmailTemplate) => {
+    setEmailTemplates(prev => prev.map(t =>
+      t.id === template.id ? template : t
     ))
+    setEditingTemplate(null)
+  }
 
+  // Save form
+  const saveForm = async (form: Form) => {
     try {
-      const response = await fetch('/api/admin/products', {
-        method: 'PUT',
+      const method = form.id ? 'PUT' : 'POST'
+      const url = form.id ? `/api/forms/${form.id}` : '/api/forms'
+
+      await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: product.id,
-          priceId: product.priceId,
-          name: product.name,
-          description: product.description,
-          sku: product.sku,
-          category: product.category,
-          manufacturer: product.manufacturer,
-          msrp: product.msrp,
-          storePrice: product.storePrice,
-          markup: product.markup,
-          features: product.features,
-          typeLayer: product.typeLayer,
-          availability: product.availability,
-          productUrl: product.productUrl,
-          images: product.images,
-          showInStore: newVisibility,
-        }),
+        body: JSON.stringify(form),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to update')
-      }
+      fetchForms()
+      setShowFormEditorModal(false)
+      setEditingForm(null)
     } catch (err) {
-      console.error('Error updating product:', err)
-      // Revert on error
-      setProducts(prev => prev.map(p =>
-        p.id === product.id ? { ...p, showInStore: currentVisibility } : p
-      ))
+      console.error('Error saving form:', err)
     }
   }
 
-  // Toggle product approval for operations (stored in localStorage for now)
-  const toggleProductApproval = (product: Product) => {
-    const newApprovedIds = new Set(approvedIds)
-    if (newApprovedIds.has(product.id)) {
-      newApprovedIds.delete(product.id)
-    } else {
-      newApprovedIds.add(product.id)
-    }
-    saveApprovedIds(newApprovedIds)
-  }
+  // Calculate earnings helper
+  const calculateEarnings = () => {
+    const profile = VENUE_PROFILES[calcVenueType] || VENUE_PROFILES['cafe_coffee']
+    const dailyVisitors = calcFootTraffic
+    const wifiUsers = Math.round(dailyVisitors * (calcWifiAdoption / 100))
+    const avgDataPerUser = profile.avgDataGB || 0.5
+    const dailyDataGB = wifiUsers * avgDataPerUser
+    const dailyEarnings = dailyDataGB * calcRatePerGB
+    const monthlyEarnings = dailyEarnings * calcDaysOpen
+    const yearlyEarnings = monthlyEarnings * 12
 
-  // Check if product is approved
-  const isProductApproved = (productId: string) => approvedIds.has(productId)
-
-  // Delete product
-  const deleteProduct = async (productId: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return
-    try {
-      const res = await fetch(`/api/admin/products?id=${productId}`, {
-        method: 'DELETE',
-      })
-      if (res.ok) {
-        setProducts(prev => prev.filter(p => p.id !== productId))
-      }
-    } catch (err) {
-      console.error('Error deleting product:', err)
+    return {
+      dailyVisitors,
+      wifiUsers,
+      dailyDataGB: dailyDataGB.toFixed(2),
+      dailyEarnings: dailyEarnings.toFixed(2),
+      monthlyEarnings: monthlyEarnings.toFixed(2),
+      yearlyEarnings: yearlyEarnings.toFixed(2),
     }
   }
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  }
+
+
+  // Format date
+const formatDate = (dateString: string | number) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  // Format relative time
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+    return `${Math.floor(diffDays / 30)} months ago`
+  }
+
+  // Get priority color
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-400 bg-red-500/20'
+      case 'medium': return 'text-yellow-400 bg-yellow-500/20'
+      case 'low': return 'text-green-400 bg-green-500/20'
+      default: return 'text-gray-400 bg-gray-500/20'
+    }
+  }
+
+  // Get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved': return 'text-green-400 bg-green-500/20'
+      case 'pending': return 'text-yellow-400 bg-yellow-500/20'
+      case 'rejected': return 'text-red-400 bg-red-500/20'
+      case 'active': return 'text-green-400 bg-green-500/20'
+      case 'inactive': return 'text-gray-400 bg-gray-500/20'
+      case 'published': return 'text-green-400 bg-green-500/20'
+      case 'draft': return 'text-gray-400 bg-gray-500/20'
+      case 'new': return 'text-cyan-400 bg-cyan-500/20'
+      case 'reviewed': return 'text-blue-400 bg-blue-500/20'
+      default: return 'text-gray-400 bg-gray-500/20'
+    }
+  }
+
+  // Tab data loading effect
+  useEffect(() => {
+    if (activeTab === 'users' && users.length === 0) {
+      fetchUsers()
+    } else if (activeTab === 'products' && products.length === 0) {
+      fetchProducts()
+    } else if (activeTab === 'approved-products' && products.length === 0) {
+      fetchProducts()
+    } else if (activeTab === 'blog' && articles.length === 0) {
+      fetchArticles()
+    } else if (activeTab === 'forms' && forms.length === 0) {
+      fetchForms()
+      fetchSubmissions()
+    } else if (activeTab === 'pipeline' && partners.length === 0) {
+      fetchPipeline()
+    } else if (activeTab === 'follow-ups' && partners.length === 0) {
+      fetchPipeline()
+    } else if (activeTab === 'payments' && paymentPartners.length === 0) {
+      fetchPaymentPartners()
+    } else if (activeTab === 'settings' && settingsTab === 'calendly' && calendlyLinks.length === 0) {
+      fetchCalendlyLinks()
+    }
+  }, [activeTab, settingsTab])
+
+  // Fetch submissions when form selected
+  useEffect(() => {
+    if (selectedFormId) {
+      fetchSubmissions(selectedFormId)
+    }
+  }, [selectedFormId])
 
   if (!isLoaded || !user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0A0F2C] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
       </div>
     )
   }
-
-  const status = (user.unsafeMetadata as any)?.status || 'pending'
-  if (status !== 'approved') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" />
-      </div>
-    )
-  }
-
-  // Filter users
-  const filteredUsers = users.filter(u => {
-    const matchesSearch =
-      (u.firstName?.toLowerCase() || '').includes(userSearch.toLowerCase()) ||
-      (u.lastName?.toLowerCase() || '').includes(userSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(userSearch.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || u.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
-
-  // Filter products
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      (p.sku?.toLowerCase() || '').includes(productSearch.toLowerCase())
-    const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter
-    return matchesSearch && matchesCategory
-  })
-
-  const approvedProducts = products.filter(p => approvedIds.has(p.id))
-  const categories = [...new Set(products.map(p => p.category))].filter(Boolean)
-
-  // Stats
-  const pendingUsers = users.filter(u => u.status === 'pending').length
-  const approvedUsers = users.filter(u => u.status === 'approved').length
-  const totalProducts = products.length
-  const approvedProductsCount = approvedProducts.length
-
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
-    { id: 'followups', label: 'Follow-Ups', icon: Bell },
-    { id: 'products', label: 'Store Products', icon: ShoppingBag },
-    { id: 'approved-products', label: 'Approved Products', icon: Star },
-    { id: 'blog', label: 'Blog', icon: FileText },
-    { id: 'forms', label: 'Forms', icon: ClipboardList },
-    { id: 'calculators', label: 'Calculators', icon: Calculator },
-    { id: 'payments', label: 'Payments', icon: Wallet },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-  ]
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved': return 'bg-green-500/20 text-green-400 border-green-500/30'
-      case 'rejected': return 'bg-red-500/20 text-red-400 border-red-500/30'
-      default: return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-    }
-  }
-
-  const getTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      'Administrator': 'bg-purple-500/20 text-purple-400',
-      'Employee': 'bg-blue-500/20 text-blue-400',
-      'Referral Partner': 'bg-cyan-500/20 text-cyan-400',
-      'Location Partner': 'bg-green-500/20 text-green-400',
-      'Channel Partner': 'bg-orange-500/20 text-orange-400',
-      'Contractor': 'bg-pink-500/20 text-pink-400',
-      'Customer': 'bg-indigo-500/20 text-indigo-400',
-      'Calculator Access': 'bg-teal-500/20 text-teal-400',
-    }
-    return colors[type] || 'bg-gray-500/20 text-gray-400'
-  }
-
-  const getProductStatusColor = (status?: string) => {
-    switch (status) {
-      case 'In Stock': return 'text-green-400'
-      case 'Sold Out': return 'text-red-400'
-      case 'Low Stock': return 'text-yellow-400'
-      default: return 'text-[#94A3B8]'
-    }
-  }
-
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      'Indoor Access Points': 'bg-cyan-500/20 text-cyan-400',
-      'Outdoor Access Points': 'bg-green-500/20 text-green-400',
-      'Switches': 'bg-purple-500/20 text-purple-400',
-      'Gateways': 'bg-orange-500/20 text-orange-400',
-      'Accessories': 'bg-pink-500/20 text-pink-400',
-    }
-    return colors[category] || 'bg-[#2D3B5F] text-[#94A3B8]'
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20">
+    <div className="min-h-screen bg-[#0A0F2C]">
       {/* Header */}
-      <div className="px-4 pb-4 border-b border-[#2D3B5F]">
-        <div className="max-w-7xl mx-auto">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Link>
-
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-white">
-                Admin <span className="text-[#0EA5E9]">Portal</span>
-              </h1>
-              <p className="text-[#94A3B8] mt-1">
-                Welcome back, {user?.firstName}! Manage your platform.
-              </p>
+      <header className="bg-[#0A0F2C]/95 backdrop-blur-sm border-b border-white/10 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-green-500 rounded-lg flex items-center justify-center">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Admin Portal</h1>
+                <p className="text-xs text-gray-400">SkyYield Management</p>
+              </div>
             </div>
-            <button
-              onClick={() => setShowInviteModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
-            >
-              <UserPlus className="w-4 h-4" />
-              Invite User
-            </button>
+            <div className="flex items-center gap-4">
+              <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                <Bell className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-green-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {user?.firstName?.[0] || 'A'}
+                  </span>
+                </div>
+                <span className="text-sm text-gray-300 hidden sm:block">
+                  {user?.firstName || 'Admin'}
+                </span>
+              </div>
+            </div>
           </div>
+        </div>
+      </header>
 
-          {/* Tabs */}
-          <div className="flex gap-1 overflow-x-auto pb-2">
-            {tabs.map(tab => (
+      {/* Tab Navigation */}
+      <div className="bg-[#0A0F2C]/80 border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex gap-1 overflow-x-auto py-2 scrollbar-hide">
+            {[
+              { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+              { id: 'users', label: 'Users', icon: Users },
+              { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
+              { id: 'follow-ups', label: 'Follow-ups', icon: Clock },
+              { id: 'products', label: 'Products', icon: Package },
+              { id: 'approved-products', label: 'Approved', icon: CheckCircle },
+              { id: 'blog', label: 'Blog', icon: FileText },
+              { id: 'forms', label: 'Forms', icon: ClipboardList },
+              { id: 'calculators', label: 'Calculators', icon: Calculator },
+              { id: 'payments', label: 'Payments', icon: DollarSign },
+              { id: 'settings', label: 'Settings', icon: Settings },
+              { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+            ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === tab.id
-                    ? 'bg-[#0EA5E9] text-white'
-                    : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${activeTab === tab.id
+                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
                 <tab.icon className="w-4 h-4" />
                 {tab.label}
               </button>
             ))}
-          </div>
+          </nav>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Crypto Prices */}
-            <CryptoPriceHeader />
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
-                    <Users className="w-5 h-5 text-[#0EA5E9]" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Total Users</p>
+                    <p className="text-3xl font-bold text-white mt-1">{users.length || '—'}</p>
                   </div>
-                  <span className="text-[#94A3B8] text-sm">Total Users</span>
+                  <div className="w-12 h-12 bg-cyan-500/20 rounded-xl flex items-center justify-center">
+                    <Users className="w-6 h-6 text-cyan-400" />
+                  </div>
                 </div>
-                <div className="text-3xl font-bold text-white">{users.length}</div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="text-green-400 flex items-center gap-1">
+                    <TrendingUp className="w-4 h-4" /> +12%
+                  </span>
+                  <span className="text-gray-500">vs last month</span>
+                </div>
               </div>
 
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-yellow-400" />
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Active Partners</p>
+                    <p className="text-3xl font-bold text-white mt-1">{partners.filter(p => p.status === 'active').length || '—'}</p>
                   </div>
-                  <span className="text-[#94A3B8] text-sm">Pending Approvals</span>
+                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-green-400" />
+                  </div>
                 </div>
-                <div className="text-3xl font-bold text-yellow-400">{pendingUsers}</div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="text-green-400 flex items-center gap-1">
+                    <TrendingUp className="w-4 h-4" /> +8%
+                  </span>
+                  <span className="text-gray-500">vs last month</span>
+                </div>
               </div>
 
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-green-400" />
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Pending Follow-ups</p>
+                    <p className="text-3xl font-bold text-white mt-1">{waitingItems.length || '—'}</p>
                   </div>
-                  <span className="text-[#94A3B8] text-sm">Active Users</span>
+                  <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-yellow-400" />
+                  </div>
                 </div>
-                <div className="text-3xl font-bold text-green-400">{approvedUsers}</div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="text-red-400 flex items-center gap-1">
+                    {waitingItems.filter(i => i.priority === 'high').length} high priority
+                  </span>
+                </div>
               </div>
 
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                    <Package className="w-5 h-5 text-purple-400" />
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Products</p>
+                    <p className="text-3xl font-bold text-white mt-1">{products.length || '—'}</p>
                   </div>
-                  <span className="text-[#94A3B8] text-sm">Store Products</span>
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-purple-400" />
+                  </div>
                 </div>
-                <div className="text-3xl font-bold text-purple-400">{totalProducts}</div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="text-cyan-400">{approvedIds.size} approved</span>
+                </div>
               </div>
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button
-                onClick={() => setActiveTab('users')}
-                className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 hover:border-[#0EA5E9] transition-colors text-left group"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center group-hover:bg-[#0EA5E9]/30 transition-colors">
-                    <Users className="w-5 h-5 text-[#0EA5E9]" />
-                  </div>
-                  <span className="text-white font-medium">Manage Users</span>
-                </div>
-                <p className="text-[#64748B] text-sm">Approve, reject, and manage user accounts</p>
-                {pendingUsers > 0 && (
-                  <div className="mt-3 inline-flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">
-                    <Clock className="w-3 h-3" />
-                    {pendingUsers} pending
-                  </div>
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveTab('products')}
-                className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 hover:border-[#0EA5E9] transition-colors text-left group"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center group-hover:bg-green-500/30 transition-colors">
-                    <ShoppingBag className="w-5 h-5 text-green-400" />
-                  </div>
-                  <span className="text-white font-medium">Store Products</span>
-                </div>
-                <p className="text-[#64748B] text-sm">Manage products synced with Stripe</p>
-                <div className="mt-3 inline-flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">
-                  <Package className="w-3 h-3" />
-                  {totalProducts} products
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('approved-products')}
-                className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 hover:border-[#0EA5E9] transition-colors text-left group"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center group-hover:bg-yellow-500/30 transition-colors">
-                    <Star className="w-5 h-5 text-yellow-400" />
-                  </div>
-                  <span className="text-white font-medium">Approved Products</span>
-                </div>
-                <p className="text-[#64748B] text-sm">SkyYield approved equipment for operations</p>
-                <div className="mt-3 inline-flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">
-                  <Star className="w-3 h-3" />
-                  {approvedProductsCount} approved
-                </div>
-              </button>
+            <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+              <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="flex flex-col items-center gap-2 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+                >
+                  <UserPlus className="w-6 h-6 text-cyan-400" />
+                  <span className="text-sm text-gray-300">Invite User</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('pipeline')}
+                  className="flex flex-col items-center gap-2 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+                >
+                  <GitBranch className="w-6 h-6 text-green-400" />
+                  <span className="text-sm text-gray-300">View Pipeline</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('follow-ups')}
+                  className="flex flex-col items-center gap-2 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+                >
+                  <Clock className="w-6 h-6 text-yellow-400" />
+                  <span className="text-sm text-gray-300">Follow-ups</span>
+                </button>
+                <button
+                  onClick={() => { setActiveTab('settings'); setSettingsTab('emails'); }}
+                  className="flex flex-col items-center gap-2 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+                >
+                  <Mail className="w-6 h-6 text-purple-400" />
+                  <span className="text-sm text-gray-300">Email Templates</span>
+                </button>
+              </div>
             </div>
 
-            {/* Recent Activity Placeholder */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Recent Activity</h2>
-              <div className="text-center py-8 text-[#64748B]">
-                <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Activity feed coming soon</p>
+            {/* Recent Activity */}
+            <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+              <h3 className="text-lg font-semibold text-white mb-4">Recent Activity</h3>
+              <div className="space-y-4">
+                {[
+                  { icon: UserPlus, text: 'New user registration: john@example.com', time: '5 min ago', color: 'text-cyan-400' },
+                  { icon: CheckCircle, text: 'Partner approved: ABC Company', time: '1 hour ago', color: 'text-green-400' },
+                  { icon: Mail, text: 'Follow-up sent to XYZ Corp', time: '2 hours ago', color: 'text-yellow-400' },
+                  { icon: FileText, text: 'Contract signed: Demo Partner', time: '3 hours ago', color: 'text-purple-400' },
+                ].map((activity, idx) => (
+                  <div key={idx} className="flex items-center gap-4 p-3 bg-white/5 rounded-lg">
+                    <div className={`w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center ${activity.color}`}>
+                      <activity.icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-white">{activity.text}</p>
+                      <p className="text-xs text-gray-500">{activity.time}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         )}
-
         {/* Users Tab */}
         {activeTab === 'users' && (
-          <div className="space-y-4">
-            {/* Filters */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search by name or email..."
+                    placeholder="Search users..."
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
+                    className="pl-10 pr-4 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 w-full sm:w-64"
                   />
                 </div>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  className="px-4 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                 >
-                  <option value="all">All Statuses</option>
-                  <option value="pending">Pending</option>
+                  <option value="all">All Status</option>
                   <option value="approved">Approved</option>
+                  <option value="pending">Pending</option>
                   <option value="rejected">Rejected</option>
                 </select>
-                <button
-                  onClick={fetchUsers}
-                  disabled={usersLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors disabled:opacity-50"
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="px-4 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                 >
-                  <RefreshCw className={`w-4 h-4 ${usersLoading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </button>
+                  <option value="all">All Types</option>
+                  {USER_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
               </div>
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors"
+              >
+                <UserPlus className="w-4 h-4" />
+                Invite User
+              </button>
             </div>
 
-            {/* Users Table */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[#2D3B5F]">
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">User</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Type</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Status</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Joined</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersLoading ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-[#64748B]">
-                        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                        Loading users...
-                      </td>
-                    </tr>
-                  ) : filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-[#64748B]">
-                        No users found
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map(u => (
-                      <tr
-                        key={u.id}
-                        className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30 cursor-pointer"
-                        onClick={() => { setSelectedUser(u); setShowUserModal(true) }}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={u.imageUrl || `https://ui-avatars.com/api/?name=${u.firstName}+${u.lastName}&background=0EA5E9&color=fff`}
-                              alt=""
-                              className="w-10 h-10 rounded-full"
-                            />
-                            <div>
-                              <div className="text-white font-medium">{u.firstName} {u.lastName}</div>
-                              <div className="text-[#64748B] text-sm">{u.email}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(u.userType)}`}>
-                            {u.userType || 'Unknown'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(u.status)}`}>
-                            {u.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-[#94A3B8]">
-                          {new Date(u.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                            {u.status !== 'approved' && (
-                              <button
-                                onClick={() => updateUserStatus(u.id, 'approved')}
-                                className="p-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
-                                title="Approve"
-                              >
-                                <Check className="w-4 h-4" />
-                              </button>
-                            )}
-                            {u.status !== 'rejected' && (
-                              <button
-                                onClick={() => updateUserStatus(u.id, 'rejected')}
-                                className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                                title="Reject"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => { setSelectedUser(u); setShowUserModal(true) }}
-                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
+            {usersLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No users found</p>
+              </div>
+            ) : (
+              <div className="bg-[#1a1f3e] rounded-xl border border-white/10 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">User</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Type</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Status</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Joined</th>
+                        <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Actions</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map(u => (
+                        <tr key={u.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-green-500 rounded-full flex items-center justify-center">
+                                <span className="text-white font-medium">{u.name[0]}</span>
+                              </div>
+                              <div>
+                                <p className="text-white font-medium">{u.name}</p>
+                                <p className="text-gray-400 text-sm">{u.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-gray-300">{u.userType}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(u.status)}`}>
+                              {u.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-gray-400 text-sm">
+                          {formatDate(String(u.createdAt))}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => { setSelectedUser(u); setShowUserModal(true); }}
+                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              {u.status === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={() => updateUserStatus(u.id, 'approved')}
+                                    className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => updateUserStatus(u.id, 'rejected')}
+                                    className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Store Products Tab */}
+        {/* Products Tab */}
         {activeTab === 'products' && (
-          <div className="space-y-4">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Store Products</h2>
-                <p className="text-[#94A3B8] text-sm">Manage products synced with Stripe • {products.length} products</p>
-              </div>
-              <div className="flex gap-2">
-                <Link
-                  href="/admin/store-products"
-                  className="flex items-center gap-2 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F] transition-colors"
-                >
-                  <Upload className="w-4 h-4" />
-                  Import Excel
-                </Link>
-                <Link
-                  href="/admin/store-products"
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Product
-                </Link>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Search products..."
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
+                    className="pl-10 pr-4 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 w-full sm:w-64"
                   />
                 </div>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  className="px-4 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                 >
                   <option value="all">All Categories</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
+                  <option value="access-points">Access Points</option>
+                  <option value="switches">Switches</option>
+                  <option value="routers">Routers</option>
+                  <option value="accessories">Accessories</option>
                 </select>
-                <button
-                  onClick={fetchProducts}
-                  disabled={productsLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${productsLoading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </button>
               </div>
-            </div>
-
-            {/* Products Table */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[#2D3B5F]">
-                    <th className="text-left px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Product</th>
-                    <th className="text-left px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">SKU</th>
-                    <th className="text-left px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Category</th>
-                    <th className="text-right px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">MSRP</th>
-                    <th className="text-right px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Store Price</th>
-                    <th className="text-right px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Partner Price</th>
-                    <th className="text-center px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Status</th>
-                    <th className="text-center px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Visible</th>
-                    <th className="text-center px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Approved</th>
-                    <th className="text-right px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productsLoading ? (
-                    <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center text-[#64748B]">
-                        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                        Loading products...
-                      </td>
-                    </tr>
-                  ) : filteredProducts.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center text-[#64748B]">
-                        <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>No products found</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredProducts.map(p => (
-                      <tr key={p.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-[#2D3B5F] rounded-lg flex items-center justify-center overflow-hidden">
-                              {p.images && p.images[0] ? (
-                                <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <Package className="w-5 h-5 text-[#64748B]" />
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-white font-medium">{p.name}</div>
-                              {p.manufacturer && <div className="text-[#64748B] text-xs">{p.manufacturer}</div>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-[#94A3B8] font-mono text-sm">{p.sku || '-'}</td>
-                        <td className="px-4 py-4">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${getCategoryColor(p.category)}`}>
-                            {p.category}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-right text-[#94A3B8]">
-                          ${p.msrp?.toFixed(2) || '-'}
-                        </td>
-                        <td className="px-4 py-4 text-right text-white font-medium">
-                          ${p.storePrice?.toFixed(2) || '0.00'}
-                        </td>
-                        <td className="px-4 py-4 text-right text-[#0EA5E9] font-medium">
-                          ${(p.storePrice * 0.95).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className={`text-sm ${getProductStatusColor(p.availability)}`}>
-                            {p.availability || 'In Stock'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <button
-                            onClick={() => toggleProductVisibility(p)}
-                            className="text-[#64748B] hover:text-white transition-colors"
-                          >
-                            {p.showInStore !== false ? (
-                              <ToggleRight className="w-8 h-8 text-green-400" />
-                            ) : (
-                              <ToggleLeft className="w-8 h-8" />
-                            )}
-                          </button>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <button
-                            onClick={() => toggleProductApproval(p)}
-                            className={`p-2 rounded-lg transition-colors ${isProductApproved(p.id)
-                                ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
-                                : 'bg-[#2D3B5F] text-[#64748B] hover:bg-[#3D4B6F]'
-                              }`}
-                            title={isProductApproved(p.id) ? 'Remove from approved' : 'Mark as approved'}
-                          >
-                            <Star className={`w-4 h-4 ${isProductApproved(p.id) ? 'fill-current' : ''}`} />
-                          </button>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center justify-end gap-1">
-                            <Link
-                              href={`/admin/store-products?edit=${p.id}`}
-                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Link>
-                            <button
-                              onClick={() => deleteProduct(p.id)}
-                              className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Approved Products Tab */}
-        {activeTab === 'approved-products' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-white">SkyYield Approved Products</h2>
-                <p className="text-[#94A3B8] text-sm">Equipment approved for use in SkyYield operations • {approvedProductsCount} products</p>
+              <div className="text-sm text-gray-400">
+                {approvedIds.size} of {products.length} approved
               </div>
-              <button
-                onClick={fetchProducts}
-                disabled={productsLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F] transition-colors"
-              >
-                <RefreshCw className={`w-4 h-4 ${productsLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
             </div>
 
             {productsLoading ? (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
-                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-[#64748B]" />
-                <p className="text-[#64748B]">Loading products...</p>
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
               </div>
-            ) : approvedProducts.length === 0 ? (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
-                <Star className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                <p className="text-[#64748B]">No approved products yet</p>
-                <p className="text-[#64748B] text-sm mt-1">
-                  Go to Store Products and click the star icon to approve products for operations
-                </p>
-                <button
-                  onClick={() => setActiveTab('products')}
-                  className="mt-4 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
-                >
-                  Go to Store Products
-                </button>
+            ) : filteredProducts.length === 0 ? (
+              <div className="text-center py-12">
+                <Package className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No products found</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {approvedProducts.map(p => (
-                  <div key={p.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="w-16 h-16 bg-[#2D3B5F] rounded-lg flex items-center justify-center overflow-hidden">
-                        {p.images && p.images[0] ? (
-                          <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <Package className="w-8 h-8 text-[#64748B]" />
-                        )}
+                {filteredProducts.map(product => (
+                  <div key={product.id} className="bg-[#1a1f3e] rounded-xl border border-white/10 overflow-hidden hover:border-cyan-500/30 transition-colors">
+                    <div className="aspect-video bg-white/5 flex items-center justify-center">
+                      {product.imageUrl ? (
+                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="w-12 h-12 text-gray-600" />
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-white font-medium">{product.name}</h3>
+                          <p className="text-gray-400 text-sm">{product.sku}</p>
+                        </div>
+                        <button
+                          onClick={() => toggleApproval(product.id)}
+                          className={`p-2 rounded-lg transition-colors ${approvedIds.has(product.id)
+                            ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                            }`}
+                        >
+                          {approvedIds.has(product.id) ? (
+                            <CheckCircle className="w-5 h-5" />
+                          ) : (
+                            <Plus className="w-5 h-5" />
+                          )}
+                        </button>
                       </div>
-                      <div className="flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">
-                        <Star className="w-3 h-3 fill-current" />
-                        Approved
+                      <p className="text-gray-500 text-sm mt-2 line-clamp-2">{product.description}</p>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-cyan-400 font-semibold">{formatCurrency(product.price)}</span>
+                        <span className={`text-xs px-2 py-1 rounded ${product.stock > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
+                        </span>
                       </div>
                     </div>
-                    <h3 className="text-white font-medium mb-1">{p.name}</h3>
-                    {p.manufacturer && <p className="text-[#64748B] text-xs mb-2">{p.manufacturer}</p>}
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium mb-3 ${getCategoryColor(p.category)}`}>
-                      {p.category}
-                    </span>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-[#0EA5E9] font-semibold">${p.storePrice?.toFixed(2) || '0.00'}</span>
-                        <span className="text-[#64748B] text-sm ml-2">Partner: ${(p.storePrice * 0.95).toFixed(2)}</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => toggleProductApproval(p)}
-                      className="w-full mt-4 py-2 border border-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#2D3B5F] transition-colors text-sm"
-                    >
-                      Remove from Approved
-                    </button>
                   </div>
                 ))}
               </div>
@@ -1893,1559 +2054,912 @@ export default function AdminPortalPage() {
           </div>
         )}
 
+        {/* Approved Products Tab */}
+        {activeTab === 'approved-products' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">Approved Products ({approvedProducts.length})</h2>
+              <button
+                onClick={() => setActiveTab('products')}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add More
+              </button>
+            </div>
+
+            {approvedProducts.length === 0 ? (
+              <div className="text-center py-12">
+                <CheckCircle className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No approved products yet</p>
+                <button
+                  onClick={() => setActiveTab('products')}
+                  className="mt-4 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors"
+                >
+                  Browse Products
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {approvedProducts.map(product => (
+                  <div key={product.id} className="bg-[#1a1f3e] rounded-xl border border-green-500/30 overflow-hidden">
+                    <div className="aspect-video bg-white/5 flex items-center justify-center relative">
+                      {product.imageUrl ? (
+                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="w-12 h-12 text-gray-600" />
+                      )}
+                      <div className="absolute top-2 right-2 bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">
+                        Approved
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="text-white font-medium">{product.name}</h3>
+                      <p className="text-gray-400 text-sm">{product.sku}</p>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-cyan-400 font-semibold">{formatCurrency(product.price)}</span>
+                        <button
+                          onClick={() => toggleApproval(product.id)}
+                          className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {/* Blog Tab */}
         {activeTab === 'blog' && (
           <div className="space-y-6">
-            {/* Header */}
-            <div>
-              <h2 className="text-xl font-semibold text-white">Blog Management</h2>
-              <p className="text-[#94A3B8] text-sm">Review, approve, and manage blog articles</p>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-[#0EA5E9]">
-                  {articles.filter(a => a.status === 'pending').length}
-                </div>
-                <div className="text-[#94A3B8] text-sm">Pending Review</div>
-              </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-green-400">
-                  {articles.filter(a => a.status === 'published').length}
-                </div>
-                <div className="text-[#94A3B8] text-sm">Published</div>
-              </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-[#94A3B8]">
-                  {articles.filter(a => a.status === 'draft').length}
-                </div>
-                <div className="text-[#94A3B8] text-sm">Drafts</div>
-              </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-red-400">
-                  {articles.filter(a => a.status === 'rejected').length}
-                </div>
-                <div className="text-[#94A3B8] text-sm">Rejected</div>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Search articles..."
                     value={articleSearch}
                     onChange={(e) => setArticleSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
+                    className="pl-10 pr-4 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 w-full sm:w-64"
                   />
                 </div>
                 <select
                   value={articleStatusFilter}
                   onChange={(e) => setArticleStatusFilter(e.target.value)}
-                  className="px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  className="px-4 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                 >
-                  <option value="all">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="published">Published</option>
+                  <option value="all">All Status</option>
                   <option value="draft">Draft</option>
-                  <option value="rejected">Rejected</option>
+                  <option value="published">Published</option>
                 </select>
-                <button
-                  onClick={fetchArticles}
-                  disabled={articlesLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${articlesLoading ? 'animate-spin' : ''}`} />
-                  Show All ({articles.filter(a => {
-                    const matchesSearch = a.title.toLowerCase().includes(articleSearch.toLowerCase())
-                    const matchesStatus = articleStatusFilter === 'all' || a.status === articleStatusFilter
-                    return matchesSearch && matchesStatus
-                  }).length})
-                </button>
               </div>
+              <button
+                onClick={() => router.push('/portals/admin/blog/new')}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                New Article
+              </button>
             </div>
 
-            {/* Articles Table */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[#2D3B5F]">
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Article</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Category</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Source</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Status</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Created</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {articlesLoading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">
-                        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                        Loading articles...
-                      </td>
-                    </tr>
-                  ) : articles.filter(a => {
-                    const matchesSearch = a.title.toLowerCase().includes(articleSearch.toLowerCase())
-                    const matchesStatus = articleStatusFilter === 'all' || a.status === articleStatusFilter
-                    return matchesSearch && matchesStatus
-                  }).length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">
-                        <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>No articles found</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    articles.filter(a => {
-                      const matchesSearch = a.title.toLowerCase().includes(articleSearch.toLowerCase())
-                      const matchesStatus = articleStatusFilter === 'all' || a.status === articleStatusFilter
-                      return matchesSearch && matchesStatus
-                    }).map(article => (
-                      <tr key={article.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-[#2D3B5F] rounded-lg flex items-center justify-center overflow-hidden">
-                              {article.image ? (
-                                <img src={article.image} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <FileText className="w-6 h-6 text-[#64748B]" />
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-white font-medium">{article.title}</div>
-                              {article.excerpt && (
-                                <div className="text-[#64748B] text-sm truncate max-w-xs">{article.excerpt}</div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {article.category && (
-                            <span className="px-2 py-1 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded text-xs">
-                              {article.category}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-[#94A3B8]">{article.source || 'Original'}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${article.status === 'published' ? 'bg-green-500/20 text-green-400' :
-                              article.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                                article.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                                  'bg-[#2D3B5F] text-[#94A3B8]'
-                            }`}>
-                            {article.status.charAt(0).toUpperCase() + article.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-[#94A3B8] text-sm">
-                          {new Date(article.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link
-                              href={`/blog/${article.id}`}
-                              className="px-3 py-1.5 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
-                            >
-                              Preview
-                            </Link>
-                            <Link
-                              href={`/admin/blog/edit/${article.id}`}
-                              className="px-3 py-1.5 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
-                            >
-                              Edit
-                            </Link>
-                            {article.status !== 'published' && (
-                              <button
-                                onClick={() => updateArticleStatus(article.id, 'published')}
-                                className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
-                              >
-                                Approve
-                              </button>
-                            )}
-                            {article.status !== 'rejected' && article.status !== 'published' && (
-                              <button
-                                onClick={() => updateArticleStatus(article.id, 'rejected')}
-                                className="px-3 py-1.5 border border-red-500 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm"
-                              >
-                                Reject
-                              </button>
-                            )}
-                            <button
-                              onClick={() => deleteArticle(article.id)}
-                              className="px-3 py-1.5 border border-red-500 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
+            {articlesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+              </div>
+            ) : filteredArticles.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No articles found</p>
+              </div>
+            ) : (
+              <div className="bg-[#1a1f3e] rounded-xl border border-white/10 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Title</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Author</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Status</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Created</th>
+                        <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Actions</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {filteredArticles.map(article => (
+                        <tr key={article.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="text-white font-medium">{article.title}</p>
+                            <p className="text-gray-500 text-sm line-clamp-1">{article.excerpt}</p>
+                          </td>
+                          <td className="px-6 py-4 text-gray-300">{article.author}</td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(article.status)}`}>
+                              {article.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-gray-400 text-sm">
+                            {formatDate(article.createdAt)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => router.push(`/portals/admin/blog/${article.id}`)}
+                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              {article.status === 'draft' ? (
+                                <button
+                                  onClick={() => updateArticleStatus(article.id, 'published')}
+                                  className="p-2 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-lg transition-colors"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => updateArticleStatus(article.id, 'draft')}
+                                  className="p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-lg transition-colors"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => deleteArticle(article.id)}
+                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Forms Tab */}
         {activeTab === 'forms' && (
           <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Forms & Submissions</h2>
-                <p className="text-[#94A3B8] text-sm">Manage forms and view submissions</p>
-              </div>
-              <Link
-                href="/admin/forms/new"
-                className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <h2 className="text-xl font-semibold text-white">Form Submissions</h2>
+              <button
+                onClick={() => { setEditingForm(null); setShowFormEditorModal(true); }}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Create Form
-              </Link>
+              </button>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-white">{submissionStats.total}</div>
-                <div className="text-[#94A3B8] text-sm">Total Submissions</div>
+              <div className="bg-[#1a1f3e] rounded-xl p-4 border border-white/10">
+                <p className="text-gray-400 text-sm">Total</p>
+                <p className="text-2xl font-bold text-white">{submissionStats.total}</p>
               </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-yellow-400">{submissionStats.new}</div>
-                <div className="text-[#94A3B8] text-sm">New</div>
+              <div className="bg-[#1a1f3e] rounded-xl p-4 border border-cyan-500/30">
+                <p className="text-cyan-400 text-sm">New</p>
+                <p className="text-2xl font-bold text-cyan-400">{submissionStats.new}</p>
               </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-blue-400">{submissionStats.reviewed}</div>
-                <div className="text-[#94A3B8] text-sm">Reviewed</div>
+              <div className="bg-[#1a1f3e] rounded-xl p-4 border border-blue-500/30">
+                <p className="text-blue-400 text-sm">Reviewed</p>
+                <p className="text-2xl font-bold text-blue-400">{submissionStats.reviewed}</p>
               </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-green-400">{submissionStats.approved}</div>
-                <div className="text-[#94A3B8] text-sm">Approved</div>
+              <div className="bg-[#1a1f3e] rounded-xl p-4 border border-green-500/30">
+                <p className="text-green-400 text-sm">Approved</p>
+                <p className="text-2xl font-bold text-green-400">{submissionStats.approved}</p>
               </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-red-400">{submissionStats.rejected}</div>
-                <div className="text-[#94A3B8] text-sm">Rejected</div>
+              <div className="bg-[#1a1f3e] rounded-xl p-4 border border-red-500/30">
+                <p className="text-red-400 text-sm">Rejected</p>
+                <p className="text-2xl font-bold text-red-400">{submissionStats.rejected}</p>
               </div>
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-6">
-              {/* Forms List */}
-              <div className="lg:col-span-1 space-y-4">
-                <h3 className="text-white font-medium">Your Forms</h3>
-                {formsLoading ? (
-                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#64748B]" />
+            {/* Forms List */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div
+                className={`bg-[#1a1f3e] rounded-xl p-4 border cursor-pointer transition-colors ${selectedFormId === null ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-white/10 hover:border-white/20'
+                  }`}
+                onClick={() => { setSelectedFormId(null); fetchSubmissions(); }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-cyan-500/20 rounded-lg flex items-center justify-center">
+                    <ClipboardList className="w-5 h-5 text-cyan-400" />
                   </div>
-                ) : forms.length === 0 ? (
-                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <ClipboardList className="w-10 h-10 mx-auto mb-3 text-[#64748B] opacity-50" />
-                    <p className="text-[#94A3B8] text-sm">No forms yet</p>
+                  <div>
+                    <p className="text-white font-medium">All Submissions</p>
+                    <p className="text-gray-400 text-sm">View all forms</p>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {forms.map(form => (
-                      <div
-                        key={form.id}
-                        className={`bg-[#1A1F3A] border rounded-xl p-4 cursor-pointer transition-colors ${selectedFormId === form.id ? 'border-[#0EA5E9]' : 'border-[#2D3B5F] hover:border-[#0EA5E9]/50'
-                          }`}
-                        onClick={() => {
-                          setSelectedFormId(form.id)
-                          fetchSubmissions(form.id)
-                        }}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="text-white font-medium text-sm">{form.name}</h4>
-                          <span className={`px-2 py-0.5 rounded text-xs ${form.settings.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                              form.settings.status === 'draft' ? 'bg-yellow-500/20 text-yellow-400' :
-                                'bg-red-500/20 text-red-400'
-                            }`}>
-                            {form.settings.status}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-[#64748B]">{form.submissionCount} submissions</span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setEditingForm(form)
-                                setShowFormEditorModal(true)
-                              }}
-                              className="p-1 hover:bg-[#2D3B5F] rounded transition-colors"
-                              title="Edit form fields"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-[#64748B] hover:text-[#0EA5E9]" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                copyFormLink(form.slug)
-                              }}
-                              className="p-1 hover:bg-[#2D3B5F] rounded transition-colors"
-                              title="Copy form link"
-                            >
-                              {copiedLink === form.slug ? (
-                                <Check className="w-3.5 h-3.5 text-green-400" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5 text-[#64748B]" />
-                              )}
-                            </button>
-                            <Link
-                              href={`/forms/${form.slug}`}
-                              target="_blank"
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1 hover:bg-[#2D3B5F] rounded transition-colors"
-                              title="Open form"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5 text-[#64748B]" />
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Submissions List */}
-              <div className="lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-white font-medium">
-                    {selectedFormId ? 'Form Submissions' : 'All Submissions'}
-                  </h3>
-                  {selectedFormId && (
-                    <button
-                      onClick={() => {
-                        setSelectedFormId(null)
-                        fetchSubmissions()
-                      }}
-                      className="text-sm text-[#0EA5E9] hover:underline"
-                    >
-                      Show All
-                    </button>
-                  )}
                 </div>
-
-                {submissionsLoading ? (
-                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#64748B]" />
-                  </div>
-                ) : submissions.length === 0 ? (
-                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <Inbox className="w-10 h-10 mx-auto mb-3 text-[#64748B] opacity-50" />
-                    <p className="text-[#94A3B8] text-sm">No submissions yet</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {submissions.map(submission => (
-                      <div
-                        key={submission.id}
-                        className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-white font-medium">
-                                {submission.data.name || submission.data.contact_name || submission.data.business_name || 'Anonymous'}
-                              </span>
-                              <span className={`px-2 py-0.5 rounded text-xs ${submission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
-                                  submission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
-                                    submission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                                      'bg-red-500/20 text-red-400'
-                                }`}>
-                                {submission.status}
-                              </span>
-                            </div>
-                            <p className="text-[#64748B] text-sm">{submission.formName}</p>
-                          </div>
-                          <span className="text-[#64748B] text-xs">
-                            {new Date(submission.submittedAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                        </div>
-
-                        {/* Submission Data Preview */}
-                        <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
-                          {submission.data.email && (
-                            <div>
-                              <span className="text-[#64748B]">Email: </span>
-                              <span className="text-white">{submission.data.email}</span>
-                            </div>
-                          )}
-                          {submission.data.phone && (
-                            <div>
-                              <span className="text-[#64748B]">Phone: </span>
-                              <span className="text-white">{submission.data.phone}</span>
-                            </div>
-                          )}
-                          {submission.data.business_type && (
-                            <div>
-                              <span className="text-[#64748B]">Type: </span>
-                              <span className="text-white">{submission.data.business_type}</span>
-                            </div>
-                          )}
-                          {submission.data.address && (
-                            <div className="col-span-2">
-                              <span className="text-[#64748B]">Address: </span>
-                              <span className="text-white">{submission.data.address}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 pt-3 border-t border-[#2D3B5F]">
-                          <button
-                            onClick={() => {
-                              setSelectedSubmission(submission)
-                              setShowSubmissionDetailModal(true)
-                            }}
-                            className="px-3 py-1.5 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-xs"
-                          >
-                            View Details
-                          </button>
-                          {submission.status === 'new' && (
-                            <button
-                              onClick={() => updateSubmissionStatus(submission.id, 'reviewed')}
-                              className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors text-xs"
-                            >
-                              Mark Reviewed
-                            </button>
-                          )}
-                          {submission.status !== 'approved' && (
-                            <button
-                              onClick={() => updateSubmissionStatus(submission.id, 'approved')}
-                              className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs"
-                            >
-                              Approve
-                            </button>
-                          )}
-                          {submission.status !== 'rejected' && (
-                            <button
-                              onClick={() => updateSubmissionStatus(submission.id, 'rejected')}
-                              className="px-3 py-1.5 border border-red-500 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-xs"
-                            >
-                              Reject
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
+              {forms.map(form => (
+                <div
+                  key={form.id}
+                  className={`bg-[#1a1f3e] rounded-xl p-4 border cursor-pointer transition-colors ${selectedFormId === form.id ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-white/10 hover:border-white/20'
+                    }`}
+                  onClick={() => setSelectedFormId(form.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{form.name}</p>
+                        <p className="text-gray-400 text-sm">{form.fields?.length || 0} fields</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(`${window.location.origin}/forms/${form.slug}`, form.id); }}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        {copiedLink === form.id ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingForm(form); setShowFormEditorModal(true); }}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* Submissions Table */}
+            {submissionsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+              </div>
+            ) : submissions.length === 0 ? (
+              <div className="text-center py-12 bg-[#1a1f3e] rounded-xl border border-white/10">
+                <ClipboardList className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No submissions yet</p>
+              </div>
+            ) : (
+              <div className="bg-[#1a1f3e] rounded-xl border border-white/10 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Submitted</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Form</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Contact</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Status</th>
+                        <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {submissions.map(sub => (
+                        <tr key={sub.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4 text-gray-400 text-sm">
+                            {formatRelativeTime(sub.submittedAt)}
+                          </td>
+                          <td className="px-6 py-4 text-white">{sub.formName}</td>
+                          <td className="px-6 py-4">
+                            <p className="text-white">{sub.data?.name || sub.data?.email || 'N/A'}</p>
+                            <p className="text-gray-400 text-sm">{sub.data?.email || ''}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(sub.status)}`}>
+                              {sub.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => { setSelectedSubmission(sub); setShowSubmissionDetailModal(true); }}
+                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              {sub.status === 'new' && (
+                                <button
+                                  onClick={() => updateSubmissionStatus(sub.id, 'reviewed')}
+                                  className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Calculators Tab */}
         {activeTab === 'calculators' && (
           <div className="space-y-6">
-            {/* Header */}
-            <div>
-              <h2 className="text-xl font-semibold text-white">Placer.ai Calculators</h2>
-              <p className="text-[#94A3B8] text-sm">Analyze venues and estimate potential earnings using foot traffic data</p>
-            </div>
-
-            {/* Calculator Selection */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {[
-                { id: 'earnings', label: 'WiFi Earnings', icon: DollarSign, color: 'text-green-400', available: true },
-                { id: 'trade-area', label: 'Trade Area', icon: MapPin, color: 'text-blue-400', available: true },
-                { id: 'competitor', label: 'Competitor', icon: Target, color: 'text-orange-400', available: true },
-                { id: 'peak-hours', label: 'Peak Hours', icon: Clock, color: 'text-purple-400', available: true },
-                { id: 'demographics', label: 'Demographics', icon: Users, color: 'text-cyan-400', available: true },
-                { id: 'venue-score', label: 'Venue Score', icon: Building2, color: 'text-yellow-400', available: true },
-              ].map(calc => (
+            <div className="flex gap-4 mb-6">
+              {['earnings', 'coverage', 'roi'].map(calc => (
                 <button
-                  key={calc.id}
-                  onClick={() => setActiveCalculator(calc.id)}
-                  className={`p-4 rounded-xl border transition-all ${activeCalculator === calc.id
-                      ? 'bg-[#0EA5E9]/20 border-[#0EA5E9] text-white'
-                      : 'bg-[#1A1F3A] border-[#2D3B5F] text-[#94A3B8] hover:border-[#0EA5E9]/50'
+                  key={calc}
+                  onClick={() => setActiveCalculator(calc)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeCalculator === calc
+                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                 >
-                  <calc.icon className={`w-6 h-6 mx-auto mb-2 ${calc.color}`} />
-                  <div className="text-xs font-medium">{calc.label}</div>
+                  {calc === 'earnings' ? 'Earnings Calculator' : calc === 'coverage' ? 'Coverage Calculator' : 'ROI Calculator'}
                 </button>
               ))}
             </div>
 
-            {/* WiFi Earnings Calculator - Full Featured */}
             {activeCalculator === 'earnings' && (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-green-400" />
-                  WiFi Earnings Calculator
-                </h3>
-
-                <div className="grid lg:grid-cols-3 gap-8">
-                  {/* Left Column - Location & Venue */}
-                  <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                  <h3 className="text-lg font-semibold text-white mb-6">Venue Details</h3>
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm text-[#94A3B8] mb-2">Property Address</label>
-                      <input
-                        type="text"
-                        value={calcAddress}
-                        onChange={(e) => setCalcAddress(e.target.value)}
-                        placeholder="Enter address..."
-                        className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-[#94A3B8] mb-2">Venue Type</label>
+                      <label className="block text-sm text-gray-400 mb-2">Venue Type</label>
                       <select
                         value={calcVenueType}
                         onChange={(e) => setCalcVenueType(e.target.value)}
-                        className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                       >
-                        {Object.entries(VENUE_CATEGORIES).map(([category, venueIds]) => (
+                        {Object.entries(VENUE_CATEGORIES).map(([category, venues]) => (
                           <optgroup key={category} label={category}>
-                            {venueIds.map(id => (
-                              <option key={id} value={id}>
-                                {VENUE_PROFILES[id]?.name || id}
+                            {venues.map(venue => (
+                              <option key={venue} value={venue}>
+                                {VENUE_PROFILES[venue]?.label || venue}
                               </option>
                             ))}
                           </optgroup>
                         ))}
                       </select>
                     </div>
-
-                    {/* Venue Details Box */}
-                    {calcVenueType && VENUE_PROFILES[calcVenueType] && (
-                      <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
-                        <div className="text-white font-medium mb-2">{VENUE_PROFILES[calcVenueType].name}</div>
-                        <div className="text-[#64748B] text-sm mb-3">{VENUE_PROFILES[calcVenueType].description}</div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-[#64748B]">Avg Dwell:</span>
-                            <span className="text-white ml-2">{VENUE_PROFILES[calcVenueType].avgDwell}</span>
-                          </div>
-                          <div>
-                            <span className="text-[#64748B]">WiFi Multiplier:</span>
-                            <span className="text-[#0EA5E9] ml-2">{VENUE_PROFILES[calcVenueType].wifiMultiplier}x</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
                     <div>
-                      <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
-                        <span>Square Footage</span>
-                        <span className="text-white font-medium">{calcSquareFootage.toLocaleString()} sq ft</span>
-                      </label>
+                      <label className="block text-sm text-gray-400 mb-2">Daily Foot Traffic</label>
                       <input
-                        type="range"
-                        min="500"
-                        max="50000"
-                        step="100"
-                        value={calcSquareFootage}
-                        onChange={(e) => setCalcSquareFootage(Number(e.target.value))}
-                        className="w-full h-2 bg-[#2D3B5F] rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
-                      />
-                      <div className="flex justify-between text-xs text-[#64748B] mt-1">
-                        <span>500</span>
-                        <span>50,000</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Middle Column - Traffic & Hours */}
-                  <div className="space-y-6">
-                    <div>
-                      <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
-                        <span>Daily Foot Traffic</span>
-                        <span className="text-white font-medium">{calcFootTraffic.toLocaleString()} visitors</span>
-                      </label>
-                      <input
-                        type="range"
-                        min="50"
-                        max="10000"
-                        step="50"
+                        type="number"
                         value={calcFootTraffic}
                         onChange={(e) => setCalcFootTraffic(Number(e.target.value))}
-                        className="w-full h-2 bg-[#2D3B5F] rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                       />
-                      <div className="flex justify-between text-xs text-[#64748B] mt-1">
-                        <span>50</span>
-                        <span>10,000</span>
-                      </div>
                     </div>
-
                     <div>
-                      <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
-                        <span>WiFi Adoption Rate</span>
-                        <span className="text-white font-medium">{calcWifiAdoption}%</span>
-                      </label>
+                      <label className="block text-sm text-gray-400 mb-2">WiFi Adoption Rate (%)</label>
                       <input
-                        type="range"
-                        min="10"
-                        max="80"
+                        type="number"
                         value={calcWifiAdoption}
                         onChange={(e) => setCalcWifiAdoption(Number(e.target.value))}
-                        className="w-full h-2 bg-[#2D3B5F] rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
+                        min={1}
+                        max={100}
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                       />
-                      <div className="flex justify-between text-xs text-[#64748B] mt-1">
-                        <span>10%</span>
-                        <span>80%</span>
-                      </div>
                     </div>
-
                     <div>
-                      <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
-                        <span>Hours Open Per Day</span>
-                        <span className="text-white font-medium">{calcHoursOpen} hours</span>
-                      </label>
+                      <label className="block text-sm text-gray-400 mb-2">Rate per GB ($)</label>
                       <input
-                        type="range"
-                        min="4"
-                        max="24"
-                        value={calcHoursOpen}
-                        onChange={(e) => setCalcHoursOpen(Number(e.target.value))}
-                        className="w-full h-2 bg-[#2D3B5F] rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
-                      />
-                      <div className="flex justify-between text-xs text-[#64748B] mt-1">
-                        <span>4</span>
-                        <span>24</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
-                        <span>Days Open Per Month</span>
-                        <span className="text-white font-medium">{calcDaysOpen} days</span>
-                      </label>
-                      <input
-                        type="range"
-                        min="15"
-                        max="31"
-                        value={calcDaysOpen}
-                        onChange={(e) => setCalcDaysOpen(Number(e.target.value))}
-                        className="w-full h-2 bg-[#2D3B5F] rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
-                      />
-                      <div className="flex justify-between text-xs text-[#64748B] mt-1">
-                        <span>15</span>
-                        <span>31</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="flex justify-between text-sm text-[#94A3B8] mb-2">
-                        <span>Rate Per GB</span>
-                        <span className="text-white font-medium">${calcRatePerGB.toFixed(2)}</span>
-                      </label>
-                      <input
-                        type="range"
-                        min="0.10"
-                        max="1.00"
-                        step="0.05"
+                        type="number"
                         value={calcRatePerGB}
                         onChange={(e) => setCalcRatePerGB(Number(e.target.value))}
-                        className="w-full h-2 bg-[#2D3B5F] rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
+                        step={0.01}
+                        min={0.01}
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                       />
-                      <div className="flex justify-between text-xs text-[#64748B] mt-1">
-                        <span>$0.10</span>
-                        <span>$1.00</span>
-                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-2">Operating Days per Month</label>
+                      <input
+                        type="number"
+                        value={calcDaysOpen}
+                        onChange={(e) => setCalcDaysOpen(Number(e.target.value))}
+                        min={1}
+                        max={31}
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
+                      />
                     </div>
                   </div>
+                </div>
 
-                  {/* Right Column - Results */}
-                  <div className="space-y-4">
-                    {(() => {
-                      const venueMultiplier = VENUE_PROFILES[calcVenueType]?.wifiMultiplier || 1.5
-                      const connectedUsers = Math.round(calcFootTraffic * (calcWifiAdoption / 100))
-                      const dataPerUserGB = 0.15 * venueMultiplier
-                      const dailyDataGB = connectedUsers * dataPerUserGB
-                      const monthlyDataGB = dailyDataGB * calcDaysOpen
-                      const monthlyEarnings = monthlyDataGB * calcRatePerGB
-                      const yearlyEarnings = monthlyEarnings * 12
-
-                      return (
-                        <>
-                          <div className="bg-gradient-to-br from-green-500/20 to-green-500/5 rounded-xl p-6 border border-green-500/30">
-                            <div className="text-green-300 text-sm mb-1">Estimated Monthly Earnings</div>
-                            <div className="text-4xl font-bold text-green-400">
-                              ${monthlyEarnings.toFixed(0)}
-                            </div>
-                            <div className="text-green-300/60 text-xs mt-1">Partner revenue share</div>
-                          </div>
-
-                          <div className="bg-[#0A0F2C] rounded-xl p-6 border border-[#2D3B5F]">
-                            <div className="text-[#94A3B8] text-sm mb-1">Estimated Yearly Earnings</div>
-                            <div className="text-3xl font-bold text-[#0EA5E9]">
-                              ${yearlyEarnings.toFixed(0)}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
-                              <div className="text-[#64748B] text-xs mb-1">Connected Users/Day</div>
-                              <div className="text-xl font-semibold text-white">
-                                {connectedUsers.toLocaleString()}
-                              </div>
-                            </div>
-                            <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
-                              <div className="text-[#64748B] text-xs mb-1">Data Offloaded/Month</div>
-                              <div className="text-xl font-semibold text-white">
-                                {monthlyDataGB.toFixed(0)} GB
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="bg-[#0A0F2C] rounded-lg p-4 border border-[#2D3B5F]">
-                            <div className="text-[#64748B] text-xs mb-2">Calculation Breakdown</div>
-                            <div className="space-y-1 text-xs">
-                              <div className="flex justify-between">
-                                <span className="text-[#64748B]">Daily visitors:</span>
-                                <span className="text-white">{calcFootTraffic.toLocaleString()}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[#64748B]">WiFi adoption ({calcWifiAdoption}%):</span>
-                                <span className="text-white">{connectedUsers} users</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[#64748B]">Data per user ({venueMultiplier}x):</span>
-                                <span className="text-white">{dataPerUserGB.toFixed(2)} GB</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[#64748B]">Daily data:</span>
-                                <span className="text-white">{dailyDataGB.toFixed(1)} GB</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[#64748B]">Monthly data ({calcDaysOpen} days):</span>
-                                <span className="text-white">{monthlyDataGB.toFixed(0)} GB</span>
-                              </div>
-                              <div className="flex justify-between border-t border-[#2D3B5F] pt-1 mt-1">
-                                <span className="text-[#94A3B8]">× ${calcRatePerGB.toFixed(2)}/GB:</span>
-                                <span className="text-green-400 font-medium">${monthlyEarnings.toFixed(0)}/mo</span>
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      )
-                    })()}
-                  </div>
+                <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                  <h3 className="text-lg font-semibold text-white mb-6">Projected Earnings</h3>
+                  {(() => {
+                    const results = calculateEarnings()
+                    return (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-white/5 rounded-lg">
+                          <p className="text-gray-400 text-sm">Daily WiFi Users</p>
+                          <p className="text-2xl font-bold text-white">{results.wifiUsers.toLocaleString()}</p>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-lg">
+                          <p className="text-gray-400 text-sm">Daily Data (GB)</p>
+                          <p className="text-2xl font-bold text-white">{results.dailyDataGB}</p>
+                        </div>
+                        <div className="p-4 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                          <p className="text-cyan-400 text-sm">Daily Earnings</p>
+                          <p className="text-2xl font-bold text-cyan-400">${results.dailyEarnings}</p>
+                        </div>
+                        <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/30">
+                          <p className="text-green-400 text-sm">Monthly Earnings</p>
+                          <p className="text-3xl font-bold text-green-400">${results.monthlyEarnings}</p>
+                        </div>
+                        <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/30">
+                          <p className="text-purple-400 text-sm">Yearly Earnings</p>
+                          <p className="text-3xl font-bold text-purple-400">${results.yearlyEarnings}</p>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             )}
 
-            {/* Trade Area Analyzer */}
-            {activeCalculator === 'trade-area' && (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-blue-400" />
-                  Trade Area Analyzer
-                </h3>
-                <p className="text-[#94A3B8] mb-6">Understand where your venue&apos;s visitors come from and identify optimal coverage areas.</p>
-
-                <div className="grid md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-sm mb-1">Primary Trade Area</div>
-                    <div className="text-2xl font-bold text-blue-400">5 mi</div>
-                    <div className="text-xs text-[#64748B]">70% of visitors</div>
-                  </div>
-                  <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-sm mb-1">Secondary Trade Area</div>
-                    <div className="text-2xl font-bold text-cyan-400">15 mi</div>
-                    <div className="text-xs text-[#64748B]">25% of visitors</div>
-                  </div>
-                  <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-sm mb-1">Extended Reach</div>
-                    <div className="text-2xl font-bold text-purple-400">30+ mi</div>
-                    <div className="text-xs text-[#64748B]">5% of visitors</div>
-                  </div>
-                </div>
-
-                <div className="bg-[#0A0F2C] rounded-xl p-8 border border-[#2D3B5F] text-center">
-                  <MapPin className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                  <p className="text-[#94A3B8]">Enter a venue address to analyze its trade area</p>
-                  <div className="mt-4 flex gap-2 max-w-md mx-auto">
+            {activeCalculator === 'coverage' && (
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <h3 className="text-lg font-semibold text-white mb-4">Coverage Calculator</h3>
+                <p className="text-gray-400">Calculate WiFi coverage requirements based on square footage and layout.</p>
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Square Footage</label>
                     <input
-                      type="text"
-                      placeholder="Enter venue address..."
-                      className="flex-1 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
+                      type="number"
+                      value={calcSquareFootage}
+                      onChange={(e) => setCalcSquareFootage(Number(e.target.value))}
+                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                     />
-                    <button className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
-                      Analyze
-                    </button>
+                  </div>
+                  <div className="flex items-end">
+                    <div className="p-4 bg-cyan-500/10 rounded-lg border border-cyan-500/30 w-full">
+                      <p className="text-cyan-400 text-sm">Recommended APs</p>
+                      <p className="text-2xl font-bold text-cyan-400">{Math.ceil(calcSquareFootage / 1500)}</p>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Competitor Comparison */}
-            {activeCalculator === 'competitor' && (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Target className="w-5 h-5 text-orange-400" />
-                  Competitor Comparison
-                </h3>
-                <p className="text-[#94A3B8] mb-6">Compare foot traffic metrics against nearby competitors.</p>
-
-                <div className="bg-[#0A0F2C] rounded-xl p-8 border border-[#2D3B5F] text-center">
-                  <Target className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                  <p className="text-[#94A3B8]">Select venues to compare foot traffic and performance</p>
-                  <button className="mt-4 px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
-                    Select Venues
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Peak Hours Optimizer */}
-            {activeCalculator === 'peak-hours' && (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-purple-400" />
-                  Peak Hours Optimizer
-                </h3>
-                <p className="text-[#94A3B8] mb-6">Identify peak visitation times to optimize WiFi capacity and earnings.</p>
-
-                <div className="grid md:grid-cols-7 gap-2 mb-6">
-                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
-                    <div key={day} className="bg-[#0A0F2C] rounded-lg p-3 border border-[#2D3B5F] text-center">
-                      <div className="text-[#64748B] text-xs mb-2">{day}</div>
-                      <div className={`text-lg font-bold ${i >= 5 ? 'text-green-400' : 'text-[#94A3B8]'}`}>
-                        {i >= 5 ? '↑' : '—'}
-                      </div>
-                      <div className="text-xs text-[#64748B]">{i >= 5 ? 'Peak' : 'Normal'}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="bg-[#0A0F2C] rounded-xl p-8 border border-[#2D3B5F] text-center">
-                  <Activity className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                  <p className="text-[#94A3B8]">Enter a venue to analyze hourly and daily traffic patterns</p>
-                  <button className="mt-4 px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
-                    Analyze Patterns
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Demographics Insights */}
-            {activeCalculator === 'demographics' && (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-cyan-400" />
-                  Demographics Insights
-                </h3>
-                <p className="text-[#94A3B8] mb-6">Understand visitor demographics to target optimal venues.</p>
-
-                <div className="grid md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-sm mb-1">Median Income</div>
-                    <div className="text-xl font-bold text-green-400">$75,000</div>
-                  </div>
-                  <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-sm mb-1">Avg Age</div>
-                    <div className="text-xl font-bold text-blue-400">34 yrs</div>
-                  </div>
-                  <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-sm mb-1">Mobile Usage</div>
-                    <div className="text-xl font-bold text-purple-400">92%</div>
-                  </div>
-                  <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-sm mb-1">Dwell Time</div>
-                    <div className="text-xl font-bold text-orange-400">45 min</div>
-                  </div>
-                </div>
-
-                <div className="bg-[#0A0F2C] rounded-xl p-8 border border-[#2D3B5F] text-center">
-                  <Users className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                  <p className="text-[#94A3B8]">Enter a venue to view detailed visitor demographics</p>
-                  <button className="mt-4 px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
-                    View Demographics
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Venue Score */}
-            {activeCalculator === 'venue-score' && (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-yellow-400" />
-                  Venue Scoring Tool
-                </h3>
-                <p className="text-[#94A3B8] mb-6">Get a comprehensive score (1-100) for any venue based on multiple factors.</p>
-
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg border border-[#2D3B5F]">
-                      <span className="text-[#94A3B8]">Foot Traffic</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-[#2D3B5F] rounded-full overflow-hidden">
-                          <div className="w-[85%] h-full bg-green-400 rounded-full" />
-                        </div>
-                        <span className="text-white font-medium">85</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg border border-[#2D3B5F]">
-                      <span className="text-[#94A3B8]">Demographics</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-[#2D3B5F] rounded-full overflow-hidden">
-                          <div className="w-[72%] h-full bg-blue-400 rounded-full" />
-                        </div>
-                        <span className="text-white font-medium">72</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg border border-[#2D3B5F]">
-                      <span className="text-[#94A3B8]">Dwell Time</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-[#2D3B5F] rounded-full overflow-hidden">
-                          <div className="w-[90%] h-full bg-purple-400 rounded-full" />
-                        </div>
-                        <span className="text-white font-medium">90</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg border border-[#2D3B5F]">
-                      <span className="text-[#94A3B8]">Competition</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-[#2D3B5F] rounded-full overflow-hidden">
-                          <div className="w-[65%] h-full bg-orange-400 rounded-full" />
-                        </div>
-                        <span className="text-white font-medium">65</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-center justify-center bg-[#0A0F2C] rounded-xl p-8 border border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-sm mb-2">Overall Venue Score</div>
-                    <div className="text-6xl font-bold text-yellow-400 mb-2">78</div>
-                    <div className="text-green-400 text-sm font-medium">Good Opportunity</div>
-                    <div className="mt-4 text-xs text-[#64748B] text-center">
-                      Score based on foot traffic, demographics, dwell time, and competitive landscape
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Enter venue address to score..."
-                      className="flex-1 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
-                    />
-                    <button className="px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
-                      Score Venue
-                    </button>
-                  </div>
+            {activeCalculator === 'roi' && (
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <h3 className="text-lg font-semibold text-white mb-4">ROI Calculator</h3>
+                <p className="text-gray-400">Calculate return on investment for WiFi infrastructure deployment.</p>
+                <div className="mt-6 text-center py-12">
+                  <Calculator className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-500">Coming soon</p>
                 </div>
               </div>
             )}
           </div>
         )}
-
         {/* Pipeline Tab */}
         {activeTab === 'pipeline' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Partner Pipeline</h2>
-                <p className="text-[#94A3B8] text-sm">Track partner onboarding progress - click a stage to filter</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {pipelineStageFilter && (
-                  <button
-                    onClick={() => setPipelineStageFilter(null)}
-                    className="flex items-center gap-2 px-3 py-2 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/30 transition-colors text-sm"
-                  >
-                    <X className="w-4 h-4" />
-                    Clear Filter
-                  </button>
-                )}
-                <button
-                  onClick={fetchPipeline}
-                  disabled={pipelineLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
-                >
-                  <RefreshCw className={`w-4 h-4 ${pipelineLoading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </button>
-              </div>
-            </div>
-
-            {/* Pipeline Stages Summary - Clickable */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {PIPELINE_STAGES.map(stage => {
-                const count = partners.filter(p => p.stage === stage.id).length
-                const isSelected = pipelineStageFilter === stage.id
-                const isFiltered = pipelineStageFilter !== null && !isSelected
-                return (
-                  <button
-                    key={stage.id}
-                    onClick={() => setPipelineStageFilter(isSelected ? null : stage.id)}
-                    className={`flex-shrink-0 px-4 py-2 rounded-lg border-l-4 ${stage.color} transition-all cursor-pointer ${isSelected
-                        ? 'bg-[#2D3B5F] ring-2 ring-[#0EA5E9]'
-                        : isFiltered
-                          ? 'bg-[#1A1F3A]/50 opacity-40'
-                          : 'bg-[#1A1F3A] hover:bg-[#2D3B5F]'
-                      }`}
-                  >
-                    <div className="text-white font-medium text-sm">{stage.name}</div>
-                    <div className="text-2xl font-bold text-white">{count}</div>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Filter indicator */}
-            {pipelineStageFilter && (
-              <div className="bg-[#0EA5E9]/10 border border-[#0EA5E9]/30 rounded-lg px-4 py-2 flex items-center justify-between">
-                <span className="text-[#0EA5E9] text-sm">
-                  Showing partners in: <strong>{PIPELINE_STAGES.find(s => s.id === pipelineStageFilter)?.name}</strong>
-                  {' '}({partners.filter(p => p.stage === pipelineStageFilter).length} partners)
-                </span>
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <h2 className="text-xl font-semibold text-white">Partner Pipeline</h2>
+              <div className="flex gap-2">
                 <button
                   onClick={() => setPipelineStageFilter(null)}
-                  className="text-[#0EA5E9] hover:text-white transition-colors"
+                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${pipelineStageFilter === null
+                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
                 >
-                  Show All
+                  All
                 </button>
+                {PIPELINE_STAGES.slice(0, 5).map(stage => (
+                  <button
+                    key={stage.id}
+                    onClick={() => setPipelineStageFilter(stage.id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${pipelineStageFilter === stage.id
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                  >
+                    {stage.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {pipelineLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+              </div>
+            ) : partners.length === 0 ? (
+              <div className="text-center py-12">
+                <GitBranch className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No partners in pipeline</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {PIPELINE_STAGES.map(stage => {
+                  const stagePartners = partners.filter(p =>
+                    p.stage === stage.id && (pipelineStageFilter === null || pipelineStageFilter === stage.id)
+                  )
+                  if (pipelineStageFilter !== null && pipelineStageFilter !== stage.id) return null
+
+                  return (
+                    <div key={stage.id} className="bg-[#1a1f3e] rounded-xl border border-white/10 overflow-hidden">
+                      <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${stage.color}`}></div>
+                          <h3 className="text-white font-medium">{stage.name}</h3>
+                        </div>
+                        <span className="text-gray-400 text-sm">{stagePartners.length}</span>
+                      </div>
+                      <div className="p-2 space-y-2 max-h-96 overflow-y-auto">
+                        {stagePartners.length === 0 ? (
+                          <p className="text-gray-500 text-sm text-center py-4">No partners</p>
+                        ) : (
+                          stagePartners.map(partner => (
+                            <div
+                              key={partner.id}
+                              className="bg-white/5 rounded-lg p-3 hover:bg-white/10 transition-colors cursor-pointer"
+                              onClick={() => { setSelectedPartnerForFollowUp(partner); setShowFollowUpModal(true); }}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-white text-sm font-medium">{partner.companyLegalName}</p>
+                                  <p className="text-gray-400 text-xs">{partner.contactFullName}</p>
+                                </div>
+                                {partner.waitingFor && (
+                                  <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+                                    Waiting
+                                  </span>
+                                )}
+                              </div>
+                              {partner.companyCity && (
+                                <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {partner.companyCity}, {partner.companyState}
+                                </p>
+                              )}
+                              <div className="mt-2 flex items-center gap-2">
+                                <select
+                                  value={partner.stage}
+                                  onChange={(e) => { e.stopPropagation(); updatePartnerStage(partner.id, e.target.value); }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex-1 text-xs px-2 py-1 bg-white/5 border border-white/10 rounded text-gray-300 focus:outline-none"
+                                >
+                                  {PIPELINE_STAGES.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
+          </div>
+        )}
 
-            {/* Partners Table */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-              {pipelineLoading ? (
-                <div className="p-12 text-center text-[#64748B]">
-                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                  Loading pipeline...
+        {/* Follow-ups Tab */}
+        {activeTab === 'follow-ups' && (
+          <div className="space-y-6">
+            <div className="flex flex-col lg:flex-row gap-4 justify-between">
+              <h2 className="text-xl font-semibold text-white">Follow-up Queue</h2>
+              <div className="flex flex-wrap gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={followUpSearch}
+                    onChange={(e) => setFollowUpSearch(e.target.value)}
+                    className="pl-10 pr-4 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 w-48"
+                  />
                 </div>
-              ) : partners.filter(p => !pipelineStageFilter || p.stage === pipelineStageFilter).length === 0 ? (
-                <div className="p-12 text-center text-[#64748B]">
-                  <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No partners {pipelineStageFilter ? 'in this stage' : 'in pipeline'}</p>
-                  <p className="text-sm mt-1">{pipelineStageFilter ? 'Try selecting a different stage' : 'Partners will appear here when they apply'}</p>
+                <select
+                  value={followUpItemTypeFilter}
+                  onChange={(e) => setFollowUpItemTypeFilter(e.target.value)}
+                  className="px-3 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                >
+                  <option value="all">All Types</option>
+                  <option value="calendly">Calendly</option>
+                  <option value="pandadoc">PandaDoc</option>
+                  <option value="tipalti">Tipalti</option>
+                  <option value="other">Other</option>
+                </select>
+                <select
+                  value={followUpPartnerTypeFilter}
+                  onChange={(e) => setFollowUpPartnerTypeFilter(e.target.value)}
+                  className="px-3 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                >
+                  <option value="all">All Partners</option>
+                  {PARTNER_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <select
+                  value={followUpSortBy}
+                  onChange={(e) => setFollowUpSortBy(e.target.value as typeof followUpSortBy)}
+                  className="px-3 py-2 bg-[#1a1f3e] border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                >
+                  <option value="days_desc">Oldest First</option>
+                  <option value="days_asc">Newest First</option>
+                  <option value="name">By Name</option>
+                  <option value="company">By Company</option>
+                  <option value="attempts">By Attempts</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Priority Summary */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-[#1a1f3e] rounded-xl p-4 border border-red-500/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
+                    <AlertCircle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-red-400 text-sm">High Priority</p>
+                    <p className="text-2xl font-bold text-white">{waitingItems.filter(i => i.priority === 'high').length}</p>
+                  </div>
                 </div>
-              ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[#2D3B5F]">
-                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Partner</th>
-                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Company</th>
-                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Stage</th>
-                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Location</th>
-                      <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {partners
-                      .filter(p => !pipelineStageFilter || p.stage === pipelineStageFilter)
-                      .map(partner => (
-                        <tr key={partner.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
+              </div>
+              <div className="bg-[#1a1f3e] rounded-xl p-4 border border-yellow-500/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-yellow-400" />
+                  </div>
+                  <div>
+                    <p className="text-yellow-400 text-sm">Medium Priority</p>
+                    <p className="text-2xl font-bold text-white">{waitingItems.filter(i => i.priority === 'medium').length}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-[#1a1f3e] rounded-xl p-4 border border-green-500/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                  </div>
+                  <div>
+                    <p className="text-green-400 text-sm">Low Priority</p>
+                    <p className="text-2xl font-bold text-white">{waitingItems.filter(i => i.priority === 'low').length}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Follow-up Items */}
+            {followUpsLoading || pipelineLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+              </div>
+            ) : getFilteredWaitingItems().length === 0 ? (
+              <div className="text-center py-12">
+                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                <p className="text-gray-400">No pending follow-ups</p>
+              </div>
+            ) : (
+              <div className="bg-[#1a1f3e] rounded-xl border border-white/10 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Partner</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Waiting For</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Days</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Attempts</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Priority</th>
+                        <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getFilteredWaitingItems().map(item => (
+                        <tr key={item.partnerId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="px-6 py-4">
-                            <div className="text-white font-medium">{partner.contactFullName}</div>
-                            <div className="text-[#64748B] text-sm">{partner.contactEmail}</div>
+                            <div>
+                              <p className="text-white font-medium">{item.companyName}</p>
+                              <p className="text-gray-400 text-sm">{item.partnerName}</p>
+                              <p className="text-gray-500 text-xs">{item.partnerEmail}</p>
+                            </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-white">{partner.companyLegalName}</div>
-                            {partner.companyDBA && <div className="text-[#64748B] text-sm">DBA: {partner.companyDBA}</div>}
+                            <div className="flex items-center gap-2">
+                              {item.waitingForCategory === 'calendly' && <Calendar className="w-4 h-4 text-blue-400" />}
+                              {item.waitingForCategory === 'pandadoc' && <FileText className="w-4 h-4 text-purple-400" />}
+                              {item.waitingForCategory === 'tipalti' && <DollarSign className="w-4 h-4 text-green-400" />}
+                              <span className="text-gray-300">{item.waitingForLabel}</span>
+                            </div>
+                            <p className="text-gray-500 text-xs mt-1">Stage: {item.stageName}</p>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${PIPELINE_STAGES.find(s => s.id === partner.stage)?.bgColor || 'bg-gray-500'
-                              } bg-opacity-20 text-white`}>
-                              {PIPELINE_STAGES.find(s => s.id === partner.stage)?.name || partner.stage}
+                            <span className={`font-medium ${item.daysPending >= 14 ? 'text-red-400' : item.daysPending >= 7 ? 'text-yellow-400' : 'text-gray-300'}`}>
+                              {item.daysPending} days
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-[#94A3B8]">
-                            {partner.companyCity}, {partner.companyState}
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-300">{item.attemptCount}</span>
+                              {item.lastAttemptDate && (
+                                <span className="text-gray-500 text-xs">
+                                  (Last: {formatRelativeTime(item.lastAttemptDate)})
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(item.priority)}`}>
+                              {item.priority}
+                            </span>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end gap-2">
-                              <Link
-                                href={`/admin/pipeline/partners/${partner.id}`}
-                                className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                              <button
+                                onClick={() => {
+                                  const partner = partners.find(p => p.id === item.partnerId)
+                                  if (partner) {
+                                    setSelectedPartnerForFollowUp(partner)
+                                    setShowReminderModal(true)
+                                  }
+                                }}
+                                className="p-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-lg transition-colors"
+                                title="Send Reminder"
                               >
-                                <Eye className="w-4 h-4" />
-                              </Link>
+                                <Send className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => skipStep(item.partnerId)}
+                                className="p-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-lg transition-colors"
+                                title="Skip Step"
+                              >
+                                <SkipForward className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => markInactive(item.partnerId)}
+                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                title="Mark Inactive"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
                             </div>
                           </td>
                         </tr>
                       ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
-
-        {/* Follow-Ups Tab */}
-        {activeTab === 'followups' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Follow-Up Queue</h2>
-                <p className="text-[#94A3B8] text-sm">Partners you&apos;re waiting on to take action</p>
-              </div>
-              <button
-                onClick={fetchPipeline}
-                disabled={pipelineLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
-              >
-                <RefreshCw className={`w-4 h-4 ${pipelineLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-            </div>
-
-            {/* Summary Stats - Clickable to filter */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <button
-                onClick={() => { setFollowUpItemTypeFilter('all'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'all' ? 'border-[#0EA5E9]' : 'border-[#2D3B5F]'
-                  }`}
-              >
-                <div className="text-2xl font-bold text-white">{waitingItems.length}</div>
-                <div className="text-[#64748B] text-sm">Total Waiting</div>
-              </button>
-              <button
-                onClick={() => { setFollowUpItemTypeFilter('calendly'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'calendly' ? 'border-purple-500' : 'border-[#2D3B5F]'
-                  }`}
-              >
-                <div className="text-2xl font-bold text-purple-400">{waitingItems.filter(w => w.waitingForCategory === 'calendly').length}</div>
-                <div className="text-[#64748B] text-sm">📅 Calendly</div>
-                <div className="text-[#64748B] text-xs">Need to book</div>
-              </button>
-              <button
-                onClick={() => { setFollowUpItemTypeFilter('pandadoc'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'pandadoc' ? 'border-orange-500' : 'border-[#2D3B5F]'
-                  }`}
-              >
-                <div className="text-2xl font-bold text-orange-400">{waitingItems.filter(w => w.waitingForCategory === 'pandadoc').length}</div>
-                <div className="text-[#64748B] text-sm">📝 PandaDoc</div>
-                <div className="text-[#64748B] text-xs">Need to sign</div>
-              </button>
-              <button
-                onClick={() => { setFollowUpItemTypeFilter('tipalti'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'tipalti' ? 'border-green-500' : 'border-[#2D3B5F]'
-                  }`}
-              >
-                <div className="text-2xl font-bold text-green-400">{waitingItems.filter(w => w.waitingForCategory === 'tipalti').length}</div>
-                <div className="text-[#64748B] text-sm">💰 Tipalti</div>
-                <div className="text-[#64748B] text-xs">Payment setup</div>
-              </button>
-              <button
-                onClick={() => { setFollowUpMinDays(30); setFollowUpMaxDays(999); setFollowUpItemTypeFilter('all') }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpMinDays >= 30 ? 'border-red-500' : 'border-[#2D3B5F]'
-                  }`}
-              >
-                <div className="text-2xl font-bold text-red-400">{waitingItems.filter(w => w.daysPending >= 30).length}</div>
-                <div className="text-[#64748B] text-sm">🚨 30+ Days</div>
-                <div className="text-[#64748B] text-xs">Consider inactive</div>
-              </button>
-            </div>
-
-            {/* Advanced Filters */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Filter className="w-4 h-4 text-[#64748B]" />
-                <span className="text-white font-medium">Filters</span>
-                <button
-                  onClick={() => {
-                    setFollowUpStatusFilter('all')
-                    setFollowUpItemTypeFilter('all')
-                    setFollowUpPartnerTypeFilter('all')
-                    setFollowUpMinDays(0)
-                    setFollowUpMaxDays(999)
-                    setFollowUpSearch('')
-                    setFollowUpSortBy('days_desc')
-                  }}
-                  className="ml-auto text-[#64748B] text-sm hover:text-white transition-colors"
-                >
-                  Clear All
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                {/* Search */}
-                <div className="md:col-span-2">
-                  <label className="block text-[#64748B] text-xs mb-1">Search</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-                    <input
-                      type="text"
-                      value={followUpSearch}
-                      onChange={(e) => setFollowUpSearch(e.target.value)}
-                      placeholder="Name, company, email..."
-                      className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] text-sm focus:outline-none focus:border-[#0EA5E9]"
-                    />
-                  </div>
-                </div>
-
-                {/* Waiting For Type */}
-                <div>
-                  <label className="block text-[#64748B] text-xs mb-1">Waiting For</label>
-                  <select
-                    value={followUpItemTypeFilter}
-                    onChange={(e) => setFollowUpItemTypeFilter(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="calendly">📅 Calendly (All)</option>
-                    <option value="calendly_discovery">📅 Discovery Call</option>
-                    <option value="calendly_install">🔧 Install Booking</option>
-                    <option value="calendly_review">📊 Review Call</option>
-                    <option value="pandadoc">📝 PandaDoc (All)</option>
-                    <option value="pandadoc_loi">📝 LOI Signature</option>
-                    <option value="pandadoc_contract">📄 Contract Signature</option>
-                    <option value="tipalti">💰 Tipalti Setup</option>
-                    <option value="portal_setup">🔐 Portal Activation</option>
-                    <option value="venue_info">🏢 Venue Info</option>
-                  </select>
-                </div>
-
-                {/* Partner Status */}
-                <div>
-                  <label className="block text-[#64748B] text-xs mb-1">Status</label>
-                  <select
-                    value={followUpStatusFilter}
-                    onChange={(e) => setFollowUpStatusFilter(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-                  >
-                    <option value="all">All Statuses</option>
-                    {PARTNER_STATUSES.map(status => (
-                      <option key={status} value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Partner Type */}
-                <div>
-                  <label className="block text-[#64748B] text-xs mb-1">Partner Type</label>
-                  <select
-                    value={followUpPartnerTypeFilter}
-                    onChange={(e) => setFollowUpPartnerTypeFilter(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-                  >
-                    <option value="all">All Types</option>
-                    {PARTNER_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Days Range */}
-                <div>
-                  <label className="block text-[#64748B] text-xs mb-1">Days Pending</label>
-                  <div className="flex gap-1">
-                    <input
-                      type="number"
-                      min="0"
-                      value={followUpMinDays}
-                      onChange={(e) => setFollowUpMinDays(parseInt(e.target.value) || 0)}
-                      placeholder="Min"
-                      className="w-1/2 px-2 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      value={followUpMaxDays === 999 ? '' : followUpMaxDays}
-                      onChange={(e) => setFollowUpMaxDays(parseInt(e.target.value) || 999)}
-                      placeholder="Max"
-                      className="w-1/2 px-2 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Sort Options */}
-              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[#2D3B5F]">
-                <span className="text-[#64748B] text-sm">Sort by:</span>
-                {[
-                  { id: 'days_desc', label: 'Days ↓' },
-                  { id: 'days_asc', label: 'Days ↑' },
-                  { id: 'name', label: 'Name' },
-                  { id: 'company', label: 'Company' },
-                  { id: 'attempts', label: 'Attempts' },
-                ].map(sort => (
-                  <button
-                    key={sort.id}
-                    onClick={() => setFollowUpSortBy(sort.id as any)}
-                    className={`px-3 py-1 rounded text-sm transition-colors ${followUpSortBy === sort.id
-                        ? 'bg-[#0EA5E9] text-white'
-                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
-                      }`}
-                  >
-                    {sort.label}
-                  </button>
-                ))}
-                <span className="ml-auto text-[#64748B] text-sm">
-                  Showing {getFilteredWaitingItems().length} of {waitingItems.length}
-                </span>
-              </div>
-            </div>
-
-            {/* Waiting Items List */}
-            <div className="space-y-3">
-              {pipelineLoading ? (
-                <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
-                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-[#64748B]" />
-                  <p className="text-[#64748B]">Loading follow-ups...</p>
-                </div>
-              ) : getFilteredWaitingItems().length === 0 ? (
-                <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
-                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400 opacity-50" />
-                  <p className="text-[#94A3B8]">No matching follow-ups!</p>
-                  <p className="text-[#64748B] text-sm mt-1">Try adjusting your filters or all partners are progressing</p>
-                </div>
-              ) : (
-                getFilteredWaitingItems().map(item => (
-                  <div
-                    key={item.partnerId}
-                    className={`bg-[#1A1F3A] border rounded-xl p-5 ${item.priority === 'high' ? 'border-red-500/50' :
-                        item.priority === 'medium' ? 'border-yellow-500/50' :
-                          'border-[#2D3B5F]'
-                      }`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      {/* Partner Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <h3 className="text-white font-medium">{item.partnerName}</h3>
-                          <span className="px-2 py-0.5 bg-[#2D3B5F] text-[#94A3B8] rounded text-xs">
-                            {item.partnerType}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded text-xs ${item.partnerStatus === 'active' ? 'bg-green-500/20 text-green-400' :
-                              item.partnerStatus === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
-                                'bg-gray-500/20 text-gray-400'
-                            }`}>
-                            {item.partnerStatus}
-                          </span>
-                          {item.priority === 'high' && (
-                            <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              High Priority
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[#94A3B8] text-sm">{item.companyName}</div>
-                        <div className="text-[#64748B] text-xs mt-1">
-                          {item.companyCity && item.companyState ? `${item.companyCity}, ${item.companyState} • ` : ''}
-                          {item.partnerEmail} • {item.partnerPhone}
-                        </div>
-                        <div className="text-[#64748B] text-xs mt-1">
-                          Stage: <span className="text-[#94A3B8]">{item.stageName}</span>
-                        </div>
-                      </div>
-
-                      {/* What You're Waiting On */}
-                      <div className="text-center px-4 min-w-[140px]">
-                        <div className="text-2xl mb-1">
-                          {WAITING_TYPES.find(w => w.id === item.waitingFor)?.icon || '⏳'}
-                        </div>
-                        <div className="text-[#94A3B8] text-sm font-medium">{item.waitingForLabel}</div>
-                        <div className="text-[#64748B] text-xs mt-1">
-                          {WAITING_TYPES.find(w => w.id === item.waitingFor)?.description}
-                        </div>
-                      </div>
-
-                      {/* Days Counter */}
-                      <div className="text-center px-4 border-l border-[#2D3B5F] min-w-[80px]">
-                        <div className={`text-3xl font-bold ${item.daysPending >= 30 ? 'text-red-400' :
-                            item.daysPending >= 14 ? 'text-orange-400' :
-                              item.daysPending >= 7 ? 'text-yellow-400' :
-                                'text-white'
-                          }`}>
-                          {item.daysPending}
-                        </div>
-                        <div className="text-[#64748B] text-xs">days</div>
-                        <div className="text-[#64748B] text-xs mt-1">
-                          since {new Date(item.waitingSince).toLocaleDateString()}
-                        </div>
-                      </div>
-
-                      {/* Attempt History */}
-                      <div className="text-center px-4 border-l border-[#2D3B5F] min-w-[80px]">
-                        <div className="text-xl font-bold text-white">{item.attemptCount}</div>
-                        <div className="text-[#64748B] text-xs">attempts</div>
-                        {item.lastAttemptDate && (
-                          <div className="text-[#64748B] text-xs mt-1">
-                            Last: {new Date(item.lastAttemptDate).toLocaleDateString()}
-                            {item.lastAttemptType && ` (${item.lastAttemptType})`}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex flex-col gap-2 border-l border-[#2D3B5F] pl-4">
-                        <button
-                          onClick={() => {
-                            setSelectedPartnerForFollowUp(partners.find(p => p.id === item.partnerId) || null)
-                            setReminderType('email')
-                            setShowReminderModal(true)
-                          }}
-                          className="flex items-center gap-2 px-3 py-2 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/30 transition-colors text-sm"
-                        >
-                          <Mail className="w-4 h-4" />
-                          Email
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedPartnerForFollowUp(partners.find(p => p.id === item.partnerId) || null)
-                            setReminderType('sms')
-                            setShowReminderModal(true)
-                          }}
-                          className="flex items-center gap-2 px-3 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-sm"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          SMS
-                        </button>
-                        <button
-                          onClick={() => skipStep(item.partnerId, item.stage)}
-                          className="flex items-center gap-2 px-3 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors text-sm"
-                          title="Skip this step (for people you already know)"
-                        >
-                          <SkipForward className="w-4 h-4" />
-                          Skip Step
-                        </button>
-                        {(item.attemptCount >= 3 || item.daysPending >= 30) && (
-                          <button
-                            onClick={() => markInactive(item.partnerId)}
-                            className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
-                            title="Mark as inactive - no response after multiple attempts"
-                          >
-                            <Archive className="w-4 h-4" />
-                            Inactive
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Notes/History Section */}
-                    {item.notes && (
-                      <div className="mt-4 pt-4 border-t border-[#2D3B5F]">
-                        <div className="text-[#64748B] text-xs mb-1">Notes:</div>
-                        <div className="text-[#94A3B8] text-sm">{item.notes}</div>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Quick Stats Footer */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <div className="text-[#64748B] mb-1">Avg. Wait Time</div>
-                  <div className="text-white font-medium">
-                    {waitingItems.length > 0
-                      ? Math.round(waitingItems.reduce((sum, w) => sum + w.daysPending, 0) / waitingItems.length)
-                      : 0} days
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[#64748B] mb-1">Longest Wait</div>
-                  <div className="text-red-400 font-medium">
-                    {waitingItems.length > 0
-                      ? Math.max(...waitingItems.map(w => w.daysPending))
-                      : 0} days
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[#64748B] mb-1">Total Attempts Made</div>
-                  <div className="text-white font-medium">
-                    {waitingItems.reduce((sum, w) => sum + w.attemptCount, 0)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[#64748B] mb-1">Need Attention (3+ attempts)</div>
-                  <div className="text-yellow-400 font-medium">
-                    {waitingItems.filter(w => w.attemptCount >= 3).length}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Payments Tab */}
         {activeTab === 'payments' && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-white">Payments & Invoices</h2>
-              <p className="text-[#94A3B8] text-sm">Manage partner payments through Tipalti</p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <h2 className="text-xl font-semibold text-white">Payment Management</h2>
+              <div className="flex gap-2">
+                {['paymentHistory', 'invoiceHistory', 'paymentDetails'].map(view => (
+                  <button
+                    key={view}
+                    onClick={() => setPaymentsViewType(view as typeof paymentsViewType)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${paymentsViewType === view
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                  >
+                    {view === 'paymentHistory' ? 'Payment History' : view === 'invoiceHistory' ? 'Invoice History' : 'Payment Details'}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* View Type Tabs */}
-            <div className="flex gap-2 border-b border-[#2D3B5F]">
-              {[
-                { id: 'paymentHistory', label: 'Payment History' },
-                { id: 'invoiceHistory', label: 'Invoice History' },
-                { id: 'paymentDetails', label: 'Payment Details' },
-              ].map(tab => (
+            {paymentsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+              </div>
+            ) : paymentsViewType === 'paymentHistory' ? (
+              <div className="bg-[#1a1f3e] rounded-xl border border-white/10 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Partner</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Type</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Total Earned</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Total Paid</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Pending</th>
+                        <th className="text-left px-6 py-4 text-sm font-medium text-gray-400">Status</th>
+                        <th className="text-right px-6 py-4 text-sm font-medium text-gray-400">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentPartners.map(partner => (
+                        <tr key={partner.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="text-white font-medium">{partner.name}</p>
+                              <p className="text-gray-400 text-sm">{partner.email}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-gray-300">{partner.partnerType}</td>
+                          <td className="px-6 py-4 text-white font-medium">{formatCurrency(partner.totalEarned)}</td>
+                          <td className="px-6 py-4 text-green-400">{formatCurrency(partner.totalPaid)}</td>
+                          <td className="px-6 py-4 text-yellow-400">{formatCurrency(partner.pendingAmount)}</td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${partner.tipaltiStatus === 'active' ? 'bg-green-500/20 text-green-400' :
+                              partner.tipaltiStatus === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-red-500/20 text-red-400'
+                              }`}>
+                              {partner.tipaltiStatus}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => { setSelectedPayeeId(partner.tipaltiPayeeId); setSelectedPayeeName(partner.name); setPaymentsViewType('paymentDetails'); }}
+                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              {partner.pendingAmount > 0 && partner.tipaltiStatus === 'active' && (
+                                <button
+                                  className="px-3 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-sm transition-colors"
+                                >
+                                  Pay Now
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : paymentsViewType === 'invoiceHistory' ? (
+              <div className="bg-[#1a1f3e] rounded-xl border border-white/10 p-8 text-center">
+                <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">Invoice history coming soon</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
                 <button
-                  key={tab.id}
-                  onClick={() => setPaymentsViewType(tab.id as any)}
-                  className={`px-4 py-2 border-b-2 transition-colors ${paymentsViewType === tab.id
-                      ? 'border-[#0EA5E9] text-white'
-                      : 'border-transparent text-[#94A3B8] hover:text-white'
-                    }`}
+                  onClick={() => { setSelectedPayeeId(null); setPaymentsViewType('paymentHistory'); }}
+                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
                 >
-                  {tab.label}
+                  <ChevronLeft className="w-4 h-4" />
+                  Back to Payment History
                 </button>
-              ))}
-            </div>
-
-            {/* Tipalti iFrame */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <TipaltiIFrame
-                payeeId="admin_at_skyyield.io"
-                viewType={paymentsViewType}
-                environment="sandbox"
-              />
-            </div>
-
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-              <p className="text-[#94A3B8] text-sm">
-                <strong className="text-white">Note:</strong> Payment processing is handled securely by Tipalti.
-                Partners can update payment details, view past payments, and download invoices.
-              </p>
-            </div>
+                <div className="bg-[#1a1f3e] rounded-xl border border-white/10 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Payment Details: {selectedPayeeName}</h3>
+                  <p className="text-gray-400">Detailed payment information and history will appear here.</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-white">System Settings</h2>
-              <p className="text-[#94A3B8] text-sm">Configure email templates, dropdowns, and integrations</p>
-            </div>
-
-            {/* Settings Sub-tabs */}
-            <div className="flex gap-2 border-b border-[#2D3B5F]">
+            <div className="flex gap-4 mb-6">
               {[
                 { id: 'emails', label: 'Email Templates', icon: Mail },
-                { id: 'dropdowns', label: 'Dropdowns', icon: List },
+                { id: 'dropdowns', label: 'Dropdowns', icon: ChevronDown },
                 { id: 'calendly', label: 'Calendly', icon: Calendar },
                 { id: 'stages', label: 'Pipeline Stages', icon: GitBranch },
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setSettingsTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${settingsTab === tab.id
-                      ? 'border-[#0EA5E9] text-white'
-                      : 'border-transparent text-[#94A3B8] hover:text-white'
+                  onClick={() => setSettingsTab(tab.id as typeof settingsTab)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${settingsTab === tab.id
+                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
                     }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -3454,111 +2968,162 @@ export default function AdminPortalPage() {
               ))}
             </div>
 
-            {/* Email Templates */}
+            {/* Email Templates Settings */}
             {settingsTab === 'emails' && (
               <div className="space-y-4">
-                {emailTemplates.map(template => (
-                  <div key={template.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <Mail className="w-5 h-5 text-[#0EA5E9]" />
-                        <div>
-                          <h3 className="text-white font-medium">{template.name}</h3>
-                          <p className="text-[#64748B] text-sm">{template.description}</p>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">Email Templates</h3>
+                  <p className="text-gray-400 text-sm">{emailTemplates.length} templates</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {emailTemplates.map(template => (
+                    <div key={template.id} className="bg-[#1a1f3e] rounded-xl border border-white/10 p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-white font-medium">{template.name}</h4>
+                            {template.isActive ? (
+                              <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">Active</span>
+                            ) : (
+                              <span className="text-xs px-2 py-0.5 rounded bg-gray-500/20 text-gray-400">Inactive</span>
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-sm mt-1">{template.description}</p>
+                          <p className="text-gray-500 text-xs mt-2">Trigger: {template.trigger}</p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded text-xs ${template.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                          }`}>
-                          {template.enabled ? 'Enabled' : 'Disabled'}
-                        </span>
                         <button
                           onClick={() => setEditingTemplate(template)}
-                          className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                          className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                       </div>
-                    </div>
-                    <div className="bg-[#0A0F2C] rounded-lg p-4">
-                      <div className="text-[#94A3B8] text-sm mb-2">
-                        <strong>Subject:</strong> {template.subject}
-                      </div>
-                      <div className="text-[#64748B] text-sm">
-                        <strong>Trigger:</strong> {template.trigger}
+                      <div className="mt-3 p-3 bg-white/5 rounded-lg">
+                        <p className="text-gray-400 text-xs mb-1">Subject:</p>
+                        <p className="text-white text-sm">{template.subject}</p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Dropdowns */}
+            {/* Dropdowns Settings */}
             {settingsTab === 'dropdowns' && (
               <div className="space-y-4">
-                {dropdowns.length === 0 ? (
-                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <List className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                    <p className="text-[#94A3B8]">No dropdowns configured</p>
-                  </div>
-                ) : (
-                  dropdowns.map(dropdown => (
-                    <div key={dropdown.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="text-white font-medium">{dropdown.name}</h3>
-                          <p className="text-[#64748B] text-sm">{dropdown.options.length} options</p>
-                        </div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">Dropdown Options</h3>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors">
+                    <Plus className="w-4 h-4" />
+                    Add Dropdown
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { name: 'Partner Types', options: PARTNER_TYPES },
+                    { name: 'Partner Statuses', options: PARTNER_STATUSES },
+                    { name: 'User Types', options: USER_TYPES },
+                  ].map((dropdown, idx) => (
+                    <div key={idx} className="bg-[#1a1f3e] rounded-xl border border-white/10 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-white font-medium">{dropdown.name}</h4>
+                        <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Edit className="w-4 h-4" />
+                        </button>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {dropdown.options.slice(0, 10).map(opt => (
-                          <span key={opt.value} className="px-2 py-1 bg-[#0A0F2C] text-[#94A3B8] rounded text-xs">
-                            {opt.label}
+                        {dropdown.options.map((opt, i) => (
+                          <span key={i} className="text-xs px-2 py-1 bg-white/10 text-gray-300 rounded">
+                            {opt}
                           </span>
                         ))}
-                        {dropdown.options.length > 10 && (
-                          <span className="px-2 py-1 bg-[#2D3B5F] text-[#64748B] rounded text-xs">
-                            +{dropdown.options.length - 10} more
-                          </span>
-                        )}
                       </div>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
               </div>
             )}
 
-
-            {/* Calendly */}
+            {/* Calendly Settings */}
             {settingsTab === 'calendly' && (
               <div className="space-y-4">
-                {calendlyLinks.length === 0 ? (
-                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <Calendar className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                    <p className="text-[#94A3B8]">No Calendly links configured</p>
-                    <p className="text-[#64748B] text-sm mt-2">Connect your Calendly account to manage event types</p>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">Calendly Integration</h3>
+                  <button
+                    onClick={fetchCalendlyLinks}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${calendlyLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                </div>
+
+                {calendlyError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                    <p className="text-red-400">{calendlyError}</p>
+                  </div>
+                )}
+
+                {calendlyUser && (
+                  <div className="bg-[#1a1f3e] rounded-xl border border-white/10 p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center">
+                        <Calendar className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{calendlyUser.name}</p>
+                        <p className="text-gray-400 text-sm">{calendlyUser.email}</p>
+                        <p className="text-gray-500 text-xs">{calendlyUser.timezone}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {calendlyLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+                  </div>
+                ) : calendlyLinks.length === 0 ? (
+                  <div className="text-center py-12 bg-[#1a1f3e] rounded-xl border border-white/10">
+                    <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-400">No Calendly event types found</p>
+                    <button
+                      onClick={fetchCalendlyLinks}
+                      className="mt-4 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors"
+                    >
+                      Connect Calendly
+                    </button>
                   </div>
                 ) : (
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {calendlyLinks.map(link => (
-                      <div key={link.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: link.color || '#0EA5E9' }} />
-                          <h3 className="text-white font-medium">{link.name}</h3>
+                      <div key={link.id} className="bg-[#1a1f3e] rounded-xl border border-white/10 p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="text-white font-medium">{link.name}</h4>
+                            <p className="text-gray-400 text-sm mt-1">{link.duration} minutes</p>
+                            {link.description && (
+                              <p className="text-gray-500 text-xs mt-2">{link.description}</p>
+                            )}
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded ${link.active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                            {link.active ? 'Active' : 'Inactive'}
+                          </span>
                         </div>
-                        <p className="text-[#64748B] text-sm mb-3">{link.description || 'No description'}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#94A3B8] text-sm">{link.duration} min</span>
+                        <div className="mt-4 flex items-center gap-2">
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(link.url)
-                              setCopiedLink(link.id)
-                              setTimeout(() => setCopiedLink(null), 2000)
-                            }}
-                            className="flex items-center gap-1 px-3 py-1 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
+                            onClick={() => copyToClipboard(link.schedulingUrl, link.id)}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors text-sm"
                           >
-                            {copiedLink === link.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            {copiedLink === link.id ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
                             {copiedLink === link.id ? 'Copied!' : 'Copy Link'}
+                          </button>
+                          <button
+                            onClick={() => openCalendlyEmailModal(link)}
+                            className="flex items-center justify-center gap-2 px-3 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg transition-colors text-sm"
+                          >
+                            <Mail className="w-4 h-4" />
+                            Send
                           </button>
                         </div>
                       </div>
@@ -3568,18 +3133,33 @@ export default function AdminPortalPage() {
               </div>
             )}
 
-            {/* Pipeline Stages */}
+            {/* Pipeline Stages Settings */}
             {settingsTab === 'stages' && (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="space-y-3">
-                  {PIPELINE_STAGES.map((stage, index) => (
-                    <div key={stage.id} className={`flex items-center gap-4 p-3 bg-[#0A0F2C] rounded-lg border-l-4 ${stage.color}`}>
-                      <GripVertical className="w-5 h-5 text-[#64748B]" />
-                      <div className="flex-1">
-                        <div className="text-white font-medium">{stage.name}</div>
-                        <div className="text-[#64748B] text-xs">{stage.id}</div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">Pipeline Stages</h3>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors">
+                    <Plus className="w-4 h-4" />
+                    Add Stage
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {PIPELINE_STAGES.map((stage, idx) => (
+                    <div key={stage.id} className="bg-[#1a1f3e] rounded-xl border border-white/10 p-4 flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-gray-400">
+                        <GripVertical className="w-4 h-4" />
+                        <span className="text-sm">{idx + 1}</span>
                       </div>
-                      <span className="text-[#64748B] text-sm">Stage {index + 1}</span>
+                      <div className={`w-4 h-4 rounded-full ${stage.color}`}></div>
+                      <div className="flex-1">
+                        <p className="text-white font-medium">{stage.name}</p>
+                        {stage.waitingFor && (
+                          <p className="text-gray-500 text-xs">Waiting for: {stage.waitingFor}</p>
+                        )}
+                      </div>
+                      <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                        <Edit className="w-4 h-4" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -3587,293 +3167,198 @@ export default function AdminPortalPage() {
             )}
           </div>
         )}
-
         {/* Analytics Tab */}
         {activeTab === 'analytics' && (
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-white">Analytics</h2>
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-white">Analytics Dashboard</h2>
 
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
-              <TrendingUp className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-              <p className="text-[#64748B]">Analytics dashboard coming soon</p>
-              <p className="text-[#64748B] text-sm mt-1">Track network performance, earnings, and user engagement</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Total Revenue</p>
+                    <p className="text-3xl font-bold text-white mt-1">$124,500</p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-green-400" />
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="text-green-400 flex items-center gap-1">
+                    <TrendingUp className="w-4 h-4" /> +18%
+                  </span>
+                  <span className="text-gray-500">vs last month</span>
+                </div>
+              </div>
+
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Data Offloaded</p>
+                    <p className="text-3xl font-bold text-white mt-1">2.4 TB</p>
+                  </div>
+                  <div className="w-12 h-12 bg-cyan-500/20 rounded-xl flex items-center justify-center">
+                    <Wifi className="w-6 h-6 text-cyan-400" />
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="text-green-400 flex items-center gap-1">
+                    <TrendingUp className="w-4 h-4" /> +24%
+                  </span>
+                  <span className="text-gray-500">vs last month</span>
+                </div>
+              </div>
+
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Active Locations</p>
+                    <p className="text-3xl font-bold text-white mt-1">87</p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                    <MapPin className="w-6 h-6 text-purple-400" />
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="text-green-400 flex items-center gap-1">
+                    <TrendingUp className="w-4 h-4" /> +5
+                  </span>
+                  <span className="text-gray-500">new this month</span>
+                </div>
+              </div>
+
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Conversion Rate</p>
+                    <p className="text-3xl font-bold text-white mt-1">34%</p>
+                  </div>
+                  <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center">
+                    <BarChart3 className="w-6 h-6 text-yellow-400" />
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <span className="text-green-400 flex items-center gap-1">
+                    <TrendingUp className="w-4 h-4" /> +2%
+                  </span>
+                  <span className="text-gray-500">vs last month</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <h3 className="text-lg font-semibold text-white mb-4">Revenue by Partner Type</h3>
+                <div className="space-y-4">
+                  {[
+                    { type: 'Location Partners', amount: 78500, percent: 63 },
+                    { type: 'Channel Partners', amount: 32000, percent: 26 },
+                    { type: 'Referral Partners', amount: 14000, percent: 11 },
+                  ].map((item, idx) => (
+                    <div key={idx}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-gray-300">{item.type}</span>
+                        <span className="text-white font-medium">{formatCurrency(item.amount)}</span>
+                      </div>
+                      <div className="w-full bg-white/10 rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-cyan-500 to-green-500 h-2 rounded-full"
+                          style={{ width: `${item.percent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-[#1a1f3e] rounded-xl p-6 border border-white/10">
+                <h3 className="text-lg font-semibold text-white mb-4">Pipeline Overview</h3>
+                <div className="space-y-3">
+                  {PIPELINE_STAGES.slice(0, 6).map(stage => {
+                    const count = partners.filter(p => p.stage === stage.id).length
+                    const percent = partners.length > 0 ? (count / partners.length) * 100 : 0
+                    return (
+                      <div key={stage.id} className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${stage.color}`}></div>
+                        <span className="text-gray-300 flex-1">{stage.name}</span>
+                        <span className="text-white font-medium">{count}</span>
+                        <div className="w-20 bg-white/10 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full ${stage.color}`}
+                            style={{ width: `${percent}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         )}
-      </div>
+      </main>
 
-      {/* User Detail Modal - Enhanced */}
+      {/* User Detail Modal */}
       {showUserModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between sticky top-0 bg-[#1A1F3A] z-10">
-              <h2 className="text-xl font-semibold text-white">User Details</h2>
-              <button onClick={() => setShowUserModal(false)} className="p-2 text-[#64748B] hover:text-white transition-colors">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f3e] rounded-xl border border-white/10 w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white">User Details</h3>
+              <button
+                onClick={() => setShowUserModal(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            <div className="p-6 space-y-6">
-              {/* Header with avatar and basic info */}
-              <div className="flex items-start gap-4">
-                <img
-                  src={selectedUser.imageUrl || `https://ui-avatars.com/api/?name=${selectedUser.firstName}+${selectedUser.lastName}&background=0EA5E9&color=fff`}
-                  alt=""
-                  className="w-20 h-20 rounded-full flex-shrink-0"
-                />
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-white">
-                    {selectedUser.firstName} {selectedUser.lastName}
-                  </h3>
-                  <p className="text-[#94A3B8]">{selectedUser.email}</p>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeColor(selectedUser.userType)}`}>
-                      {selectedUser.userType || 'Unknown'}
-                    </span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedUser.status)}`}>
-                      {selectedUser.status}
-                    </span>
-                  </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-green-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-2xl font-bold">{selectedUser.name[0]}</span>
                 </div>
-                <div className="flex gap-2">
-                  {selectedUser.status !== 'approved' && (
-                    <button
-                      onClick={() => { updateUserStatus(selectedUser.id, 'approved'); setShowUserModal(false) }}
-                      className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors font-medium text-sm"
-                    >
-                      ✓ Approve
-                    </button>
-                  )}
-                  {selectedUser.status !== 'rejected' && (
-                    <button
-                      onClick={() => { updateUserStatus(selectedUser.id, 'rejected'); setShowUserModal(false) }}
-                      className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors font-medium text-sm"
-                    >
-                      ✗ Reject
-                    </button>
-                  )}
+                <div>
+                  <h4 className="text-xl font-semibold text-white">{selectedUser.name}</h4>
+                  <p className="text-gray-400">{selectedUser.email}</p>
                 </div>
               </div>
-
-              {/* System Info */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-[#0A0F2C] rounded-lg p-4">
-                  <div className="text-[#64748B] text-sm mb-1">User ID</div>
-                  <div className="text-white font-mono text-xs break-all">{selectedUser.id}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs">User Type</p>
+                  <p className="text-white font-medium">{selectedUser.userType}</p>
                 </div>
-                <div className="bg-[#0A0F2C] rounded-lg p-4">
-                  <div className="text-[#64748B] text-sm mb-1">Joined</div>
-                  <div className="text-white">{new Date(selectedUser.createdAt).toLocaleDateString()}</div>
+                <div className="p-3 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs">Status</p>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedUser.status)}`}>
+                    {selectedUser.status}
+                  </span>
                 </div>
-                <div className="bg-[#0A0F2C] rounded-lg p-4">
-                  <div className="text-[#64748B] text-sm mb-1">Last Active</div>
-                  <div className="text-white">Today</div>
+                <div className="p-3 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs">Joined</p>
+                  <p className="text-white font-medium">{formatDate(String(selectedUser.createdAt))}</p>
+                </div>
+                <div className="p-3 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs">Last Active</p>
+                  <p className="text-white font-medium">{selectedUser.lastActive ? formatRelativeTime(selectedUser.lastActive) : 'Never'}</p>
                 </div>
               </div>
-
-              {/* Pipeline Progress (for Location Partners) */}
-              {selectedUser.userType === 'Location Partner' && (
-                <div className="bg-[#0A0F2C] rounded-lg p-4">
-                  <h4 className="text-white font-medium mb-3 flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-[#0EA5E9]" />
-                    Pipeline Progress
-                  </h4>
-                  <div className="flex items-center gap-1 overflow-x-auto pb-2">
-                    {PIPELINE_STAGES.slice(0, 8).map((stage, index) => {
-                      const isCompleted = index < 3 // Mock: first 3 stages completed
-                      const isCurrent = index === 3 // Mock: current stage
-                      return (
-                        <div key={stage.id} className="flex items-center">
-                          <div className={`flex-shrink-0 px-3 py-1.5 rounded text-xs font-medium ${isCompleted
-                              ? 'bg-green-500/20 text-green-400'
-                              : isCurrent
-                                ? 'bg-[#0EA5E9]/20 text-[#0EA5E9] ring-1 ring-[#0EA5E9]'
-                                : 'bg-[#2D3B5F]/50 text-[#64748B]'
-                            }`}>
-                            {isCompleted && '✓ '}{stage.name}
-                          </div>
-                          {index < 7 && (
-                            <ChevronRight className={`w-4 h-4 mx-1 ${isCompleted ? 'text-green-400' : 'text-[#64748B]'}`} />
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-[#2D3B5F]">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#64748B]">Current Stage:</span>
-                      <span className="text-[#0EA5E9] font-medium">Discovery Scheduled</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mt-1">
-                      <span className="text-[#64748B]">Days in Stage:</span>
-                      <span className="text-white">5 days</span>
-                    </div>
-                  </div>
+              {selectedUser.status === 'pending' && (
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => { updateUserStatus(selectedUser.id, 'approved'); setShowUserModal(false); }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => { updateUserStatus(selectedUser.id, 'rejected'); setShowUserModal(false); }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Reject
+                  </button>
                 </div>
               )}
-
-              {/* Form Submission Data */}
-              <div className="bg-[#0A0F2C] rounded-lg p-4">
-                <h4 className="text-white font-medium mb-3 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#0EA5E9]" />
-                  Application Form Data
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Contact Information */}
-                  <div className="space-y-3">
-                    <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide">Contact Info</h5>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Full Name</span>
-                        <span className="text-white text-sm">{selectedUser.firstName} {selectedUser.lastName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Email</span>
-                        <span className="text-white text-sm">{selectedUser.email}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Phone</span>
-                        <span className="text-white text-sm">(555) 123-4567</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Preferred Contact</span>
-                        <span className="text-white text-sm">Email</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Company Information */}
-                  <div className="space-y-3">
-                    <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide">Company Info</h5>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Company Name</span>
-                        <span className="text-white text-sm">Sample Business LLC</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">DBA</span>
-                        <span className="text-white text-sm">Sample Cafe</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Industry</span>
-                        <span className="text-white text-sm">Food & Beverage</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm"># of Locations</span>
-                        <span className="text-white text-sm">2</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Location Information */}
-                  <div className="space-y-3">
-                    <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide">Location</h5>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Address</span>
-                        <span className="text-white text-sm">123 Main Street</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">City</span>
-                        <span className="text-white text-sm">Atlanta</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">State</span>
-                        <span className="text-white text-sm">GA</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Zip</span>
-                        <span className="text-white text-sm">30301</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Venue Details */}
-                  <div className="space-y-3">
-                    <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide">Venue Details</h5>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Venue Type</span>
-                        <span className="text-white text-sm">Café / Coffee Shop</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Sq Footage</span>
-                        <span className="text-white text-sm">2,500 sqft</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Daily Foot Traffic</span>
-                        <span className="text-white text-sm">150-200</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B] text-sm">Has Existing WiFi</span>
-                        <span className="text-white text-sm">Yes</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Notes */}
-                <div className="mt-4 pt-4 border-t border-[#2D3B5F]">
-                  <h5 className="text-[#0EA5E9] text-sm font-medium uppercase tracking-wide mb-2">Additional Notes</h5>
-                  <p className="text-[#94A3B8] text-sm italic">
-                    &quot;Interested in expanding to all 3 locations if pilot goes well. Has existing Ubiquiti equipment at main location.&quot;
-                  </p>
-                </div>
-              </div>
-
-              {/* Status Timeline */}
-              <div className="bg-[#0A0F2C] rounded-lg p-4">
-                <h4 className="text-white font-medium mb-3 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#0EA5E9]" />
-                  Activity Timeline
-                </h4>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-2 h-2 rounded-full bg-green-400 mt-2"></div>
-                    <div>
-                      <div className="text-white text-sm">Application Approved</div>
-                      <div className="text-[#64748B] text-xs">Dec 7, 2025 at 2:30 PM by Admin</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-2 h-2 rounded-full bg-[#0EA5E9] mt-2"></div>
-                    <div>
-                      <div className="text-white text-sm">Discovery Call Scheduled</div>
-                      <div className="text-[#64748B] text-xs">Dec 8, 2025 at 10:00 AM</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-2 h-2 rounded-full bg-yellow-400 mt-2"></div>
-                    <div>
-                      <div className="text-white text-sm">Awaiting Discovery Call</div>
-                      <div className="text-[#64748B] text-xs">Scheduled for Dec 12, 2025</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="border-t border-[#2D3B5F] pt-6">
-                <h4 className="text-white font-medium mb-3">Quick Actions</h4>
-                <div className="grid grid-cols-4 gap-3">
-                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] hover:text-white transition-colors text-sm text-center">
-                    <Mail className="w-5 h-5 mx-auto mb-1" />
-                    Send Email
-                  </button>
-                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] hover:text-white transition-colors text-sm text-center">
-                    <Calendar className="w-5 h-5 mx-auto mb-1" />
-                    Schedule Call
-                  </button>
-                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] hover:text-white transition-colors text-sm text-center">
-                    <FileText className="w-5 h-5 mx-auto mb-1" />
-                    Send LOI
-                  </button>
-                  <button className="p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:bg-[#2D3B5F] hover:text-white transition-colors text-sm text-center">
-                    <Wallet className="w-5 h-5 mx-auto mb-1" />
-                    Tipalti Invite
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -3881,54 +3366,51 @@ export default function AdminPortalPage() {
 
       {/* Invite User Modal */}
       {showInviteModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-md w-full">
-            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Invite User</h2>
-              <button onClick={() => setShowInviteModal(false)} className="p-2 text-[#64748B] hover:text-white transition-colors">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f3e] rounded-xl border border-white/10 w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white">Invite User</h3>
+              <button
+                onClick={() => setShowInviteModal(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-[#94A3B8] text-sm mb-2">User Type</label>
+                <label className="block text-sm text-gray-400 mb-2">Email Address</label>
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">User Type</label>
                 <select
                   value={inviteUserType}
                   onChange={(e) => setInviteUserType(e.target.value)}
-                  className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                 >
                   {USER_TYPES.map(type => (
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
               </div>
-
-              <div>
-                <label className="block text-[#94A3B8] text-sm mb-2">Email Address</label>
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
-                />
-              </div>
-
               <button
                 onClick={sendInvite}
-                disabled={inviteSending || !inviteEmail.trim()}
-                className="w-full py-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={!inviteEmail || inviteSending}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
               >
                 {inviteSending ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Sending...
-                  </>
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    Send Invitation
+                    Send Invite
                   </>
                 )}
               </button>
@@ -3937,75 +3419,253 @@ export default function AdminPortalPage() {
         </div>
       )}
 
-      {/* Email Template Edit Modal */}
-      {editingTemplate && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Edit Email Template</h2>
-              <button onClick={() => setEditingTemplate(null)} className="p-2 text-[#64748B] hover:text-white transition-colors">
+      {/* Send Reminder Modal */}
+      {showReminderModal && selectedPartnerForFollowUp && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f3e] rounded-xl border border-white/10 w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white">Send Reminder</h3>
+              <button
+                onClick={() => setShowReminderModal(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-white/5 rounded-lg">
+                <p className="text-white font-medium">{selectedPartnerForFollowUp.companyLegalName}</p>
+                <p className="text-gray-400 text-sm">{selectedPartnerForFollowUp.contactFullName}</p>
+                <p className="text-gray-500 text-xs">{selectedPartnerForFollowUp.contactEmail}</p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Reminder Type</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setReminderType('email')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors ${reminderType === 'email'
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      }`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    Email
+                  </button>
+                  <button
+                    onClick={() => setReminderType('sms')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors ${reminderType === 'sms'
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      }`}
+                  >
+                    <Phone className="w-4 h-4" />
+                    SMS
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Note (optional)</label>
+                <textarea
+                  value={reminderNote}
+                  onChange={(e) => setReminderNote(e.target.value)}
+                  placeholder="Add a personal note..."
+                  rows={3}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 resize-none"
+                />
+              </div>
+              <button
+                onClick={sendReminder}
+                disabled={sendingReminder}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              >
+                {sendingReminder ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Send Reminder
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
+      {/* Follow-up Detail Modal */}
+      {showFollowUpModal && selectedPartnerForFollowUp && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f3e] rounded-xl border border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-[#1a1f3e]">
+              <h3 className="text-lg font-semibold text-white">Partner Details</h3>
+              <button
+                onClick={() => setShowFollowUpModal(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs mb-1">Company</p>
+                  <p className="text-white font-medium">{selectedPartnerForFollowUp.companyLegalName}</p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs mb-1">Contact</p>
+                  <p className="text-white font-medium">{selectedPartnerForFollowUp.contactFullName}</p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs mb-1">Email</p>
+                  <p className="text-white">{selectedPartnerForFollowUp.contactEmail}</p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs mb-1">Phone</p>
+                  <p className="text-white">{selectedPartnerForFollowUp.contactPhone || 'N/A'}</p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs mb-1">Stage</p>
+                  <p className="text-white">{PIPELINE_STAGES.find(s => s.id === selectedPartnerForFollowUp.stage)?.name || selectedPartnerForFollowUp.stage}</p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-lg">
+                  <p className="text-gray-400 text-xs mb-1">Status</p>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedPartnerForFollowUp.status || 'active')}`}>
+                    {selectedPartnerForFollowUp.status || 'active'}
+                  </span>
+                </div>
+              </div>
+
+              {selectedPartnerForFollowUp.followUpAttempts && selectedPartnerForFollowUp.followUpAttempts.length > 0 && (
+                <div>
+                  <h4 className="text-white font-medium mb-3">Follow-up History</h4>
+                  <div className="space-y-2">
+                    {selectedPartnerForFollowUp.followUpAttempts.map((attempt, idx) => (
+                      <div key={idx} className="p-3 bg-white/5 rounded-lg flex items-start gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${attempt.type === 'email' ? 'bg-cyan-500/20' : 'bg-green-500/20'}`}>
+                          {attempt.type === 'email' ? <Mail className="w-4 h-4 text-cyan-400" /> : <Phone className="w-4 h-4 text-green-400" />}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-white text-sm font-medium capitalize">{attempt.type} sent</p>
+                            <p className="text-gray-500 text-xs">{formatDate(attempt.sentAt)}</p>
+                          </div>
+                          {attempt.note && <p className="text-gray-400 text-sm mt-1">{attempt.note}</p>}
+                          <p className="text-gray-500 text-xs mt-1">By: {attempt.sentBy}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowFollowUpModal(false); setShowReminderModal(true); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                  Send Reminder
+                </button>
+                <button
+                  onClick={() => { skipStep(selectedPartnerForFollowUp.id); setShowFollowUpModal(false); }}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg transition-colors"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  Skip
+                </button>
+                <button
+                  onClick={() => { markInactive(selectedPartnerForFollowUp.id); setShowFollowUpModal(false); }}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Inactive
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Template Edit Modal */}
+      {editingTemplate && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f3e] rounded-xl border border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-[#1a1f3e]">
+              <h3 className="text-lg font-semibold text-white">Edit Email Template</h3>
+              <button
+                onClick={() => setEditingTemplate(null)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-[#94A3B8] text-sm mb-2">Template Name</label>
+                <label className="block text-sm text-gray-400 mb-2">Template Name</label>
                 <input
                   type="text"
                   value={editingTemplate.name}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
-                  className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                 />
               </div>
-
               <div>
-                <label className="block text-[#94A3B8] text-sm mb-2">Subject Line</label>
+                <label className="block text-sm text-gray-400 mb-2">Description</label>
+                <input
+                  type="text"
+                  value={editingTemplate.description}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Subject Line</label>
                 <input
                   type="text"
                   value={editingTemplate.subject}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
-                  className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
                 />
               </div>
-
               <div>
-                <label className="block text-[#94A3B8] text-sm mb-2">Greeting</label>
-                <input
-                  type="text"
-                  value={editingTemplate.greeting}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, greeting: e.target.value })}
-                  className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                <label className="block text-sm text-gray-400 mb-2">Email Body</label>
+                <textarea
+                  value={editingTemplate.body}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
+                  rows={10}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 resize-none font-mono text-sm"
                 />
               </div>
-
               <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 text-[#94A3B8]">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={editingTemplate.enabled}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, enabled: e.target.checked })}
-                    className="w-4 h-4 rounded border-[#2D3B5F]"
+                    checked={editingTemplate.isActive}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, isActive: e.target.checked })}
+                    className="w-4 h-4 rounded border-white/20 bg-white/5 text-cyan-500 focus:ring-cyan-500"
                   />
-                  Template Enabled
+                  <span className="text-gray-300">Active</span>
                 </label>
               </div>
-
-              <div className="flex items-center gap-3 pt-4 border-t border-[#2D3B5F]">
+              <div className="p-4 bg-white/5 rounded-lg">
+                <p className="text-gray-400 text-xs mb-2">Available Variables:</p>
+                <div className="flex flex-wrap gap-2">
+                  {['{{name}}', '{{company}}', '{{email}}', '{{link}}', '{{stage}}', '{{date}}'].map(v => (
+                    <code key={v} className="text-xs px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded">{v}</code>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setEditingTemplate(null)}
-                  className="flex-1 py-3 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                  className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setEmailTemplates(prev => prev.map(t => t.id === editingTemplate.id ? editingTemplate : t))
-                    setEditingTemplate(null)
-                  }}
-                  className="flex-1 py-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors font-medium flex items-center justify-center gap-2"
+                  onClick={() => saveEmailTemplate(editingTemplate)}
+                  className="flex-1 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg transition-colors"
                 >
-                  <Save className="w-4 h-4" />
                   Save Template
                 </button>
               </div>
@@ -4014,308 +3674,92 @@ export default function AdminPortalPage() {
         </div>
       )}
 
-      {/* Send Reminder Modal */}
-      {showReminderModal && selectedPartnerForFollowUp && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-lg w-full">
-            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Send Reminder</h2>
-              <button onClick={() => { setShowReminderModal(false); setReminderNote(''); setReminderType('email') }} className="p-2 text-[#64748B] hover:text-white transition-colors">
+      {/* Calendly Email Modal */}
+      {showCalendlyEmailModal && selectedCalendlyLink && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f3e] rounded-xl border border-white/10 w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white">Send Calendly Link</h3>
+              <button
+                onClick={() => setShowCalendlyEmailModal(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 space-y-4">
-              {/* Partner Info */}
-              <div className="bg-[#0A0F2C] rounded-lg p-4">
-                <div className="text-white font-medium">{selectedPartnerForFollowUp.contactFullName}</div>
-                <div className="text-[#94A3B8] text-sm">{selectedPartnerForFollowUp.companyLegalName}</div>
-                <div className="text-[#64748B] text-xs mt-1">
-                  {selectedPartnerForFollowUp.contactEmail} • {selectedPartnerForFollowUp.contactPhone}
-                </div>
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-400 text-sm font-medium">{selectedCalendlyLink.name}</p>
+                <p className="text-gray-400 text-xs">{selectedCalendlyLink.duration} minutes</p>
               </div>
-
-              {/* Waiting For Info */}
-              <div className="bg-[#0A0F2C] rounded-lg p-4">
-                <div className="text-[#64748B] text-xs mb-1">Waiting For:</div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{WAITING_TYPES.find(w => w.id === selectedPartnerForFollowUp.waitingFor)?.icon || '⏳'}</span>
-                  <span className="text-white">{WAITING_TYPES.find(w => w.id === selectedPartnerForFollowUp.waitingFor)?.label || selectedPartnerForFollowUp.waitingFor}</span>
-                </div>
-                {selectedPartnerForFollowUp.followUpAttempts && selectedPartnerForFollowUp.followUpAttempts.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-[#2D3B5F]">
-                    <div className="text-[#64748B] text-xs mb-1">Previous Attempts ({selectedPartnerForFollowUp.followUpAttempts.length}):</div>
-                    <div className="space-y-1">
-                      {selectedPartnerForFollowUp.followUpAttempts.slice(-3).map((attempt, i) => (
-                        <div key={i} className="text-[#94A3B8] text-xs flex items-center gap-2">
-                          {attempt.type === 'email' ? <Mail className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
-                          {new Date(attempt.sentAt).toLocaleDateString()} - {attempt.note || 'No note'}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Reminder Type */}
               <div>
-                <label className="block text-[#94A3B8] text-sm mb-2">Reminder Type</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setReminderType('email')}
-                    className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${reminderType === 'email'
-                        ? 'bg-[#0EA5E9] text-white'
-                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
-                      }`}
-                  >
-                    <Mail className="w-4 h-4" />
-                    Email
-                  </button>
-                  <button
-                    onClick={() => setReminderType('sms')}
-                    className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${reminderType === 'sms'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
-                      }`}
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    SMS
-                  </button>
-                </div>
-              </div>
-
-              {/* Note */}
-              <div>
-                <label className="block text-[#94A3B8] text-sm mb-2">Internal Note (optional)</label>
-                <textarea
-                  value={reminderNote}
-                  onChange={(e) => setReminderNote(e.target.value)}
-                  placeholder="Add a note about this reminder attempt..."
-                  rows={3}
-                  className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9] resize-none"
+                <label className="block text-sm text-gray-400 mb-2">Recipient Email</label>
+                <input
+                  type="email"
+                  value={calendlyEmailRecipient}
+                  onChange={(e) => setCalendlyEmailRecipient(e.target.value)}
+                  placeholder="recipient@example.com"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50"
                 />
               </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-3 pt-4 border-t border-[#2D3B5F]">
-                <button
-                  onClick={() => { setShowReminderModal(false); setReminderNote(''); setReminderType('email') }}
-                  className="flex-1 py-3 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => sendReminder(selectedPartnerForFollowUp.id, reminderType, reminderNote)}
-                  disabled={sendingReminder}
-                  className={`flex-1 py-3 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 ${reminderType === 'email' ? 'bg-[#0EA5E9] hover:bg-[#0EA5E9]/80' : 'bg-green-500 hover:bg-green-500/80'
-                    }`}
-                >
-                  {sendingReminder ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      Send {reminderType === 'email' ? 'Email' : 'SMS'} Reminder
-                    </>
-                  )}
-                </button>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Subject</label>
+                <input
+                  type="text"
+                  value={calendlyEmailSubject}
+                  onChange={(e) => setCalendlyEmailSubject(e.target.value)}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50"
+                />
               </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Message</label>
+                <textarea
+                  value={calendlyEmailMessage}
+                  onChange={(e) => setCalendlyEmailMessage(e.target.value)}
+                  rows={6}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 resize-none"
+                />
+              </div>
+              <button
+                onClick={sendCalendlyEmail}
+                disabled={!calendlyEmailRecipient || sendingCalendlyEmail}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              >
+                {sendingCalendlyEmail ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Send Email
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* Form Editor Modal */}
-      {showFormEditorModal && editingForm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between sticky top-0 bg-[#1A1F3A] z-10">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Edit Form: {editingForm.name}</h2>
-                <p className="text-[#64748B] text-sm">Manage form fields and settings</p>
-              </div>
-              <button onClick={() => { setShowFormEditorModal(false); setEditingForm(null) }} className="p-2 text-[#64748B] hover:text-white transition-colors">
+      {showFormEditorModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f3e] rounded-xl border border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-[#1a1f3e]">
+              <h3 className="text-lg font-semibold text-white">{editingForm ? 'Edit Form' : 'Create Form'}</h3>
+              <button
+                onClick={() => { setShowFormEditorModal(false); setEditingForm(null); }}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            <div className="p-6 space-y-6">
-              {/* Form Settings */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-2">Form Name</label>
-                  <input
-                    type="text"
-                    value={editingForm.name}
-                    onChange={(e) => setEditingForm({ ...editingForm, name: e.target.value })}
-                    className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-2">Status</label>
-                  <select
-                    value={editingForm.settings.status}
-                    onChange={(e) => setEditingForm({
-                      ...editingForm,
-                      settings: { ...editingForm.settings, status: e.target.value as 'active' | 'draft' | 'closed' }
-                    })}
-                    className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                  >
-                    <option value="active">Active</option>
-                    <option value="draft">Draft</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Form Fields */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-white font-medium">Form Fields ({editingForm.fields?.length || 0})</h3>
-                  <button
-                    onClick={() => {
-                      const newField: FormField = {
-                        id: `field_${Date.now()}`,
-                        type: 'text',
-                        label: 'New Field',
-                        name: `new_field_${Date.now()}`,
-                        required: false
-                      }
-                      setEditingForm({
-                        ...editingForm,
-                        fields: [...(editingForm.fields || []), newField]
-                      })
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/30 transition-colors text-sm"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Field
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {(editingForm.fields || []).map((field: FormField, index: number) => (
-                    <div key={field.id} className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg p-4">
-                      <div className="flex items-start gap-4">
-                        <div className="text-[#64748B] pt-2">
-                          <GripVertical className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 grid grid-cols-4 gap-4">
-                          <div>
-                            <label className="block text-[#64748B] text-xs mb-1">Label</label>
-                            <input
-                              type="text"
-                              value={field.label}
-                              onChange={(e) => {
-                                const newFields = [...(editingForm.fields || [])]
-                                newFields[index] = { ...field, label: e.target.value }
-                                setEditingForm({ ...editingForm, fields: newFields })
-                              }}
-                              className="w-full px-3 py-1.5 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[#64748B] text-xs mb-1">Type</label>
-                            <select
-                              value={field.type}
-                              onChange={(e) => {
-                                const newFields = [...(editingForm.fields || [])]
-                                newFields[index] = { ...field, type: e.target.value as 'text' | 'email' | 'phone' | 'select' | 'textarea' | 'number' | 'checkbox' }
-                                setEditingForm({ ...editingForm, fields: newFields })
-                              }}
-                              className="w-full px-3 py-1.5 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-                            >
-                              <option value="text">Text</option>
-                              <option value="email">Email</option>
-                              <option value="phone">Phone</option>
-                              <option value="textarea">Textarea</option>
-                              <option value="number">Number</option>
-                              <option value="select">Dropdown</option>
-                              <option value="checkbox">Checkbox</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[#64748B] text-xs mb-1">Field Name</label>
-                            <input
-                              type="text"
-                              value={field.name}
-                              onChange={(e) => {
-                                const newFields = [...(editingForm.fields || [])]
-                                newFields[index] = { ...field, name: e.target.value }
-                                setEditingForm({ ...editingForm, fields: newFields })
-                              }}
-                              className="w-full px-3 py-1.5 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white text-sm font-mono focus:outline-none focus:border-[#0EA5E9]"
-                            />
-                          </div>
-                          <div className="flex items-end gap-2">
-                            <label className="flex items-center gap-2 text-sm text-[#94A3B8]">
-                              <input
-                                type="checkbox"
-                                checked={field.required}
-                                onChange={(e) => {
-                                  const newFields = [...(editingForm.fields || [])]
-                                  newFields[index] = { ...field, required: e.target.checked }
-                                  setEditingForm({ ...editingForm, fields: newFields })
-                                }}
-                                className="rounded border-[#2D3B5F] bg-[#1A1F3A] text-[#0EA5E9] focus:ring-[#0EA5E9]"
-                              />
-                              Required
-                            </label>
-                            <button
-                              onClick={() => {
-                                const newFields = (editingForm.fields || []).filter((_: FormField, i: number) => i !== index)
-                                setEditingForm({ ...editingForm, fields: newFields })
-                              }}
-                              className="p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                      {field.type === 'select' && (
-                        <div className="mt-3 ml-9">
-                          <label className="block text-[#64748B] text-xs mb-1">Options (comma separated)</label>
-                          <input
-                            type="text"
-                            value={field.options?.join(', ') || ''}
-                            onChange={(e) => {
-                              const newFields = [...(editingForm.fields || [])]
-                              newFields[index] = { ...field, options: e.target.value.split(',').map(o => o.trim()) }
-                              setEditingForm({ ...editingForm, fields: newFields })
-                            }}
-                            placeholder="Option 1, Option 2, Option 3"
-                            className="w-full px-3 py-1.5 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Save Button */}
-              <div className="flex items-center gap-3 pt-4 border-t border-[#2D3B5F]">
-                <button
-                  onClick={() => { setShowFormEditorModal(false); setEditingForm(null) }}
-                  className="px-6 py-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    setForms(forms.map(f => f.id === editingForm.id ? editingForm : f))
-                    setShowFormEditorModal(false)
-                    setEditingForm(null)
-                  }}
-                  className="px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors font-medium"
-                >
-                  Save Changes
-                </button>
-              </div>
+            <div className="p-6">
+              <p className="text-gray-400 text-center py-8">Form editor coming soon...</p>
+              <button
+                onClick={() => { setShowFormEditorModal(false); setEditingForm(null); }}
+                className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -4323,85 +3767,50 @@ export default function AdminPortalPage() {
 
       {/* Submission Detail Modal */}
       {showSubmissionDetailModal && selectedSubmission && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between sticky top-0 bg-[#1A1F3A] z-10">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Submission Details</h2>
-                <p className="text-[#64748B] text-sm">{selectedSubmission.formName}</p>
-              </div>
-              <button onClick={() => { setShowSubmissionDetailModal(false); setSelectedSubmission(null) }} className="p-2 text-[#64748B] hover:text-white transition-colors">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f3e] rounded-xl border border-white/10 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-[#1a1f3e]">
+              <h3 className="text-lg font-semibold text-white">Submission Details</h3>
+              <button
+                onClick={() => { setShowSubmissionDetailModal(false); setSelectedSubmission(null); }}
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            <div className="p-6 space-y-6">
-              {/* Status & Meta */}
-              <div className="flex items-center gap-4">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${selectedSubmission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
-                    selectedSubmission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
-                      selectedSubmission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                        'bg-red-500/20 text-red-400'
-                  }`}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Form: {selectedSubmission.formName}</span>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedSubmission.status)}`}>
                   {selectedSubmission.status}
                 </span>
-                <span className="text-[#64748B] text-sm">
-                  Submitted {new Date(selectedSubmission.submittedAt).toLocaleString()}
-                </span>
               </div>
-
-              {/* All Submission Data */}
-              <div className="space-y-4">
-                <h3 className="text-white font-medium">Form Data</h3>
-                <div className="bg-[#0A0F2C] rounded-lg divide-y divide-[#2D3B5F]">
-                  {Object.entries(selectedSubmission.data).map(([key, value]) => (
-                    <div key={key} className="flex justify-between items-start p-3">
-                      <span className="text-[#64748B] text-sm capitalize">
-                        {key.replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-white text-sm text-right max-w-[60%]">
-                        {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value) || '-'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+              <div className="text-gray-500 text-xs">
+                Submitted: {formatDate(selectedSubmission.submittedAt)}
               </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-3 pt-4 border-t border-[#2D3B5F]">
-                {selectedSubmission.status === 'new' && (
-                  <button
-                    onClick={() => {
-                      updateSubmissionStatus(selectedSubmission.id, 'reviewed')
-                      setSelectedSubmission({ ...selectedSubmission, status: 'reviewed' })
-                    }}
-                    className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
-                  >
-                    Mark Reviewed
-                  </button>
-                )}
-                {selectedSubmission.status !== 'approved' && (
-                  <button
-                    onClick={() => {
-                      updateSubmissionStatus(selectedSubmission.id, 'approved')
-                      setSelectedSubmission({ ...selectedSubmission, status: 'approved' })
-                    }}
-                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                  >
-                    Approve
-                  </button>
-                )}
-                {selectedSubmission.status !== 'rejected' && (
-                  <button
-                    onClick={() => {
-                      updateSubmissionStatus(selectedSubmission.id, 'rejected')
-                      setSelectedSubmission({ ...selectedSubmission, status: 'rejected' })
-                    }}
-                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                  >
-                    Reject
-                  </button>
-                )}
+              <div className="space-y-3">
+                {Object.entries(selectedSubmission.data || {}).map(([key, value]) => (
+                  <div key={key} className="p-3 bg-white/5 rounded-lg">
+                    <p className="text-gray-400 text-xs mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
+                    <p className="text-white">{String(value)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => { updateSubmissionStatus(selectedSubmission.id, 'approved'); setShowSubmissionDetailModal(false); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Approve
+                </button>
+                <button
+                  onClick={() => { updateSubmissionStatus(selectedSubmission.id, 'rejected'); setShowSubmissionDetailModal(false); }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Reject
+                </button>
               </div>
             </div>
           </div>
