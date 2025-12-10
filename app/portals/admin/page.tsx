@@ -1372,8 +1372,8 @@ export default function AdminPortalPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as TabType)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === tab.id
-                    ? 'bg-[#0EA5E9] text-white'
-                    : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
+                  ? 'bg-[#0EA5E9] text-white'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
                   }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -1782,8 +1782,8 @@ export default function AdminPortalPage() {
                           <button
                             onClick={() => toggleProductApproval(p)}
                             className={`p-2 rounded-lg transition-colors ${isProductApproved(p.id)
-                                ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
-                                : 'bg-[#2D3B5F] text-[#64748B] hover:bg-[#3D4B6F]'
+                              ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
+                              : 'bg-[#2D3B5F] text-[#64748B] hover:bg-[#3D4B6F]'
                               }`}
                             title={isProductApproved(p.id) ? 'Remove from approved' : 'Mark as approved'}
                           >
@@ -2035,9 +2035,9 @@ export default function AdminPortalPage() {
                         <td className="px-6 py-4 text-[#94A3B8]">{article.source || 'Original'}</td>
                         <td className="px-6 py-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${article.status === 'published' ? 'bg-green-500/20 text-green-400' :
-                              article.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                                article.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                                  'bg-[#2D3B5F] text-[#94A3B8]'
+                            article.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                              article.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                                'bg-[#2D3B5F] text-[#94A3B8]'
                             }`}>
                             {article.status.charAt(0).toUpperCase() + article.status.slice(1)}
                           </span>
@@ -2168,8 +2168,8 @@ export default function AdminPortalPage() {
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="text-white font-medium text-sm">{form.name}</h4>
                           <span className={`px-2 py-0.5 rounded text-xs ${form.settings.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                              form.settings.status === 'draft' ? 'bg-yellow-500/20 text-yellow-400' :
-                                'bg-red-500/20 text-red-400'
+                            form.settings.status === 'draft' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-red-500/20 text-red-400'
                             }`}>
                             {form.settings.status}
                           </span>
@@ -2261,9 +2261,9 @@ export default function AdminPortalPage() {
                                 {submission.data.name || submission.data.contact_name || submission.data.business_name || 'Anonymous'}
                               </span>
                               <span className={`px-2 py-0.5 rounded text-xs ${submission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
-                                  submission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
-                                    submission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                                      'bg-red-500/20 text-red-400'
+                                submission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
+                                  submission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                                    'bg-red-500/20 text-red-400'
                                 }`}>
                                 {submission.status}
                               </span>
@@ -2376,8 +2376,8 @@ export default function AdminPortalPage() {
                   key={calc.id}
                   onClick={() => setActiveCalculator(calc.id)}
                   className={`p-4 rounded-xl border transition-all ${activeCalculator === calc.id
-                      ? 'bg-[#0EA5E9]/20 border-[#0EA5E9] text-white'
-                      : 'bg-[#1A1F3A] border-[#2D3B5F] text-[#94A3B8] hover:border-[#0EA5E9]/50'
+                    ? 'bg-[#0EA5E9]/20 border-[#0EA5E9] text-white'
+                    : 'bg-[#1A1F3A] border-[#2D3B5F] text-[#94A3B8] hover:border-[#0EA5E9]/50'
                     }`}
                 >
                   <calc.icon className={`w-6 h-6 mx-auto mb-2 ${calc.color}`} />
@@ -2894,10 +2894,10 @@ export default function AdminPortalPage() {
                     key={stage.id}
                     onClick={() => setPipelineStageFilter(isSelected ? null : stage.id)}
                     className={`flex-shrink-0 px-4 py-2 rounded-lg border-l-4 ${stage.color} transition-all cursor-pointer ${isSelected
-                        ? 'bg-[#2D3B5F] ring-2 ring-[#0EA5E9]'
-                        : isFiltered
-                          ? 'bg-[#1A1F3A]/50 opacity-40'
-                          : 'bg-[#1A1F3A] hover:bg-[#2D3B5F]'
+                      ? 'bg-[#2D3B5F] ring-2 ring-[#0EA5E9]'
+                      : isFiltered
+                        ? 'bg-[#1A1F3A]/50 opacity-40'
+                        : 'bg-[#1A1F3A] hover:bg-[#2D3B5F]'
                       }`}
                   >
                     <div className="text-white font-medium text-sm">{stage.name}</div>
@@ -3181,8 +3181,8 @@ export default function AdminPortalPage() {
                     key={sort.id}
                     onClick={() => setFollowUpSortBy(sort.id as any)}
                     className={`px-3 py-1 rounded text-sm transition-colors ${followUpSortBy === sort.id
-                        ? 'bg-[#0EA5E9] text-white'
-                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
+                      ? 'bg-[#0EA5E9] text-white'
+                      : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
                       }`}
                   >
                     {sort.label}
@@ -3212,8 +3212,8 @@ export default function AdminPortalPage() {
                   <div
                     key={item.partnerId}
                     className={`bg-[#1A1F3A] border rounded-xl p-5 ${item.priority === 'high' ? 'border-red-500/50' :
-                        item.priority === 'medium' ? 'border-yellow-500/50' :
-                          'border-[#2D3B5F]'
+                      item.priority === 'medium' ? 'border-yellow-500/50' :
+                        'border-[#2D3B5F]'
                       }`}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -3225,8 +3225,8 @@ export default function AdminPortalPage() {
                             {item.partnerType}
                           </span>
                           <span className={`px-2 py-0.5 rounded text-xs ${item.partnerStatus === 'active' ? 'bg-green-500/20 text-green-400' :
-                              item.partnerStatus === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
-                                'bg-gray-500/20 text-gray-400'
+                            item.partnerStatus === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-gray-500/20 text-gray-400'
                             }`}>
                             {item.partnerStatus}
                           </span>
@@ -3261,9 +3261,9 @@ export default function AdminPortalPage() {
                       {/* Days Counter */}
                       <div className="text-center px-4 border-l border-[#2D3B5F] min-w-[80px]">
                         <div className={`text-3xl font-bold ${item.daysPending >= 30 ? 'text-red-400' :
-                            item.daysPending >= 14 ? 'text-orange-400' :
-                              item.daysPending >= 7 ? 'text-yellow-400' :
-                                'text-white'
+                          item.daysPending >= 14 ? 'text-orange-400' :
+                            item.daysPending >= 7 ? 'text-yellow-400' :
+                              'text-white'
                           }`}>
                           {item.daysPending}
                         </div>
@@ -3397,8 +3397,8 @@ export default function AdminPortalPage() {
                   key={tab.id}
                   onClick={() => setPaymentsViewType(tab.id as any)}
                   className={`px-4 py-2 border-b-2 transition-colors ${paymentsViewType === tab.id
-                      ? 'border-[#0EA5E9] text-white'
-                      : 'border-transparent text-[#94A3B8] hover:text-white'
+                    ? 'border-[#0EA5E9] text-white'
+                    : 'border-transparent text-[#94A3B8] hover:text-white'
                     }`}
                 >
                   {tab.label}
@@ -3406,13 +3406,57 @@ export default function AdminPortalPage() {
               ))}
             </div>
 
-            {/* Tipalti iFrame */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <TipaltiIFrame
-                payeeId="admin_at_skyyield.io"
-                viewType={paymentsViewType}
-                environment="sandbox"
-              />
+            {/* Payment Partners Table */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#2D3B5F]">
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Partner</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Total Earned</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Status</th>
+                    <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="text-white font-medium">John Smith</p>
+                        <p className="text-[#94A3B8] text-sm">john@coffeeshop.com</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-[#94A3B8]">Location Partner</td>
+                    <td className="px-6 py-4 text-white">$4,500.00</td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Active</span></td>
+                    <td className="px-6 py-4 text-right"><button className="text-[#0EA5E9] hover:underline text-sm">View</button></td>
+                  </tr>
+                  <tr className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="text-white font-medium">Sarah Johnson</p>
+                        <p className="text-[#94A3B8] text-sm">sarah@fitnesscenter.com</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-[#94A3B8]">Location Partner</td>
+                    <td className="px-6 py-4 text-white">$8,200.00</td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Active</span></td>
+                    <td className="px-6 py-4 text-right"><button className="text-[#0EA5E9] hover:underline text-sm">View</button></td>
+                  </tr>
+                  <tr className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="text-white font-medium">Mike Chen</p>
+                        <p className="text-[#94A3B8] text-sm">mike@techsolutions.com</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-[#94A3B8]">Channel Partner</td>
+                    <td className="px-6 py-4 text-white">$2,500.00</td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">Pending</span></td>
+                    <td className="px-6 py-4 text-right"><button className="text-[#0EA5E9] hover:underline text-sm">View</button></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
@@ -3444,8 +3488,8 @@ export default function AdminPortalPage() {
                   key={tab.id}
                   onClick={() => setSettingsTab(tab.id as any)}
                   className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${settingsTab === tab.id
-                      ? 'border-[#0EA5E9] text-white'
-                      : 'border-transparent text-[#94A3B8] hover:text-white'
+                    ? 'border-[#0EA5E9] text-white'
+                    : 'border-transparent text-[#94A3B8] hover:text-white'
                     }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -3685,10 +3729,10 @@ export default function AdminPortalPage() {
                       return (
                         <div key={stage.id} className="flex items-center">
                           <div className={`flex-shrink-0 px-3 py-1.5 rounded text-xs font-medium ${isCompleted
-                              ? 'bg-green-500/20 text-green-400'
-                              : isCurrent
-                                ? 'bg-[#0EA5E9]/20 text-[#0EA5E9] ring-1 ring-[#0EA5E9]'
-                                : 'bg-[#2D3B5F]/50 text-[#64748B]'
+                            ? 'bg-green-500/20 text-green-400'
+                            : isCurrent
+                              ? 'bg-[#0EA5E9]/20 text-[#0EA5E9] ring-1 ring-[#0EA5E9]'
+                              : 'bg-[#2D3B5F]/50 text-[#64748B]'
                             }`}>
                             {isCompleted && '✓ '}{stage.name}
                           </div>
@@ -4064,8 +4108,8 @@ export default function AdminPortalPage() {
                   <button
                     onClick={() => setReminderType('email')}
                     className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${reminderType === 'email'
-                        ? 'bg-[#0EA5E9] text-white'
-                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
+                      ? 'bg-[#0EA5E9] text-white'
+                      : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
                       }`}
                   >
                     <Mail className="w-4 h-4" />
@@ -4074,8 +4118,8 @@ export default function AdminPortalPage() {
                   <button
                     onClick={() => setReminderType('sms')}
                     className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${reminderType === 'sms'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
+                      ? 'bg-green-500 text-white'
+                      : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
                       }`}
                   >
                     <MessageSquare className="w-4 h-4" />
@@ -4339,9 +4383,9 @@ export default function AdminPortalPage() {
               {/* Status & Meta */}
               <div className="flex items-center gap-4">
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${selectedSubmission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
-                    selectedSubmission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
-                      selectedSubmission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                        'bg-red-500/20 text-red-400'
+                  selectedSubmission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
+                    selectedSubmission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                      'bg-red-500/20 text-red-400'
                   }`}>
                   {selectedSubmission.status}
                 </span>
