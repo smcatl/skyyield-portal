@@ -5,16 +5,16 @@ import { useRouter } from 'next/navigation'
 import CryptoPriceHeader from '@/components/CryptoPriceHeader'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { 
-  ArrowLeft, Users, FileText, ShoppingBag, BarChart3, 
+import {
+  ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
   CheckCircle, Clock, Package, TrendingUp,
   RefreshCw, Check, X, Search, Plus, Edit, Edit3, Trash2, Eye, Star,
-  Upload, ToggleLeft, ToggleRight, Calculator, MapPin, Target, 
+  Upload, ToggleLeft, ToggleRight, Calculator, MapPin, Target,
   Activity, DollarSign, Building2, Lock, ClipboardList, ExternalLink,
   Copy, Inbox, Settings, Mail, Calendar, Send, GitBranch, List,
-  ChevronDown, ChevronRight, Save, AlertCircle, Sparkles, 
+  ChevronDown, ChevronRight, Save, AlertCircle, Sparkles,
   GripVertical, Phone, MoreVertical, Filter, UserPlus,
-  CreditCard, Wallet, PieChart, MessageSquare, Bell, 
+  CreditCard, Wallet, PieChart, MessageSquare, Bell,
   SkipForward, AlertTriangle, Pause, Play, Archive, History
 } from 'lucide-react'
 import TipaltiIFrame from '@/components/TipaltiIFrame'
@@ -555,13 +555,13 @@ export default function AdminPortalPage() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabType>('overview')
-  
+
   // Users state
   const [users, setUsers] = useState<User[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
   const [userSearch, setUserSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  
+
   // Products state
   const [products, setProducts] = useState<Product[]>([])
   const [productsLoading, setProductsLoading] = useState(false)
@@ -613,7 +613,7 @@ export default function AdminPortalPage() {
   const [reminderType, setReminderType] = useState<'email' | 'sms'>('email')
   const [reminderNote, setReminderNote] = useState('')
   const [sendingReminder, setSendingReminder] = useState(false)
-  
+
   // Follow-ups filtering & sorting
   const [followUpStatusFilter, setFollowUpStatusFilter] = useState<string>('all')
   const [followUpItemTypeFilter, setFollowUpItemTypeFilter] = useState<string>('all')
@@ -628,7 +628,10 @@ export default function AdminPortalPage() {
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(DEFAULT_EMAIL_TEMPLATES)
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
   const [dropdowns, setDropdowns] = useState<Dropdown[]>([])
-  const [calendlyLinks, setCalendlyLinks] = useState<CalendlyLink[]>(DEFAULT_CALENDLY_LINKS)
+  const [calendlyLinks, setCalendlyLinks] = useState<CalendlyLink[]>([])
+  const [calendlyUser, setCalendlyUser] = useState<{ name: string; email: string; timezone: string } | null>(null)
+  const [calendlyLoading, setCalendlyLoading] = useState(false)
+  const [calendlyError, setCalendlyError] = useState<string | null>(null)
 
   // Payments state
   const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
@@ -658,7 +661,7 @@ export default function AdminPortalPage() {
   useEffect(() => {
     if (!isLoaded) return
     if (!user) { router.push('/sign-in'); return }
-    
+
     const status = (user.unsafeMetadata as any)?.status || 'pending'
     if (status !== 'approved') {
       router.push('/pending-approval')
@@ -728,7 +731,7 @@ export default function AdminPortalPage() {
         body: JSON.stringify({ status }),
       })
       // Update local state
-      setArticles(prev => prev.map(a => 
+      setArticles(prev => prev.map(a =>
         a.id === articleId ? { ...a, status: status as BlogArticle['status'] } : a
       ))
     } catch (err) {
@@ -805,7 +808,7 @@ export default function AdminPortalPage() {
   const generateWaitingItems = (partnerList: LocationPartner[]) => {
     const items: WaitingItem[] = []
     const now = new Date()
-    
+
     partnerList.forEach(partner => {
       // Find what stage requires waiting
       const stage = PIPELINE_STAGES.find(s => s.id === partner.stage)
@@ -816,7 +819,7 @@ export default function AdminPortalPage() {
         const waitingDate = new Date(waitingSince)
         const daysPending = Math.floor((now.getTime() - waitingDate.getTime()) / (1000 * 60 * 60 * 24))
         const attemptCount = partner.followUpAttempts?.length || 0
-        
+
         // Determine priority based on days pending and attempts
         let priority: 'high' | 'medium' | 'low' = 'low'
         if (daysPending >= REMINDER_THRESHOLDS.inactive || attemptCount >= 3) {
@@ -824,7 +827,7 @@ export default function AdminPortalPage() {
         } else if (daysPending >= REMINDER_THRESHOLDS.second) {
           priority = 'medium'
         }
-        
+
         items.push({
           partnerId: partner.id,
           partnerName: partner.contactFullName,
@@ -851,7 +854,7 @@ export default function AdminPortalPage() {
         })
       }
     })
-    
+
     // Don't sort here - let the UI handle sorting based on user preference
     setWaitingItems(items)
   }
@@ -859,22 +862,22 @@ export default function AdminPortalPage() {
   // Get filtered and sorted waiting items
   const getFilteredWaitingItems = () => {
     let filtered = [...waitingItems]
-    
+
     // Apply search filter
     if (followUpSearch) {
       const search = followUpSearch.toLowerCase()
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.partnerName.toLowerCase().includes(search) ||
         item.companyName.toLowerCase().includes(search) ||
         item.partnerEmail.toLowerCase().includes(search)
       )
     }
-    
+
     // Apply status filter
     if (followUpStatusFilter !== 'all') {
       filtered = filtered.filter(item => item.partnerStatus === followUpStatusFilter)
     }
-    
+
     // Apply item type filter
     if (followUpItemTypeFilter !== 'all') {
       if (followUpItemTypeFilter === 'calendly') {
@@ -887,17 +890,17 @@ export default function AdminPortalPage() {
         filtered = filtered.filter(item => item.waitingFor === followUpItemTypeFilter)
       }
     }
-    
+
     // Apply partner type filter
     if (followUpPartnerTypeFilter !== 'all') {
       filtered = filtered.filter(item => item.partnerType === followUpPartnerTypeFilter)
     }
-    
+
     // Apply days range filter
-    filtered = filtered.filter(item => 
+    filtered = filtered.filter(item =>
       item.daysPending >= followUpMinDays && item.daysPending <= followUpMaxDays
     )
-    
+
     // Apply sorting
     filtered.sort((a, b) => {
       switch (followUpSortBy) {
@@ -915,7 +918,7 @@ export default function AdminPortalPage() {
           return b.daysPending - a.daysPending
       }
     })
-    
+
     return filtered
   }
 
@@ -925,9 +928,9 @@ export default function AdminPortalPage() {
     try {
       const partner = partners.find(p => p.id === partnerId)
       if (!partner) throw new Error('Partner not found')
-      
+
       const waitingType = WAITING_TYPES.find(w => w.id === partner.waitingFor)
-      
+
       await fetch('/api/pipeline/reminder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -940,7 +943,7 @@ export default function AdminPortalPage() {
           note,
         }),
       })
-      
+
       // Refresh pipeline to get updated attempt counts
       await fetchPipeline()
       setShowReminderModal(false)
@@ -959,20 +962,20 @@ export default function AdminPortalPage() {
     try {
       const stageIndex = PIPELINE_STAGES.findIndex(s => s.id === currentStage)
       if (stageIndex === -1 || stageIndex >= PIPELINE_STAGES.length - 1) return
-      
+
       const nextStage = PIPELINE_STAGES[stageIndex + 1].id
-      
+
       await fetch('/api/pipeline/partners/' + partnerId, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           stage: nextStage,
           waitingFor: null,
           waitingSince: null,
           skipReason: 'Manually skipped by admin'
         }),
       })
-      
+
       await fetchPipeline()
       alert('Step skipped successfully!')
     } catch (err) {
@@ -984,19 +987,19 @@ export default function AdminPortalPage() {
   // Mark partner as inactive
   const markInactive = async (partnerId: string, reason?: string) => {
     if (!confirm('Are you sure you want to mark this partner as inactive? This will remove them from active follow-ups.')) return
-    
+
     try {
       await fetch('/api/pipeline/partners/' + partnerId, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           stage: 'inactive',
           status: 'inactive',
           inactiveReason: reason || 'No response after multiple follow-ups',
           inactiveDate: new Date().toISOString()
         }),
       })
-      
+
       await fetchPipeline()
       alert('Partner marked as inactive')
     } catch (err) {
@@ -1046,16 +1049,25 @@ export default function AdminPortalPage() {
     }
   }
 
-  // Fetch calendly links
+  // Fetch calendly links from real API
   const fetchCalendlyLinks = async () => {
+    setCalendlyLoading(true)
+    setCalendlyError(null)
     try {
       const res = await fetch('/api/pipeline/calendly')
-      if (res.ok) {
-        const data = await res.json()
-        setCalendlyLinks(data.eventTypes || [])
+      const data = await res.json()
+
+      if (data.success) {
+        setCalendlyLinks(data.links || [])
+        setCalendlyUser(data.user || null)
+      } else {
+        setCalendlyError(data.error || 'Failed to fetch Calendly data')
       }
     } catch (err) {
-      console.error('Error fetching calendly:', err)
+      console.error('Calendly fetch error:', err)
+      setCalendlyError('Failed to connect to Calendly API')
+    } finally {
+      setCalendlyLoading(false)
     }
   }
 
@@ -1092,7 +1104,7 @@ export default function AdminPortalPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: submissionId, status }),
       })
-      setSubmissions(prev => prev.map(s => 
+      setSubmissions(prev => prev.map(s =>
         s.id === submissionId ? { ...s, status: status as FormSubmission['status'] } : s
       ))
       // Update stats
@@ -1150,12 +1162,12 @@ export default function AdminPortalPage() {
   const toggleProductVisibility = async (product: Product) => {
     const currentVisibility = product.showInStore !== false
     const newVisibility = !currentVisibility
-    
+
     // Update local state immediately
-    setProducts(prev => prev.map(p => 
+    setProducts(prev => prev.map(p =>
       p.id === product.id ? { ...p, showInStore: newVisibility } : p
     ))
-    
+
     try {
       const response = await fetch('/api/admin/products', {
         method: 'PUT',
@@ -1179,14 +1191,14 @@ export default function AdminPortalPage() {
           showInStore: newVisibility,
         }),
       })
-      
+
       if (!response.ok) {
         throw new Error('Failed to update')
       }
     } catch (err) {
       console.error('Error updating product:', err)
       // Revert on error
-      setProducts(prev => prev.map(p => 
+      setProducts(prev => prev.map(p =>
         p.id === product.id ? { ...p, showInStore: currentVisibility } : p
       ))
     }
@@ -1240,7 +1252,7 @@ export default function AdminPortalPage() {
 
   // Filter users
   const filteredUsers = users.filter(u => {
-    const matchesSearch = 
+    const matchesSearch =
       (u.firstName?.toLowerCase() || '').includes(userSearch.toLowerCase()) ||
       (u.lastName?.toLowerCase() || '').includes(userSearch.toLowerCase()) ||
       u.email.toLowerCase().includes(userSearch.toLowerCase())
@@ -1327,7 +1339,7 @@ export default function AdminPortalPage() {
       {/* Header */}
       <div className="px-4 pb-4 border-b border-[#2D3B5F]">
         <div className="max-w-7xl mx-auto">
-          <Link 
+          <Link
             href="/"
             className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"
           >
@@ -1359,11 +1371,10 @@ export default function AdminPortalPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                  activeTab === tab.id
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === tab.id
                     ? 'bg-[#0EA5E9] text-white'
                     : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
-                }`}
+                  }`}
               >
                 <tab.icon className="w-4 h-4" />
                 {tab.label}
@@ -1380,7 +1391,7 @@ export default function AdminPortalPage() {
           <div className="space-y-6">
             {/* Crypto Prices */}
             <CryptoPriceHeader />
-            
+
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
@@ -1556,16 +1567,16 @@ export default function AdminPortalPage() {
                     </tr>
                   ) : (
                     filteredUsers.map(u => (
-                      <tr 
-                        key={u.id} 
+                      <tr
+                        key={u.id}
                         className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30 cursor-pointer"
                         onClick={() => { setSelectedUser(u); setShowUserModal(true) }}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <img 
-                              src={u.imageUrl || `https://ui-avatars.com/api/?name=${u.firstName}+${u.lastName}&background=0EA5E9&color=fff`} 
-                              alt="" 
+                            <img
+                              src={u.imageUrl || `https://ui-avatars.com/api/?name=${u.firstName}+${u.lastName}&background=0EA5E9&color=fff`}
+                              alt=""
                               className="w-10 h-10 rounded-full"
                             />
                             <div>
@@ -1770,11 +1781,10 @@ export default function AdminPortalPage() {
                         <td className="px-4 py-4 text-center">
                           <button
                             onClick={() => toggleProductApproval(p)}
-                            className={`p-2 rounded-lg transition-colors ${
-                              isProductApproved(p.id)
-                                ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' 
+                            className={`p-2 rounded-lg transition-colors ${isProductApproved(p.id)
+                                ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
                                 : 'bg-[#2D3B5F] text-[#64748B] hover:bg-[#3D4B6F]'
-                            }`}
+                              }`}
                             title={isProductApproved(p.id) ? 'Remove from approved' : 'Mark as approved'}
                           >
                             <Star className={`w-4 h-4 ${isProductApproved(p.id) ? 'fill-current' : ''}`} />
@@ -2024,12 +2034,11 @@ export default function AdminPortalPage() {
                         </td>
                         <td className="px-6 py-4 text-[#94A3B8]">{article.source || 'Original'}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            article.status === 'published' ? 'bg-green-500/20 text-green-400' :
-                            article.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                            article.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                            'bg-[#2D3B5F] text-[#94A3B8]'
-                          }`}>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${article.status === 'published' ? 'bg-green-500/20 text-green-400' :
+                              article.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                                article.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                                  'bg-[#2D3B5F] text-[#94A3B8]'
+                            }`}>
                             {article.status.charAt(0).toUpperCase() + article.status.slice(1)}
                           </span>
                         </td>
@@ -2149,9 +2158,8 @@ export default function AdminPortalPage() {
                     {forms.map(form => (
                       <div
                         key={form.id}
-                        className={`bg-[#1A1F3A] border rounded-xl p-4 cursor-pointer transition-colors ${
-                          selectedFormId === form.id ? 'border-[#0EA5E9]' : 'border-[#2D3B5F] hover:border-[#0EA5E9]/50'
-                        }`}
+                        className={`bg-[#1A1F3A] border rounded-xl p-4 cursor-pointer transition-colors ${selectedFormId === form.id ? 'border-[#0EA5E9]' : 'border-[#2D3B5F] hover:border-[#0EA5E9]/50'
+                          }`}
                         onClick={() => {
                           setSelectedFormId(form.id)
                           fetchSubmissions(form.id)
@@ -2159,11 +2167,10 @@ export default function AdminPortalPage() {
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="text-white font-medium text-sm">{form.name}</h4>
-                          <span className={`px-2 py-0.5 rounded text-xs ${
-                            form.settings.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                            form.settings.status === 'draft' ? 'bg-yellow-500/20 text-yellow-400' :
-                            'bg-red-500/20 text-red-400'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded text-xs ${form.settings.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                              form.settings.status === 'draft' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-red-500/20 text-red-400'
+                            }`}>
                             {form.settings.status}
                           </span>
                         </div>
@@ -2253,12 +2260,11 @@ export default function AdminPortalPage() {
                               <span className="text-white font-medium">
                                 {submission.data.name || submission.data.contact_name || submission.data.business_name || 'Anonymous'}
                               </span>
-                              <span className={`px-2 py-0.5 rounded text-xs ${
-                                submission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
-                                submission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
-                                submission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                                'bg-red-500/20 text-red-400'
-                              }`}>
+                              <span className={`px-2 py-0.5 rounded text-xs ${submission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  submission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
+                                    submission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                                      'bg-red-500/20 text-red-400'
+                                }`}>
                                 {submission.status}
                               </span>
                             </div>
@@ -2369,11 +2375,10 @@ export default function AdminPortalPage() {
                 <button
                   key={calc.id}
                   onClick={() => setActiveCalculator(calc.id)}
-                  className={`p-4 rounded-xl border transition-all ${
-                    activeCalculator === calc.id
+                  className={`p-4 rounded-xl border transition-all ${activeCalculator === calc.id
                       ? 'bg-[#0EA5E9]/20 border-[#0EA5E9] text-white'
                       : 'bg-[#1A1F3A] border-[#2D3B5F] text-[#94A3B8] hover:border-[#0EA5E9]/50'
-                  }`}
+                    }`}
                 >
                   <calc.icon className={`w-6 h-6 mx-auto mb-2 ${calc.color}`} />
                   <div className="text-xs font-medium">{calc.label}</div>
@@ -2571,7 +2576,7 @@ export default function AdminPortalPage() {
                       const monthlyDataGB = dailyDataGB * calcDaysOpen
                       const monthlyEarnings = monthlyDataGB * calcRatePerGB
                       const yearlyEarnings = monthlyEarnings * 12
-                      
+
                       return (
                         <>
                           <div className="bg-gradient-to-br from-green-500/20 to-green-500/5 rounded-xl p-6 border border-green-500/30">
@@ -2649,7 +2654,7 @@ export default function AdminPortalPage() {
                   Trade Area Analyzer
                 </h3>
                 <p className="text-[#94A3B8] mb-6">Understand where your venue&apos;s visitors come from and identify optimal coverage areas.</p>
-                
+
                 <div className="grid md:grid-cols-3 gap-4 mb-6">
                   <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
                     <div className="text-[#64748B] text-sm mb-1">Primary Trade Area</div>
@@ -2693,7 +2698,7 @@ export default function AdminPortalPage() {
                   Competitor Comparison
                 </h3>
                 <p className="text-[#94A3B8] mb-6">Compare foot traffic metrics against nearby competitors.</p>
-                
+
                 <div className="bg-[#0A0F2C] rounded-xl p-8 border border-[#2D3B5F] text-center">
                   <Target className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
                   <p className="text-[#94A3B8]">Select venues to compare foot traffic and performance</p>
@@ -2712,7 +2717,7 @@ export default function AdminPortalPage() {
                   Peak Hours Optimizer
                 </h3>
                 <p className="text-[#94A3B8] mb-6">Identify peak visitation times to optimize WiFi capacity and earnings.</p>
-                
+
                 <div className="grid md:grid-cols-7 gap-2 mb-6">
                   {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
                     <div key={day} className="bg-[#0A0F2C] rounded-lg p-3 border border-[#2D3B5F] text-center">
@@ -2743,7 +2748,7 @@ export default function AdminPortalPage() {
                   Demographics Insights
                 </h3>
                 <p className="text-[#94A3B8] mb-6">Understand visitor demographics to target optimal venues.</p>
-                
+
                 <div className="grid md:grid-cols-4 gap-4 mb-6">
                   <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
                     <div className="text-[#64748B] text-sm mb-1">Median Income</div>
@@ -2781,7 +2786,7 @@ export default function AdminPortalPage() {
                   Venue Scoring Tool
                 </h3>
                 <p className="text-[#94A3B8] mb-6">Get a comprehensive score (1-100) for any venue based on multiple factors.</p>
-                
+
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg border border-[#2D3B5F]">
@@ -2885,16 +2890,15 @@ export default function AdminPortalPage() {
                 const isSelected = pipelineStageFilter === stage.id
                 const isFiltered = pipelineStageFilter !== null && !isSelected
                 return (
-                  <button 
-                    key={stage.id} 
+                  <button
+                    key={stage.id}
                     onClick={() => setPipelineStageFilter(isSelected ? null : stage.id)}
-                    className={`flex-shrink-0 px-4 py-2 rounded-lg border-l-4 ${stage.color} transition-all cursor-pointer ${
-                      isSelected 
-                        ? 'bg-[#2D3B5F] ring-2 ring-[#0EA5E9]' 
-                        : isFiltered 
-                          ? 'bg-[#1A1F3A]/50 opacity-40' 
+                    className={`flex-shrink-0 px-4 py-2 rounded-lg border-l-4 ${stage.color} transition-all cursor-pointer ${isSelected
+                        ? 'bg-[#2D3B5F] ring-2 ring-[#0EA5E9]'
+                        : isFiltered
+                          ? 'bg-[#1A1F3A]/50 opacity-40'
                           : 'bg-[#1A1F3A] hover:bg-[#2D3B5F]'
-                    }`}
+                      }`}
                   >
                     <div className="text-white font-medium text-sm">{stage.name}</div>
                     <div className="text-2xl font-bold text-white">{count}</div>
@@ -2910,7 +2914,7 @@ export default function AdminPortalPage() {
                   Showing partners in: <strong>{PIPELINE_STAGES.find(s => s.id === pipelineStageFilter)?.name}</strong>
                   {' '}({partners.filter(p => p.stage === pipelineStageFilter).length} partners)
                 </span>
-                <button 
+                <button
                   onClick={() => setPipelineStageFilter(null)}
                   className="text-[#0EA5E9] hover:text-white transition-colors"
                 >
@@ -2947,37 +2951,36 @@ export default function AdminPortalPage() {
                     {partners
                       .filter(p => !pipelineStageFilter || p.stage === pipelineStageFilter)
                       .map(partner => (
-                      <tr key={partner.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
-                        <td className="px-6 py-4">
-                          <div className="text-white font-medium">{partner.contactFullName}</div>
-                          <div className="text-[#64748B] text-sm">{partner.contactEmail}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-white">{partner.companyLegalName}</div>
-                          {partner.companyDBA && <div className="text-[#64748B] text-sm">DBA: {partner.companyDBA}</div>}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            PIPELINE_STAGES.find(s => s.id === partner.stage)?.bgColor || 'bg-gray-500'
-                          } bg-opacity-20 text-white`}>
-                            {PIPELINE_STAGES.find(s => s.id === partner.stage)?.name || partner.stage}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-[#94A3B8]">
-                          {partner.companyCity}, {partner.companyState}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link
-                              href={`/admin/pipeline/partners/${partner.id}`}
-                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                        <tr key={partner.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
+                          <td className="px-6 py-4">
+                            <div className="text-white font-medium">{partner.contactFullName}</div>
+                            <div className="text-[#64748B] text-sm">{partner.contactEmail}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-white">{partner.companyLegalName}</div>
+                            {partner.companyDBA && <div className="text-[#64748B] text-sm">DBA: {partner.companyDBA}</div>}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${PIPELINE_STAGES.find(s => s.id === partner.stage)?.bgColor || 'bg-gray-500'
+                              } bg-opacity-20 text-white`}>
+                              {PIPELINE_STAGES.find(s => s.id === partner.stage)?.name || partner.stage}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-[#94A3B8]">
+                            {partner.companyCity}, {partner.companyState}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <Link
+                                href={`/admin/pipeline/partners/${partner.id}`}
+                                className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               )}
@@ -3007,18 +3010,16 @@ export default function AdminPortalPage() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <button
                 onClick={() => { setFollowUpItemTypeFilter('all'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
-                  followUpItemTypeFilter === 'all' ? 'border-[#0EA5E9]' : 'border-[#2D3B5F]'
-                }`}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'all' ? 'border-[#0EA5E9]' : 'border-[#2D3B5F]'
+                  }`}
               >
                 <div className="text-2xl font-bold text-white">{waitingItems.length}</div>
                 <div className="text-[#64748B] text-sm">Total Waiting</div>
               </button>
               <button
                 onClick={() => { setFollowUpItemTypeFilter('calendly'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
-                  followUpItemTypeFilter === 'calendly' ? 'border-purple-500' : 'border-[#2D3B5F]'
-                }`}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'calendly' ? 'border-purple-500' : 'border-[#2D3B5F]'
+                  }`}
               >
                 <div className="text-2xl font-bold text-purple-400">{waitingItems.filter(w => w.waitingForCategory === 'calendly').length}</div>
                 <div className="text-[#64748B] text-sm">📅 Calendly</div>
@@ -3026,9 +3027,8 @@ export default function AdminPortalPage() {
               </button>
               <button
                 onClick={() => { setFollowUpItemTypeFilter('pandadoc'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
-                  followUpItemTypeFilter === 'pandadoc' ? 'border-orange-500' : 'border-[#2D3B5F]'
-                }`}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'pandadoc' ? 'border-orange-500' : 'border-[#2D3B5F]'
+                  }`}
               >
                 <div className="text-2xl font-bold text-orange-400">{waitingItems.filter(w => w.waitingForCategory === 'pandadoc').length}</div>
                 <div className="text-[#64748B] text-sm">📝 PandaDoc</div>
@@ -3036,9 +3036,8 @@ export default function AdminPortalPage() {
               </button>
               <button
                 onClick={() => { setFollowUpItemTypeFilter('tipalti'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
-                  followUpItemTypeFilter === 'tipalti' ? 'border-green-500' : 'border-[#2D3B5F]'
-                }`}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'tipalti' ? 'border-green-500' : 'border-[#2D3B5F]'
+                  }`}
               >
                 <div className="text-2xl font-bold text-green-400">{waitingItems.filter(w => w.waitingForCategory === 'tipalti').length}</div>
                 <div className="text-[#64748B] text-sm">💰 Tipalti</div>
@@ -3046,9 +3045,8 @@ export default function AdminPortalPage() {
               </button>
               <button
                 onClick={() => { setFollowUpMinDays(30); setFollowUpMaxDays(999); setFollowUpItemTypeFilter('all') }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
-                  followUpMinDays >= 30 ? 'border-red-500' : 'border-[#2D3B5F]'
-                }`}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpMinDays >= 30 ? 'border-red-500' : 'border-[#2D3B5F]'
+                  }`}
               >
                 <div className="text-2xl font-bold text-red-400">{waitingItems.filter(w => w.daysPending >= 30).length}</div>
                 <div className="text-[#64748B] text-sm">🚨 30+ Days</div>
@@ -3061,7 +3059,7 @@ export default function AdminPortalPage() {
               <div className="flex items-center gap-2 mb-4">
                 <Filter className="w-4 h-4 text-[#64748B]" />
                 <span className="text-white font-medium">Filters</span>
-                <button 
+                <button
                   onClick={() => {
                     setFollowUpStatusFilter('all')
                     setFollowUpItemTypeFilter('all')
@@ -3076,7 +3074,7 @@ export default function AdminPortalPage() {
                   Clear All
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                 {/* Search */}
                 <div className="md:col-span-2">
@@ -3092,7 +3090,7 @@ export default function AdminPortalPage() {
                     />
                   </div>
                 </div>
-                
+
                 {/* Waiting For Type */}
                 <div>
                   <label className="block text-[#64748B] text-xs mb-1">Waiting For</label>
@@ -3114,7 +3112,7 @@ export default function AdminPortalPage() {
                     <option value="venue_info">🏢 Venue Info</option>
                   </select>
                 </div>
-                
+
                 {/* Partner Status */}
                 <div>
                   <label className="block text-[#64748B] text-xs mb-1">Status</label>
@@ -3168,7 +3166,7 @@ export default function AdminPortalPage() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Sort Options */}
               <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[#2D3B5F]">
                 <span className="text-[#64748B] text-sm">Sort by:</span>
@@ -3182,11 +3180,10 @@ export default function AdminPortalPage() {
                   <button
                     key={sort.id}
                     onClick={() => setFollowUpSortBy(sort.id as any)}
-                    className={`px-3 py-1 rounded text-sm transition-colors ${
-                      followUpSortBy === sort.id
+                    className={`px-3 py-1 rounded text-sm transition-colors ${followUpSortBy === sort.id
                         ? 'bg-[#0EA5E9] text-white'
                         : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
-                    }`}
+                      }`}
                   >
                     {sort.label}
                   </button>
@@ -3214,11 +3211,10 @@ export default function AdminPortalPage() {
                 getFilteredWaitingItems().map(item => (
                   <div
                     key={item.partnerId}
-                    className={`bg-[#1A1F3A] border rounded-xl p-5 ${
-                      item.priority === 'high' ? 'border-red-500/50' :
-                      item.priority === 'medium' ? 'border-yellow-500/50' :
-                      'border-[#2D3B5F]'
-                    }`}
+                    className={`bg-[#1A1F3A] border rounded-xl p-5 ${item.priority === 'high' ? 'border-red-500/50' :
+                        item.priority === 'medium' ? 'border-yellow-500/50' :
+                          'border-[#2D3B5F]'
+                      }`}
                   >
                     <div className="flex items-start justify-between gap-4">
                       {/* Partner Info */}
@@ -3228,11 +3224,10 @@ export default function AdminPortalPage() {
                           <span className="px-2 py-0.5 bg-[#2D3B5F] text-[#94A3B8] rounded text-xs">
                             {item.partnerType}
                           </span>
-                          <span className={`px-2 py-0.5 rounded text-xs ${
-                            item.partnerStatus === 'active' ? 'bg-green-500/20 text-green-400' :
-                            item.partnerStatus === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
-                            'bg-gray-500/20 text-gray-400'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded text-xs ${item.partnerStatus === 'active' ? 'bg-green-500/20 text-green-400' :
+                              item.partnerStatus === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-gray-500/20 text-gray-400'
+                            }`}>
                             {item.partnerStatus}
                           </span>
                           {item.priority === 'high' && (
@@ -3265,12 +3260,11 @@ export default function AdminPortalPage() {
 
                       {/* Days Counter */}
                       <div className="text-center px-4 border-l border-[#2D3B5F] min-w-[80px]">
-                        <div className={`text-3xl font-bold ${
-                          item.daysPending >= 30 ? 'text-red-400' :
-                          item.daysPending >= 14 ? 'text-orange-400' :
-                          item.daysPending >= 7 ? 'text-yellow-400' :
-                          'text-white'
-                        }`}>
+                        <div className={`text-3xl font-bold ${item.daysPending >= 30 ? 'text-red-400' :
+                            item.daysPending >= 14 ? 'text-orange-400' :
+                              item.daysPending >= 7 ? 'text-yellow-400' :
+                                'text-white'
+                          }`}>
                           {item.daysPending}
                         </div>
                         <div className="text-[#64748B] text-xs">days</div>
@@ -3354,7 +3348,7 @@ export default function AdminPortalPage() {
                 <div>
                   <div className="text-[#64748B] mb-1">Avg. Wait Time</div>
                   <div className="text-white font-medium">
-                    {waitingItems.length > 0 
+                    {waitingItems.length > 0
                       ? Math.round(waitingItems.reduce((sum, w) => sum + w.daysPending, 0) / waitingItems.length)
                       : 0} days
                   </div>
@@ -3362,7 +3356,7 @@ export default function AdminPortalPage() {
                 <div>
                   <div className="text-[#64748B] mb-1">Longest Wait</div>
                   <div className="text-red-400 font-medium">
-                    {waitingItems.length > 0 
+                    {waitingItems.length > 0
                       ? Math.max(...waitingItems.map(w => w.daysPending))
                       : 0} days
                   </div>
@@ -3402,11 +3396,10 @@ export default function AdminPortalPage() {
                 <button
                   key={tab.id}
                   onClick={() => setPaymentsViewType(tab.id as any)}
-                  className={`px-4 py-2 border-b-2 transition-colors ${
-                    paymentsViewType === tab.id
+                  className={`px-4 py-2 border-b-2 transition-colors ${paymentsViewType === tab.id
                       ? 'border-[#0EA5E9] text-white'
                       : 'border-transparent text-[#94A3B8] hover:text-white'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -3415,7 +3408,7 @@ export default function AdminPortalPage() {
 
             {/* Tipalti iFrame */}
             <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <TipaltiIFrame 
+              <TipaltiIFrame
                 payeeId="admin_at_skyyield.io"
                 viewType={paymentsViewType}
                 environment="sandbox"
@@ -3450,11 +3443,10 @@ export default function AdminPortalPage() {
                 <button
                   key={tab.id}
                   onClick={() => setSettingsTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-                    settingsTab === tab.id
+                  className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${settingsTab === tab.id
                       ? 'border-[#0EA5E9] text-white'
                       : 'border-transparent text-[#94A3B8] hover:text-white'
-                  }`}
+                    }`}
                 >
                   <tab.icon className="w-4 h-4" />
                   {tab.label}
@@ -3476,9 +3468,8 @@ export default function AdminPortalPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          template.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                        }`}>
+                        <span className={`px-2 py-1 rounded text-xs ${template.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
                           {template.enabled ? 'Enabled' : 'Disabled'}
                         </span>
                         <button
@@ -3536,6 +3527,7 @@ export default function AdminPortalPage() {
                 )}
               </div>
             )}
+
 
             {/* Calendly */}
             {settingsTab === 'calendly' && (
@@ -3620,7 +3612,7 @@ export default function AdminPortalPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-6">
               {/* Header with avatar and basic info */}
               <div className="flex items-start gap-4">
@@ -3692,13 +3684,12 @@ export default function AdminPortalPage() {
                       const isCurrent = index === 3 // Mock: current stage
                       return (
                         <div key={stage.id} className="flex items-center">
-                          <div className={`flex-shrink-0 px-3 py-1.5 rounded text-xs font-medium ${
-                            isCompleted 
-                              ? 'bg-green-500/20 text-green-400' 
-                              : isCurrent 
-                                ? 'bg-[#0EA5E9]/20 text-[#0EA5E9] ring-1 ring-[#0EA5E9]' 
+                          <div className={`flex-shrink-0 px-3 py-1.5 rounded text-xs font-medium ${isCompleted
+                              ? 'bg-green-500/20 text-green-400'
+                              : isCurrent
+                                ? 'bg-[#0EA5E9]/20 text-[#0EA5E9] ring-1 ring-[#0EA5E9]'
                                 : 'bg-[#2D3B5F]/50 text-[#64748B]'
-                          }`}>
+                            }`}>
                             {isCompleted && '✓ '}{stage.name}
                           </div>
                           {index < 7 && (
@@ -3898,7 +3889,7 @@ export default function AdminPortalPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-[#94A3B8] text-sm mb-2">User Type</label>
@@ -3956,7 +3947,7 @@ export default function AdminPortalPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-[#94A3B8] text-sm mb-2">Template Name</label>
@@ -4033,7 +4024,7 @@ export default function AdminPortalPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               {/* Partner Info */}
               <div className="bg-[#0A0F2C] rounded-lg p-4">
@@ -4072,22 +4063,20 @@ export default function AdminPortalPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setReminderType('email')}
-                    className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
-                      reminderType === 'email'
+                    className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${reminderType === 'email'
                         ? 'bg-[#0EA5E9] text-white'
                         : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
-                    }`}
+                      }`}
                   >
                     <Mail className="w-4 h-4" />
                     Email
                   </button>
                   <button
                     onClick={() => setReminderType('sms')}
-                    className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
-                      reminderType === 'sms'
+                    className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${reminderType === 'sms'
                         ? 'bg-green-500 text-white'
                         : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
-                    }`}
+                      }`}
                   >
                     <MessageSquare className="w-4 h-4" />
                     SMS
@@ -4118,9 +4107,8 @@ export default function AdminPortalPage() {
                 <button
                   onClick={() => sendReminder(selectedPartnerForFollowUp.id, reminderType, reminderNote)}
                   disabled={sendingReminder}
-                  className={`flex-1 py-3 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 ${
-                    reminderType === 'email' ? 'bg-[#0EA5E9] hover:bg-[#0EA5E9]/80' : 'bg-green-500 hover:bg-green-500/80'
-                  }`}
+                  className={`flex-1 py-3 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 ${reminderType === 'email' ? 'bg-[#0EA5E9] hover:bg-[#0EA5E9]/80' : 'bg-green-500 hover:bg-green-500/80'
+                    }`}
                 >
                   {sendingReminder ? (
                     <>
@@ -4153,7 +4141,7 @@ export default function AdminPortalPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-6">
               {/* Form Settings */}
               <div className="grid grid-cols-2 gap-4">
@@ -4170,9 +4158,9 @@ export default function AdminPortalPage() {
                   <label className="block text-[#94A3B8] text-sm mb-2">Status</label>
                   <select
                     value={editingForm.settings.status}
-                    onChange={(e) => setEditingForm({ 
-                      ...editingForm, 
-                      settings: { ...editingForm.settings, status: e.target.value as 'active' | 'draft' | 'closed' } 
+                    onChange={(e) => setEditingForm({
+                      ...editingForm,
+                      settings: { ...editingForm.settings, status: e.target.value as 'active' | 'draft' | 'closed' }
                     })}
                     className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
                   >
@@ -4207,7 +4195,7 @@ export default function AdminPortalPage() {
                     Add Field
                   </button>
                 </div>
-                
+
                 <div className="space-y-3">
                   {(editingForm.fields || []).map((field: FormField, index: number) => (
                     <div key={field.id} className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg p-4">
@@ -4346,16 +4334,15 @@ export default function AdminPortalPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-6">
               {/* Status & Meta */}
               <div className="flex items-center gap-4">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  selectedSubmission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
-                  selectedSubmission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
-                  selectedSubmission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                  'bg-red-500/20 text-red-400'
-                }`}>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${selectedSubmission.status === 'new' ? 'bg-yellow-500/20 text-yellow-400' :
+                    selectedSubmission.status === 'reviewed' ? 'bg-blue-500/20 text-blue-400' :
+                      selectedSubmission.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                        'bg-red-500/20 text-red-400'
+                  }`}>
                   {selectedSubmission.status}
                 </span>
                 <span className="text-[#64748B] text-sm">
