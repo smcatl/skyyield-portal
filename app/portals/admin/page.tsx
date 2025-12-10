@@ -14,13 +14,23 @@ import {
   Copy, Inbox, Settings, Mail, Calendar, Send, GitBranch, List,
   ChevronDown, ChevronRight, Save, AlertCircle, Sparkles, 
   GripVertical, Phone, MoreVertical, Filter, UserPlus,
-  CreditCard, Wallet, PieChart
+  CreditCard, Wallet, PieChart, MessageSquare, Bell, 
+  SkipForward, AlertTriangle, Pause, Play, Archive, History
 } from 'lucide-react'
 import TipaltiIFrame from '@/components/TipaltiIFrame'
 
-type TabType = 'overview' | 'users' | 'pipeline' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
+type TabType = 'overview' | 'users' | 'pipeline' | 'followups' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
 
 // Pipeline and Settings types
+interface FollowUpAttempt {
+  id: string
+  type: 'email' | 'sms' | 'call'
+  sentAt: string
+  sentBy: string
+  note?: string
+  response?: string
+}
+
 interface LocationPartner {
   id: string
   stage: string
@@ -38,6 +48,42 @@ interface LocationPartner {
   createdAt: string
   updatedAt: string
   tags?: string[]
+  // Follow-up tracking fields
+  waitingFor?: 'calendly_discovery' | 'calendly_install' | 'calendly_review' | 'pandadoc_loi' | 'pandadoc_contract' | 'tipalti_setup' | 'portal_setup' | 'equipment_delivery' | 'other'
+  waitingForLabel?: string
+  waitingSince?: string
+  followUpAttempts?: FollowUpAttempt[]
+  lastContactDate?: string
+  nextFollowUpDate?: string
+  followUpNotes?: string
+  status?: 'active' | 'inactive' | 'paused'
+  partnerType?: string
+}
+
+// Waiting item for the follow-up queue
+interface WaitingItem {
+  partnerId: string
+  partnerName: string
+  partnerEmail: string
+  partnerPhone: string
+  companyName: string
+  companyCity?: string
+  companyState?: string
+  stage: string
+  stageName: string
+  waitingFor: string
+  waitingForLabel: string
+  waitingForCategory: string
+  waitingSince: string
+  daysPending: number
+  attemptCount: number
+  lastAttemptDate?: string
+  lastAttemptType?: string
+  nextFollowUpDate?: string
+  notes?: string
+  priority: 'high' | 'medium' | 'low'
+  partnerType: string
+  partnerStatus: string
 }
 
 interface EmailTemplate {
@@ -81,17 +127,47 @@ const USER_TYPES = [
 ]
 
 const PIPELINE_STAGES = [
-  { id: 'application', name: 'Application', color: 'border-blue-500', bgColor: 'bg-blue-500' },
-  { id: 'initial_review', name: 'Initial Review', color: 'border-yellow-500', bgColor: 'bg-yellow-500' },
-  { id: 'discovery_scheduled', name: 'Discovery', color: 'border-purple-500', bgColor: 'bg-purple-500' },
-  { id: 'discovery_complete', name: 'Post-Call', color: 'border-yellow-500', bgColor: 'bg-yellow-500' },
-  { id: 'venues_setup', name: 'Venues Setup', color: 'border-cyan-500', bgColor: 'bg-cyan-500' },
-  { id: 'loi_sent', name: 'LOI Sent', color: 'border-orange-500', bgColor: 'bg-orange-500' },
-  { id: 'loi_signed', name: 'LOI Signed', color: 'border-green-500', bgColor: 'bg-green-500' },
-  { id: 'install_scheduled', name: 'Install', color: 'border-pink-500', bgColor: 'bg-pink-500' },
-  { id: 'trial_active', name: 'Trial', color: 'border-indigo-500', bgColor: 'bg-indigo-500' },
-  { id: 'active', name: 'Active', color: 'border-green-500', bgColor: 'bg-green-500' },
+  { id: 'application', name: 'Application', color: 'border-blue-500', bgColor: 'bg-blue-500', waitingFor: null },
+  { id: 'initial_review', name: 'Initial Review', color: 'border-yellow-500', bgColor: 'bg-yellow-500', waitingFor: null },
+  { id: 'discovery_scheduled', name: 'Discovery', color: 'border-purple-500', bgColor: 'bg-purple-500', waitingFor: 'calendly_discovery' },
+  { id: 'discovery_complete', name: 'Post-Call', color: 'border-yellow-500', bgColor: 'bg-yellow-500', waitingFor: null },
+  { id: 'venues_setup', name: 'Venues Setup', color: 'border-cyan-500', bgColor: 'bg-cyan-500', waitingFor: null },
+  { id: 'loi_sent', name: 'LOI Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'pandadoc_loi' },
+  { id: 'loi_signed', name: 'LOI Signed', color: 'border-green-500', bgColor: 'bg-green-500', waitingFor: null },
+  { id: 'install_scheduled', name: 'Install', color: 'border-pink-500', bgColor: 'bg-pink-500', waitingFor: 'calendly_install' },
+  { id: 'trial_active', name: 'Trial', color: 'border-indigo-500', bgColor: 'bg-indigo-500', waitingFor: null },
+  { id: 'trial_ending', name: 'Trial Ending', color: 'border-amber-500', bgColor: 'bg-amber-500', waitingFor: 'calendly_review' },
+  { id: 'contract_sent', name: 'Contract Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'pandadoc_contract' },
+  { id: 'active', name: 'Active', color: 'border-green-500', bgColor: 'bg-green-500', waitingFor: null },
+  { id: 'inactive', name: 'Inactive', color: 'border-gray-500', bgColor: 'bg-gray-500', waitingFor: null },
 ]
+
+const WAITING_TYPES = [
+  { id: 'calendly_discovery', label: 'Waiting: Book Discovery Call', shortLabel: 'Discovery Call', icon: '📅', category: 'calendly', description: 'Partner needs to book their discovery call' },
+  { id: 'calendly_install', label: 'Waiting: Book Install Appointment', shortLabel: 'Install Booking', icon: '🔧', category: 'calendly', description: 'Partner needs to schedule installation' },
+  { id: 'calendly_review', label: 'Waiting: Book Review Call', shortLabel: 'Review Call', icon: '📊', category: 'calendly', description: 'Partner needs to book trial review call' },
+  { id: 'pandadoc_loi', label: 'Waiting: Sign LOI', shortLabel: 'LOI Signature', icon: '📝', category: 'pandadoc', description: 'Partner needs to sign Letter of Intent' },
+  { id: 'pandadoc_contract', label: 'Waiting: Sign Contract', shortLabel: 'Contract', icon: '📄', category: 'pandadoc', description: 'Partner needs to sign deployment contract' },
+  { id: 'tipalti_setup', label: 'Waiting: Setup Payment', shortLabel: 'Tipalti Setup', icon: '💰', category: 'tipalti', description: 'Partner needs to complete Tipalti setup' },
+  { id: 'portal_setup', label: 'Waiting: Activate Portal', shortLabel: 'Portal Setup', icon: '🔐', category: 'portal', description: 'Partner needs to activate their portal' },
+  { id: 'equipment_delivery', label: 'Waiting: Equipment Arrival', shortLabel: 'Equipment', icon: '📦', category: 'logistics', description: 'Equipment in transit to partner' },
+  { id: 'venue_info', label: 'Waiting: Venue Details', shortLabel: 'Venue Info', icon: '🏢', category: 'info', description: 'Partner needs to provide venue information' },
+  { id: 'response', label: 'Waiting: Response', shortLabel: 'Response', icon: '💬', category: 'communication', description: 'Waiting for partner to respond' },
+  { id: 'other', label: 'Waiting: Other', shortLabel: 'Other', icon: '⏳', category: 'other', description: 'Other pending item' },
+]
+
+// Partner status options for filtering
+const PARTNER_STATUSES = ['active', 'inactive', 'paused', 'pending']
+
+// Partner types for filtering
+const PARTNER_TYPES = ['Location Partner', 'Referral Partner', 'Channel Partner', 'Relationship Partner']
+
+const REMINDER_THRESHOLDS = {
+  first: 3,      // Days before first reminder
+  second: 7,     // Days before second reminder  
+  third: 14,     // Days before third reminder
+  inactive: 30,  // Days before marking inactive
+}
 
 const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
   {
@@ -261,6 +337,25 @@ export default function AdminPortalPage() {
   // Pipeline state
   const [partners, setPartners] = useState<LocationPartner[]>([])
   const [pipelineLoading, setPipelineLoading] = useState(false)
+
+  // Follow-ups state
+  const [waitingItems, setWaitingItems] = useState<WaitingItem[]>([])
+  const [followUpsLoading, setFollowUpsLoading] = useState(false)
+  const [selectedPartnerForFollowUp, setSelectedPartnerForFollowUp] = useState<LocationPartner | null>(null)
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false)
+  const [showReminderModal, setShowReminderModal] = useState(false)
+  const [reminderType, setReminderType] = useState<'email' | 'sms'>('email')
+  const [reminderNote, setReminderNote] = useState('')
+  const [sendingReminder, setSendingReminder] = useState(false)
+  
+  // Follow-ups filtering & sorting
+  const [followUpStatusFilter, setFollowUpStatusFilter] = useState<string>('all')
+  const [followUpItemTypeFilter, setFollowUpItemTypeFilter] = useState<string>('all')
+  const [followUpPartnerTypeFilter, setFollowUpPartnerTypeFilter] = useState<string>('all')
+  const [followUpMinDays, setFollowUpMinDays] = useState<number>(0)
+  const [followUpMaxDays, setFollowUpMaxDays] = useState<number>(999)
+  const [followUpSortBy, setFollowUpSortBy] = useState<'days_desc' | 'days_asc' | 'name' | 'company' | 'attempts'>('days_desc')
+  const [followUpSearch, setFollowUpSearch] = useState('')
 
   // Settings state
   const [settingsTab, setSettingsTab] = useState<'dropdowns' | 'stages' | 'calendly' | 'emails'>('emails')
@@ -435,11 +530,245 @@ export default function AdminPortalPage() {
       if (res.ok) {
         const data = await res.json()
         setPartners(data.partners || [])
+        // Also generate waiting items from partners
+        generateWaitingItems(data.partners || [])
       }
     } catch (err) {
       console.error('Error fetching pipeline:', err)
     } finally {
       setPipelineLoading(false)
+    }
+  }
+
+  // Generate waiting items from partners
+  const generateWaitingItems = (partnerList: LocationPartner[]) => {
+    const items: WaitingItem[] = []
+    const now = new Date()
+    
+    partnerList.forEach(partner => {
+      // Find what stage requires waiting
+      const stage = PIPELINE_STAGES.find(s => s.id === partner.stage)
+      if (stage?.waitingFor || partner.waitingFor) {
+        const waitingFor = partner.waitingFor || stage?.waitingFor || 'other'
+        const waitingType = WAITING_TYPES.find(w => w.id === waitingFor)
+        const waitingSince = partner.waitingSince || partner.updatedAt || partner.createdAt
+        const waitingDate = new Date(waitingSince)
+        const daysPending = Math.floor((now.getTime() - waitingDate.getTime()) / (1000 * 60 * 60 * 24))
+        const attemptCount = partner.followUpAttempts?.length || 0
+        
+        // Determine priority based on days pending and attempts
+        let priority: 'high' | 'medium' | 'low' = 'low'
+        if (daysPending >= REMINDER_THRESHOLDS.inactive || attemptCount >= 3) {
+          priority = 'high'
+        } else if (daysPending >= REMINDER_THRESHOLDS.second) {
+          priority = 'medium'
+        }
+        
+        items.push({
+          partnerId: partner.id,
+          partnerName: partner.contactFullName,
+          partnerEmail: partner.contactEmail,
+          partnerPhone: partner.contactPhone,
+          companyName: partner.companyLegalName,
+          companyCity: partner.companyCity,
+          companyState: partner.companyState,
+          stage: partner.stage,
+          stageName: stage?.name || partner.stage,
+          waitingFor: waitingFor,
+          waitingForLabel: waitingType?.label || partner.waitingForLabel || 'Unknown',
+          waitingForCategory: waitingType?.category || 'other',
+          waitingSince: waitingSince,
+          daysPending,
+          attemptCount,
+          lastAttemptDate: partner.followUpAttempts?.[partner.followUpAttempts.length - 1]?.sentAt,
+          lastAttemptType: partner.followUpAttempts?.[partner.followUpAttempts.length - 1]?.type,
+          nextFollowUpDate: partner.nextFollowUpDate,
+          notes: partner.followUpNotes,
+          priority,
+          partnerType: partner.partnerType || 'Location Partner',
+          partnerStatus: partner.status || 'active',
+        })
+      }
+    })
+    
+    // Don't sort here - let the UI handle sorting based on user preference
+    setWaitingItems(items)
+  }
+
+  // Get filtered and sorted waiting items
+  const getFilteredWaitingItems = () => {
+    let filtered = [...waitingItems]
+    
+    // Apply search filter
+    if (followUpSearch) {
+      const search = followUpSearch.toLowerCase()
+      filtered = filtered.filter(item => 
+        item.partnerName.toLowerCase().includes(search) ||
+        item.companyName.toLowerCase().includes(search) ||
+        item.partnerEmail.toLowerCase().includes(search)
+      )
+    }
+    
+    // Apply status filter
+    if (followUpStatusFilter !== 'all') {
+      filtered = filtered.filter(item => item.partnerStatus === followUpStatusFilter)
+    }
+    
+    // Apply item type filter
+    if (followUpItemTypeFilter !== 'all') {
+      if (followUpItemTypeFilter === 'calendly') {
+        filtered = filtered.filter(item => item.waitingForCategory === 'calendly')
+      } else if (followUpItemTypeFilter === 'pandadoc') {
+        filtered = filtered.filter(item => item.waitingForCategory === 'pandadoc')
+      } else if (followUpItemTypeFilter === 'tipalti') {
+        filtered = filtered.filter(item => item.waitingForCategory === 'tipalti')
+      } else {
+        filtered = filtered.filter(item => item.waitingFor === followUpItemTypeFilter)
+      }
+    }
+    
+    // Apply partner type filter
+    if (followUpPartnerTypeFilter !== 'all') {
+      filtered = filtered.filter(item => item.partnerType === followUpPartnerTypeFilter)
+    }
+    
+    // Apply days range filter
+    filtered = filtered.filter(item => 
+      item.daysPending >= followUpMinDays && item.daysPending <= followUpMaxDays
+    )
+    
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (followUpSortBy) {
+        case 'days_desc':
+          return b.daysPending - a.daysPending
+        case 'days_asc':
+          return a.daysPending - b.daysPending
+        case 'name':
+          return a.partnerName.localeCompare(b.partnerName)
+        case 'company':
+          return a.companyName.localeCompare(b.companyName)
+        case 'attempts':
+          return b.attemptCount - a.attemptCount
+        default:
+          return b.daysPending - a.daysPending
+      }
+    })
+    
+    return filtered
+  }
+
+  // Send reminder (email or SMS)
+  const sendReminder = async (partnerId: string, type: 'email' | 'sms', note?: string) => {
+    setSendingReminder(true)
+    try {
+      const partner = partners.find(p => p.id === partnerId)
+      if (!partner) throw new Error('Partner not found')
+      
+      const waitingType = WAITING_TYPES.find(w => w.id === partner.waitingFor)
+      
+      await fetch('/api/pipeline/reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partnerId,
+          type,
+          to: type === 'email' ? partner.contactEmail : partner.contactPhone,
+          waitingFor: partner.waitingFor,
+          waitingForLabel: waitingType?.label,
+          note,
+        }),
+      })
+      
+      // Refresh pipeline to get updated attempt counts
+      await fetchPipeline()
+      setShowReminderModal(false)
+      setReminderNote('')
+      alert(`${type === 'email' ? 'Email' : 'SMS'} reminder sent successfully!`)
+    } catch (err) {
+      console.error('Error sending reminder:', err)
+      alert('Failed to send reminder')
+    } finally {
+      setSendingReminder(false)
+    }
+  }
+
+  // Skip step (move to next stage)
+  const skipStep = async (partnerId: string, currentStage: string) => {
+    try {
+      const stageIndex = PIPELINE_STAGES.findIndex(s => s.id === currentStage)
+      if (stageIndex === -1 || stageIndex >= PIPELINE_STAGES.length - 1) return
+      
+      const nextStage = PIPELINE_STAGES[stageIndex + 1].id
+      
+      await fetch('/api/pipeline/partners/' + partnerId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          stage: nextStage,
+          waitingFor: null,
+          waitingSince: null,
+          skipReason: 'Manually skipped by admin'
+        }),
+      })
+      
+      await fetchPipeline()
+      alert('Step skipped successfully!')
+    } catch (err) {
+      console.error('Error skipping step:', err)
+      alert('Failed to skip step')
+    }
+  }
+
+  // Mark partner as inactive
+  const markInactive = async (partnerId: string, reason?: string) => {
+    if (!confirm('Are you sure you want to mark this partner as inactive? This will remove them from active follow-ups.')) return
+    
+    try {
+      await fetch('/api/pipeline/partners/' + partnerId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          stage: 'inactive',
+          status: 'inactive',
+          inactiveReason: reason || 'No response after multiple follow-ups',
+          inactiveDate: new Date().toISOString()
+        }),
+      })
+      
+      await fetchPipeline()
+      alert('Partner marked as inactive')
+    } catch (err) {
+      console.error('Error marking inactive:', err)
+      alert('Failed to mark inactive')
+    }
+  }
+
+  // Pause follow-ups for a partner
+  const pauseFollowUps = async (partnerId: string) => {
+    try {
+      await fetch('/api/pipeline/partners/' + partnerId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paused' }),
+      })
+      await fetchPipeline()
+    } catch (err) {
+      console.error('Error pausing:', err)
+    }
+  }
+
+  // Resume follow-ups for a partner
+  const resumeFollowUps = async (partnerId: string) => {
+    try {
+      await fetch('/api/pipeline/partners/' + partnerId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+      await fetchPipeline()
+    } catch (err) {
+      console.error('Error resuming:', err)
     }
   }
 
@@ -530,6 +859,7 @@ export default function AdminPortalPage() {
       fetchSubmissions()
     }
     if (activeTab === 'pipeline') fetchPipeline()
+    if (activeTab === 'followups') fetchPipeline() // Uses same data as pipeline
     if (activeTab === 'settings') {
       fetchDropdowns()
       fetchCalendlyLinks()
@@ -678,6 +1008,7 @@ export default function AdminPortalPage() {
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
+    { id: 'followups', label: 'Follow-Ups', icon: Bell },
     { id: 'products', label: 'Store Products', icon: ShoppingBag },
     { id: 'approved-products', label: 'Approved Products', icon: Star },
     { id: 'blog', label: 'Blog', icon: FileText },
@@ -1916,7 +2247,7 @@ export default function AdminPortalPage() {
                   <MapPin className="w-5 h-5 text-blue-400" />
                   Trade Area Analyzer
                 </h3>
-                <p className="text-[#94A3B8] mb-6">Understand where your venue's visitors come from and identify optimal coverage areas.</p>
+                <p className="text-[#94A3B8] mb-6">Understand where your venue&apos;s visitors come from and identify optimal coverage areas.</p>
                 
                 <div className="grid md:grid-cols-3 gap-4 mb-6">
                   <div className="bg-[#0A0F2C] rounded-xl p-4 border border-[#2D3B5F]">
@@ -2208,6 +2539,405 @@ export default function AdminPortalPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Follow-Ups Tab */}
+        {activeTab === 'followups' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Follow-Up Queue</h2>
+                <p className="text-[#94A3B8] text-sm">Partners you&apos;re waiting on to take action</p>
+              </div>
+              <button
+                onClick={fetchPipeline}
+                disabled={pipelineLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${pipelineLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+
+            {/* Summary Stats - Clickable to filter */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <button
+                onClick={() => { setFollowUpItemTypeFilter('all'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
+                  followUpItemTypeFilter === 'all' ? 'border-[#0EA5E9]' : 'border-[#2D3B5F]'
+                }`}
+              >
+                <div className="text-2xl font-bold text-white">{waitingItems.length}</div>
+                <div className="text-[#64748B] text-sm">Total Waiting</div>
+              </button>
+              <button
+                onClick={() => { setFollowUpItemTypeFilter('calendly'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
+                  followUpItemTypeFilter === 'calendly' ? 'border-purple-500' : 'border-[#2D3B5F]'
+                }`}
+              >
+                <div className="text-2xl font-bold text-purple-400">{waitingItems.filter(w => w.waitingForCategory === 'calendly').length}</div>
+                <div className="text-[#64748B] text-sm">📅 Calendly</div>
+                <div className="text-[#64748B] text-xs">Need to book</div>
+              </button>
+              <button
+                onClick={() => { setFollowUpItemTypeFilter('pandadoc'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
+                  followUpItemTypeFilter === 'pandadoc' ? 'border-orange-500' : 'border-[#2D3B5F]'
+                }`}
+              >
+                <div className="text-2xl font-bold text-orange-400">{waitingItems.filter(w => w.waitingForCategory === 'pandadoc').length}</div>
+                <div className="text-[#64748B] text-sm">📝 PandaDoc</div>
+                <div className="text-[#64748B] text-xs">Need to sign</div>
+              </button>
+              <button
+                onClick={() => { setFollowUpItemTypeFilter('tipalti'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
+                  followUpItemTypeFilter === 'tipalti' ? 'border-green-500' : 'border-[#2D3B5F]'
+                }`}
+              >
+                <div className="text-2xl font-bold text-green-400">{waitingItems.filter(w => w.waitingForCategory === 'tipalti').length}</div>
+                <div className="text-[#64748B] text-sm">💰 Tipalti</div>
+                <div className="text-[#64748B] text-xs">Payment setup</div>
+              </button>
+              <button
+                onClick={() => { setFollowUpMinDays(30); setFollowUpMaxDays(999); setFollowUpItemTypeFilter('all') }}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${
+                  followUpMinDays >= 30 ? 'border-red-500' : 'border-[#2D3B5F]'
+                }`}
+              >
+                <div className="text-2xl font-bold text-red-400">{waitingItems.filter(w => w.daysPending >= 30).length}</div>
+                <div className="text-[#64748B] text-sm">🚨 30+ Days</div>
+                <div className="text-[#64748B] text-xs">Consider inactive</div>
+              </button>
+            </div>
+
+            {/* Advanced Filters */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Filter className="w-4 h-4 text-[#64748B]" />
+                <span className="text-white font-medium">Filters</span>
+                <button 
+                  onClick={() => {
+                    setFollowUpStatusFilter('all')
+                    setFollowUpItemTypeFilter('all')
+                    setFollowUpPartnerTypeFilter('all')
+                    setFollowUpMinDays(0)
+                    setFollowUpMaxDays(999)
+                    setFollowUpSearch('')
+                    setFollowUpSortBy('days_desc')
+                  }}
+                  className="ml-auto text-[#64748B] text-sm hover:text-white transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                {/* Search */}
+                <div className="md:col-span-2">
+                  <label className="block text-[#64748B] text-xs mb-1">Search</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                    <input
+                      type="text"
+                      value={followUpSearch}
+                      onChange={(e) => setFollowUpSearch(e.target.value)}
+                      placeholder="Name, company, email..."
+                      className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] text-sm focus:outline-none focus:border-[#0EA5E9]"
+                    />
+                  </div>
+                </div>
+                
+                {/* Waiting For Type */}
+                <div>
+                  <label className="block text-[#64748B] text-xs mb-1">Waiting For</label>
+                  <select
+                    value={followUpItemTypeFilter}
+                    onChange={(e) => setFollowUpItemTypeFilter(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="calendly">📅 Calendly (All)</option>
+                    <option value="calendly_discovery">📅 Discovery Call</option>
+                    <option value="calendly_install">🔧 Install Booking</option>
+                    <option value="calendly_review">📊 Review Call</option>
+                    <option value="pandadoc">📝 PandaDoc (All)</option>
+                    <option value="pandadoc_loi">📝 LOI Signature</option>
+                    <option value="pandadoc_contract">📄 Contract Signature</option>
+                    <option value="tipalti">💰 Tipalti Setup</option>
+                    <option value="portal_setup">🔐 Portal Activation</option>
+                    <option value="venue_info">🏢 Venue Info</option>
+                  </select>
+                </div>
+                
+                {/* Partner Status */}
+                <div>
+                  <label className="block text-[#64748B] text-xs mb-1">Status</label>
+                  <select
+                    value={followUpStatusFilter}
+                    onChange={(e) => setFollowUpStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                  >
+                    <option value="all">All Statuses</option>
+                    {PARTNER_STATUSES.map(status => (
+                      <option key={status} value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Partner Type */}
+                <div>
+                  <label className="block text-[#64748B] text-xs mb-1">Partner Type</label>
+                  <select
+                    value={followUpPartnerTypeFilter}
+                    onChange={(e) => setFollowUpPartnerTypeFilter(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                  >
+                    <option value="all">All Types</option>
+                    {PARTNER_TYPES.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Days Range */}
+                <div>
+                  <label className="block text-[#64748B] text-xs mb-1">Days Pending</label>
+                  <div className="flex gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      value={followUpMinDays}
+                      onChange={(e) => setFollowUpMinDays(parseInt(e.target.value) || 0)}
+                      placeholder="Min"
+                      className="w-1/2 px-2 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={followUpMaxDays === 999 ? '' : followUpMaxDays}
+                      onChange={(e) => setFollowUpMaxDays(parseInt(e.target.value) || 999)}
+                      placeholder="Max"
+                      className="w-1/2 px-2 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Sort Options */}
+              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[#2D3B5F]">
+                <span className="text-[#64748B] text-sm">Sort by:</span>
+                {[
+                  { id: 'days_desc', label: 'Days ↓' },
+                  { id: 'days_asc', label: 'Days ↑' },
+                  { id: 'name', label: 'Name' },
+                  { id: 'company', label: 'Company' },
+                  { id: 'attempts', label: 'Attempts' },
+                ].map(sort => (
+                  <button
+                    key={sort.id}
+                    onClick={() => setFollowUpSortBy(sort.id as any)}
+                    className={`px-3 py-1 rounded text-sm transition-colors ${
+                      followUpSortBy === sort.id
+                        ? 'bg-[#0EA5E9] text-white'
+                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
+                    }`}
+                  >
+                    {sort.label}
+                  </button>
+                ))}
+                <span className="ml-auto text-[#64748B] text-sm">
+                  Showing {getFilteredWaitingItems().length} of {waitingItems.length}
+                </span>
+              </div>
+            </div>
+
+            {/* Waiting Items List */}
+            <div className="space-y-3">
+              {pipelineLoading ? (
+                <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-[#64748B]" />
+                  <p className="text-[#64748B]">Loading follow-ups...</p>
+                </div>
+              ) : getFilteredWaitingItems().length === 0 ? (
+                <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400 opacity-50" />
+                  <p className="text-[#94A3B8]">No matching follow-ups!</p>
+                  <p className="text-[#64748B] text-sm mt-1">Try adjusting your filters or all partners are progressing</p>
+                </div>
+              ) : (
+                getFilteredWaitingItems().map(item => (
+                  <div
+                    key={item.partnerId}
+                    className={`bg-[#1A1F3A] border rounded-xl p-5 ${
+                      item.priority === 'high' ? 'border-red-500/50' :
+                      item.priority === 'medium' ? 'border-yellow-500/50' :
+                      'border-[#2D3B5F]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      {/* Partner Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                          <h3 className="text-white font-medium">{item.partnerName}</h3>
+                          <span className="px-2 py-0.5 bg-[#2D3B5F] text-[#94A3B8] rounded text-xs">
+                            {item.partnerType}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-xs ${
+                            item.partnerStatus === 'active' ? 'bg-green-500/20 text-green-400' :
+                            item.partnerStatus === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {item.partnerStatus}
+                          </span>
+                          {item.priority === 'high' && (
+                            <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              High Priority
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[#94A3B8] text-sm">{item.companyName}</div>
+                        <div className="text-[#64748B] text-xs mt-1">
+                          {item.companyCity && item.companyState ? `${item.companyCity}, ${item.companyState} • ` : ''}
+                          {item.partnerEmail} • {item.partnerPhone}
+                        </div>
+                        <div className="text-[#64748B] text-xs mt-1">
+                          Stage: <span className="text-[#94A3B8]">{item.stageName}</span>
+                        </div>
+                      </div>
+
+                      {/* What You're Waiting On */}
+                      <div className="text-center px-4 min-w-[140px]">
+                        <div className="text-2xl mb-1">
+                          {WAITING_TYPES.find(w => w.id === item.waitingFor)?.icon || '⏳'}
+                        </div>
+                        <div className="text-[#94A3B8] text-sm font-medium">{item.waitingForLabel}</div>
+                        <div className="text-[#64748B] text-xs mt-1">
+                          {WAITING_TYPES.find(w => w.id === item.waitingFor)?.description}
+                        </div>
+                      </div>
+
+                      {/* Days Counter */}
+                      <div className="text-center px-4 border-l border-[#2D3B5F] min-w-[80px]">
+                        <div className={`text-3xl font-bold ${
+                          item.daysPending >= 30 ? 'text-red-400' :
+                          item.daysPending >= 14 ? 'text-orange-400' :
+                          item.daysPending >= 7 ? 'text-yellow-400' :
+                          'text-white'
+                        }`}>
+                          {item.daysPending}
+                        </div>
+                        <div className="text-[#64748B] text-xs">days</div>
+                        <div className="text-[#64748B] text-xs mt-1">
+                          since {new Date(item.waitingSince).toLocaleDateString()}
+                        </div>
+                      </div>
+
+                      {/* Attempt History */}
+                      <div className="text-center px-4 border-l border-[#2D3B5F] min-w-[80px]">
+                        <div className="text-xl font-bold text-white">{item.attemptCount}</div>
+                        <div className="text-[#64748B] text-xs">attempts</div>
+                        {item.lastAttemptDate && (
+                          <div className="text-[#64748B] text-xs mt-1">
+                            Last: {new Date(item.lastAttemptDate).toLocaleDateString()}
+                            {item.lastAttemptType && ` (${item.lastAttemptType})`}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-col gap-2 border-l border-[#2D3B5F] pl-4">
+                        <button
+                          onClick={() => {
+                            setSelectedPartnerForFollowUp(partners.find(p => p.id === item.partnerId) || null)
+                            setReminderType('email')
+                            setShowReminderModal(true)
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/30 transition-colors text-sm"
+                        >
+                          <Mail className="w-4 h-4" />
+                          Email
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedPartnerForFollowUp(partners.find(p => p.id === item.partnerId) || null)
+                            setReminderType('sms')
+                            setShowReminderModal(true)
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-sm"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          SMS
+                        </button>
+                        <button
+                          onClick={() => skipStep(item.partnerId, item.stage)}
+                          className="flex items-center gap-2 px-3 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors text-sm"
+                          title="Skip this step (for people you already know)"
+                        >
+                          <SkipForward className="w-4 h-4" />
+                          Skip Step
+                        </button>
+                        {(item.attemptCount >= 3 || item.daysPending >= 30) && (
+                          <button
+                            onClick={() => markInactive(item.partnerId)}
+                            className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+                            title="Mark as inactive - no response after multiple attempts"
+                          >
+                            <Archive className="w-4 h-4" />
+                            Inactive
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Notes/History Section */}
+                    {item.notes && (
+                      <div className="mt-4 pt-4 border-t border-[#2D3B5F]">
+                        <div className="text-[#64748B] text-xs mb-1">Notes:</div>
+                        <div className="text-[#94A3B8] text-sm">{item.notes}</div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Quick Stats Footer */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <div className="text-[#64748B] mb-1">Avg. Wait Time</div>
+                  <div className="text-white font-medium">
+                    {waitingItems.length > 0 
+                      ? Math.round(waitingItems.reduce((sum, w) => sum + w.daysPending, 0) / waitingItems.length)
+                      : 0} days
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[#64748B] mb-1">Longest Wait</div>
+                  <div className="text-red-400 font-medium">
+                    {waitingItems.length > 0 
+                      ? Math.max(...waitingItems.map(w => w.daysPending))
+                      : 0} days
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[#64748B] mb-1">Total Attempts Made</div>
+                  <div className="text-white font-medium">
+                    {waitingItems.reduce((sum, w) => sum + w.attemptCount, 0)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[#64748B] mb-1">Need Attention (3+ attempts)</div>
+                  <div className="text-yellow-400 font-medium">
+                    {waitingItems.filter(w => w.attemptCount >= 3).length}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -2648,6 +3378,123 @@ export default function AdminPortalPage() {
                 >
                   <Save className="w-4 h-4" />
                   Save Template
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Reminder Modal */}
+      {showReminderModal && selectedPartnerForFollowUp && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-lg w-full">
+            <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">Send Reminder</h2>
+              <button onClick={() => { setShowReminderModal(false); setReminderNote(''); setReminderType('email') }} className="p-2 text-[#64748B] hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {/* Partner Info */}
+              <div className="bg-[#0A0F2C] rounded-lg p-4">
+                <div className="text-white font-medium">{selectedPartnerForFollowUp.contactFullName}</div>
+                <div className="text-[#94A3B8] text-sm">{selectedPartnerForFollowUp.companyLegalName}</div>
+                <div className="text-[#64748B] text-xs mt-1">
+                  {selectedPartnerForFollowUp.contactEmail} • {selectedPartnerForFollowUp.contactPhone}
+                </div>
+              </div>
+
+              {/* Waiting For Info */}
+              <div className="bg-[#0A0F2C] rounded-lg p-4">
+                <div className="text-[#64748B] text-xs mb-1">Waiting For:</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{WAITING_TYPES.find(w => w.id === selectedPartnerForFollowUp.waitingFor)?.icon || '⏳'}</span>
+                  <span className="text-white">{WAITING_TYPES.find(w => w.id === selectedPartnerForFollowUp.waitingFor)?.label || selectedPartnerForFollowUp.waitingFor}</span>
+                </div>
+                {selectedPartnerForFollowUp.followUpAttempts && selectedPartnerForFollowUp.followUpAttempts.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-[#2D3B5F]">
+                    <div className="text-[#64748B] text-xs mb-1">Previous Attempts ({selectedPartnerForFollowUp.followUpAttempts.length}):</div>
+                    <div className="space-y-1">
+                      {selectedPartnerForFollowUp.followUpAttempts.slice(-3).map((attempt, i) => (
+                        <div key={i} className="text-[#94A3B8] text-xs flex items-center gap-2">
+                          {attempt.type === 'email' ? <Mail className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
+                          {new Date(attempt.sentAt).toLocaleDateString()} - {attempt.note || 'No note'}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Reminder Type */}
+              <div>
+                <label className="block text-[#94A3B8] text-sm mb-2">Reminder Type</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setReminderType('email')}
+                    className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
+                      reminderType === 'email'
+                        ? 'bg-[#0EA5E9] text-white'
+                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
+                    }`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    Email
+                  </button>
+                  <button
+                    onClick={() => setReminderType('sms')}
+                    className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
+                      reminderType === 'sms'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-[#0A0F2C] text-[#94A3B8] hover:bg-[#2D3B5F]'
+                    }`}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    SMS
+                  </button>
+                </div>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="block text-[#94A3B8] text-sm mb-2">Internal Note (optional)</label>
+                <textarea
+                  value={reminderNote}
+                  onChange={(e) => setReminderNote(e.target.value)}
+                  placeholder="Add a note about this reminder attempt..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9] resize-none"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-4 border-t border-[#2D3B5F]">
+                <button
+                  onClick={() => { setShowReminderModal(false); setReminderNote(''); setReminderType('email') }}
+                  className="flex-1 py-3 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => sendReminder(selectedPartnerForFollowUp.id, reminderType, reminderNote)}
+                  disabled={sendingReminder}
+                  className={`flex-1 py-3 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 ${
+                    reminderType === 'email' ? 'bg-[#0EA5E9] hover:bg-[#0EA5E9]/80' : 'bg-green-500 hover:bg-green-500/80'
+                  }`}
+                >
+                  {sendingReminder ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Send {reminderType === 'email' ? 'Email' : 'SMS'} Reminder
+                    </>
+                  )}
                 </button>
               </div>
             </div>
