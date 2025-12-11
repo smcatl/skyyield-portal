@@ -1,19 +1,14 @@
-// =============================================================================
-// SINGLE PURCHASE REQUEST API ROUTE
-// =============================================================================
-
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
-// =============================================================================
-// GET - Get Single Purchase Request
-// =============================================================================
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,6 +19,8 @@ export async function GET(
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const supabase = getSupabase();
 
     const { data: user } = await supabase
       .from('users')
@@ -41,10 +38,7 @@ export async function GET(
         *,
         location_partner:location_partners(id, company_legal_name, user_id),
         venue:venues(id, venue_name, city, state, address_line_1),
-        product:approved_products(id, name, sku, our_cost, image_url),
-        requester:users!device_purchase_requests_requested_by_fkey(id, full_name, email),
-        approver:users!device_purchase_requests_approved_by_fkey(id, full_name, email),
-        receiver:users!device_purchase_requests_received_by_fkey(id, full_name, email)
+        product:approved_products(id, name, sku, our_cost, image_url)
       `)
       .eq('id', id)
       .single();
@@ -60,9 +54,6 @@ export async function GET(
     return NextResponse.json({ data });
   } catch (error) {
     console.error('Error in GET /api/admin/purchase-requests/[id]:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,15 +1,13 @@
-// =============================================================================
-// STATUS UPDATE API ROUTE
-// =============================================================================
-
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -21,6 +19,8 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const supabase = getSupabase();
 
     const { data: user } = await supabase
       .from('users')
@@ -35,7 +35,6 @@ export async function PATCH(
     const body = await request.json();
     const { action, notes, ...additionalData } = body;
 
-    // Get current request
     const { data: currentRequest, error: fetchError } = await supabase
       .from('device_purchase_requests')
       .select('*')
@@ -52,10 +51,7 @@ export async function PATCH(
     switch (action) {
       case 'approve':
         if (user.role !== 'admin') {
-          return NextResponse.json(
-            { error: 'Only admins can approve requests' },
-            { status: 403 }
-          );
+          return NextResponse.json({ error: 'Only admins can approve requests' }, { status: 403 });
         }
         newStatus = 'approved';
         updateData = {
@@ -68,18 +64,12 @@ export async function PATCH(
 
       case 'cancel':
         newStatus = 'cancelled';
-        updateData = {
-          status: newStatus,
-          approval_notes: notes || null,
-        };
+        updateData = { status: newStatus, approval_notes: notes || null };
         break;
 
       case 'ordered':
         if (!additionalData.order_reference) {
-          return NextResponse.json(
-            { error: 'Order reference is required' },
-            { status: 400 }
-          );
+          return NextResponse.json({ error: 'Order reference is required' }, { status: 400 });
         }
         newStatus = 'ordered';
         updateData = {
@@ -111,10 +101,7 @@ export async function PATCH(
 
       case 'assign':
         newStatus = 'assigned';
-        updateData = {
-          status: newStatus,
-          assigned_at: new Date().toISOString(),
-        };
+        updateData = { status: newStatus, assigned_at: new Date().toISOString() };
 
         if (currentRequest.venue_id) {
           const { data: newDevice, error: deviceError } = await supabase
@@ -122,9 +109,7 @@ export async function PATCH(
             .insert({
               venue_id: currentRequest.venue_id,
               product_id: currentRequest.product_id,
-              device_name:
-                currentRequest.product_name ||
-                `Device from ${currentRequest.request_number}`,
+              device_name: currentRequest.product_name || `Device from ${currentRequest.request_number}`,
               mac_address: additionalData.mac_address || null,
               serial_number: additionalData.serial_number || null,
               ownership: currentRequest.ownership,
@@ -150,45 +135,16 @@ export async function PATCH(
       .from('device_purchase_requests')
       .update(updateData)
       .eq('id', id)
-      .select(`
-        *,
-        location_partner:location_partners(id, company_legal_name, user_id),
-        venue:venues(id, venue_name, city, state, address_line_1),
-        product:approved_products(id, name, sku, our_cost, image_url),
-        requester:users!device_purchase_requests_requested_by_fkey(id, full_name, email),
-        approver:users!device_purchase_requests_approved_by_fkey(id, full_name, email),
-        receiver:users!device_purchase_requests_received_by_fkey(id, full_name, email)
-      `)
+      .select()
       .single();
 
     if (error) {
-      console.error('Error updating purchase request:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    await supabase.from('activity_log').insert({
-      user_id: user.id,
-      action: `purchase_request_${action}`,
-      entity_type: 'device_purchase_request',
-      entity_id: id,
-      details: {
-        request_number: currentRequest.request_number,
-        old_status: currentRequest.status,
-        new_status: newStatus,
-        notes,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data,
-      message: 'Status updated successfully',
-    });
+    return NextResponse.json({ success: true, data, message: 'Status updated successfully' });
   } catch (error) {
-    console.error('Error in PATCH /api/admin/purchase-requests/[id]/status:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error in PATCH:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
