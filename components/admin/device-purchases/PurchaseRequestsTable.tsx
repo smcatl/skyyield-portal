@@ -32,12 +32,7 @@ import {
   cancelPurchaseRequest,
 } from '@/lib/api/purchase-requests';
 import { toast } from 'sonner';
-import ApproveDialog from './dialogs/ApproveDialog';
-import RejectDialog from './dialogs/RejectDialog';
-import MarkOrderedDialog from './dialogs/MarkOrderedDialog';
-import MarkShippedDialog from './dialogs/MarkShippedDialog';
-import MarkReceivedDialog from './dialogs/MarkReceivedDialog';
-import AssignDeviceDialog from './dialogs/AssignDeviceDialog';
+import { ApproveDialog, RejectDialog, MarkOrderedDialog, MarkShippedDialog, MarkReceivedDialog, AssignDeviceDialog } from './dialogs';
 
 interface PurchaseRequestsTableProps {
   data: PurchaseRequest[];

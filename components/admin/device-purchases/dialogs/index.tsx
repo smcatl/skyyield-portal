@@ -6,7 +6,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PurchaseRequest } from '@/types/purchase-request';
+import { PurchaseRequest } from '@/lib/types/purchase-request';
 import { approvePurchaseRequest } from '@/lib/api/purchase-requests';
 import { toast } from 'sonner';
 import { X, Loader2, Check } from 'lucide-react';
@@ -18,7 +18,7 @@ interface ApproveDialogProps {
   onSuccess: () => void;
 }
 
-export default function ApproveDialog({
+export function ApproveDialog({
   open,
   onClose,
   request,
@@ -132,7 +132,7 @@ export default function ApproveDialog({
 'use client';
 
 import { useState } from 'react';
-import { PurchaseRequest } from '@/types/purchase-request';
+import { PurchaseRequest } from '@/lib/types/purchase-request';
 import { cancelPurchaseRequest } from '@/lib/api/purchase-requests';
 import { toast } from 'sonner';
 import { X, Loader2 } from 'lucide-react';
@@ -144,7 +144,7 @@ interface RejectDialogProps {
   onSuccess: () => void;
 }
 
-export default function RejectDialog({
+export function RejectDialog({
   open,
   onClose,
   request,
@@ -239,7 +239,7 @@ export default function RejectDialog({
 'use client';
 
 import { useState } from 'react';
-import { PurchaseRequest } from '@/types/purchase-request';
+import { PurchaseRequest } from '@/lib/types/purchase-request';
 import { markAsOrdered } from '@/lib/api/purchase-requests';
 import { toast } from 'sonner';
 import { X, Loader2, ShoppingCart } from 'lucide-react';
@@ -251,7 +251,7 @@ interface MarkOrderedDialogProps {
   onSuccess: () => void;
 }
 
-export default function MarkOrderedDialog({
+export function MarkOrderedDialog({
   open,
   onClose,
   request,
@@ -381,7 +381,7 @@ export default function MarkOrderedDialog({
 'use client';
 
 import { useState } from 'react';
-import { PurchaseRequest } from '@/types/purchase-request';
+import { PurchaseRequest } from '@/lib/types/purchase-request';
 import { markAsShipped } from '@/lib/api/purchase-requests';
 import { toast } from 'sonner';
 import { X, Loader2, Truck } from 'lucide-react';
@@ -393,7 +393,7 @@ interface MarkShippedDialogProps {
   onSuccess: () => void;
 }
 
-export default function MarkShippedDialog({
+export function MarkShippedDialog({
   open,
   onClose,
   request,
@@ -479,7 +479,7 @@ export default function MarkShippedDialog({
 'use client';
 
 import { useState } from 'react';
-import { PurchaseRequest } from '@/types/purchase-request';
+import { PurchaseRequest } from '@/lib/types/purchase-request';
 import { markAsReceived } from '@/lib/api/purchase-requests';
 import { toast } from 'sonner';
 import { X, Loader2, Package } from 'lucide-react';
@@ -491,7 +491,7 @@ interface MarkReceivedDialogProps {
   onSuccess: () => void;
 }
 
-export default function MarkReceivedDialog({
+export function MarkReceivedDialog({
   open,
   onClose,
   request,
@@ -579,7 +579,7 @@ export default function MarkReceivedDialog({
 'use client';
 
 import { useState } from 'react';
-import { PurchaseRequest } from '@/types/purchase-request';
+import { PurchaseRequest } from '@/lib/types/purchase-request';
 import { assignToDevice } from '@/lib/api/purchase-requests';
 import { toast } from 'sonner';
 import { X, Loader2, MapPin } from 'lucide-react';
@@ -591,7 +591,7 @@ interface AssignDeviceDialogProps {
   onSuccess: () => void;
 }
 
-export default function AssignDeviceDialog({
+export function AssignDeviceDialog({
   open,
   onClose,
   request,
