@@ -11,7 +11,7 @@ import {
   PurchaseRequestSummary,
   PurchaseRequestFilters,
   PaginationInfo,
-} from '@/types/purchase-request';
+} from '@/lib/types/purchase-request';
 import { fetchPurchaseRequests } from '@/lib/api/purchase-requests';
 
 interface UsePurchaseRequestsReturn {
