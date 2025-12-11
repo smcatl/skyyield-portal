@@ -24,12 +24,7 @@ import {
   MapPinned,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import ApproveDialog from './dialogs/ApproveDialog';
-import RejectDialog from './dialogs/RejectDialog';
-import MarkOrderedDialog from './dialogs/MarkOrderedDialog';
-import MarkShippedDialog from './dialogs/MarkShippedDialog';
-import MarkReceivedDialog from './dialogs/MarkReceivedDialog';
-import AssignDeviceDialog from './dialogs/AssignDeviceDialog';
+import { ApproveDialog, RejectDialog, MarkOrderedDialog, MarkShippedDialog, MarkReceivedDialog, AssignDeviceDialog } from './dialogs';
 
 interface RequestDetailModalProps {
   requestId: string;
