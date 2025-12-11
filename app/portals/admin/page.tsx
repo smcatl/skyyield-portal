@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
-type TabType = 'overview' | 'users' | 'pipeline' | 'followups' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
+type TabType = 'overview' | 'users' | 'pipeline' | 'followups' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
 
 // Pipeline and Settings types
 interface FollowUpAttempt {
@@ -1282,6 +1282,7 @@ export default function AdminPortalPage() {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
     { id: 'followups', label: 'Follow-Ups', icon: Bell },
+    { id: 'device-purchases', label: 'Device Purchases', icon: Package },
     { id: 'products', label: 'Store Products', icon: ShoppingBag },
     { id: 'approved-products', label: 'Approved Products', icon: Star },
     { id: 'blog', label: 'Blog', icon: FileText },
@@ -3629,6 +3630,31 @@ export default function AdminPortalPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Device Purchases Tab */}
+        {activeTab === 'device-purchases' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Device Purchases</h2>
+                <p className="text-[#94A3B8] text-sm">Track and manage device purchase requests</p>
+              </div>
+              <Link
+                href="/admin/device-purchases"
+                className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open Full View
+              </Link>
+            </div>
+
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+              <Package className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
+              <p className="text-[#94A3B8]">Device purchase management</p>
+              <p className="text-[#64748B] text-sm mt-1">Click &quot;Open Full View&quot; to access the full device purchases dashboard</p>
+            </div>
           </div>
         )}
 
