@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PurchaseRequestFilters } from '@/types/purchase-request';
+import { PurchaseRequestFilters } from '@/lib/types/purchase-request';
 import { Search, Plus, X } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 

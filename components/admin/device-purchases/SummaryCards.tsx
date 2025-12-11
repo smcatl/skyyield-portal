@@ -5,7 +5,7 @@
 
 'use client';
 
-import { PurchaseRequestSummary } from '@/types/purchase-request';
+import { PurchaseRequestSummary } from '@/lib/types/purchase-request';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,

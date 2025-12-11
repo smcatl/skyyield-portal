@@ -10,7 +10,7 @@ import {
   PurchaseRequest,
   PurchaseRequestStatus,
   PaginationInfo,
-} from '@/types/purchase-request';
+} from '@/lib/types/purchase-request';
 import { StatusBadge, OwnershipBadge, SourceBadge } from './Badges';
 import {
   Eye,

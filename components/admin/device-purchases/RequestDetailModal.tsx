@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { usePurchaseRequest } from '@/hooks/usePurchaseRequests';
-import { PurchaseRequest, TimelineEvent } from '@/types/purchase-request';
+import { PurchaseRequest, TimelineEvent } from '@/lib/types/purchase-request';
 import { StatusBadge, OwnershipBadge, SourceBadge } from './Badges';
 import {
   X,

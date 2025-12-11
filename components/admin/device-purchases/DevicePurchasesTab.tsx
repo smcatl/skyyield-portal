@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import { usePurchaseRequests } from '@/hooks/usePurchaseRequests';
-import { PurchaseRequestFilters } from '@/types/purchase-request';
+import { PurchaseRequestFilters } from '@/lib/types/purchase-request';
 import SummaryCards from './SummaryCards';
 import FilterBar from './FilterBar';
 import PurchaseRequestsTable from './PurchaseRequestsTable';

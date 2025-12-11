@@ -10,7 +10,7 @@ import {
   CreatePurchaseRequestInput,
   DeviceOwnership,
   Urgency,
-} from '@/types/purchase-request';
+} from '@/lib/types/purchase-request';
 import {
   createPurchaseRequest,
   fetchLocationPartners,
