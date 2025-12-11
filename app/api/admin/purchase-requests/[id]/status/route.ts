@@ -1,6 +1,5 @@
 // =============================================================================
 // STATUS UPDATE API ROUTE
-// File: src/app/api/admin/purchase-requests/[id]/status/route.ts
 // =============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,9 +13,10 @@ const supabase = createClient(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -39,14 +39,13 @@ export async function PATCH(
     const { data: currentRequest, error: fetchError } = await supabase
       .from('device_purchase_requests')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (fetchError || !currentRequest) {
       return NextResponse.json({ error: 'Request not found' }, { status: 404 });
     }
 
-    // Build update object based on action
     let updateData: Record<string, any> = {};
     let newStatus: string = currentRequest.status;
 
@@ -117,7 +116,6 @@ export async function PATCH(
           assigned_at: new Date().toISOString(),
         };
 
-        // Create device record if needed
         if (currentRequest.venue_id) {
           const { data: newDevice, error: deviceError } = await supabase
             .from('devices')
@@ -148,13 +146,11 @@ export async function PATCH(
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    // Update the request
     const { data, error } = await supabase
       .from('device_purchase_requests')
       .update(updateData)
-      .eq('id', params.id)
-      .select(
-        `
+      .eq('id', id)
+      .select(`
         *,
         location_partner:location_partners(id, company_legal_name, user_id),
         venue:venues(id, venue_name, city, state, address_line_1),
@@ -162,8 +158,7 @@ export async function PATCH(
         requester:users!device_purchase_requests_requested_by_fkey(id, full_name, email),
         approver:users!device_purchase_requests_approved_by_fkey(id, full_name, email),
         receiver:users!device_purchase_requests_received_by_fkey(id, full_name, email)
-      `
-      )
+      `)
       .single();
 
     if (error) {
@@ -171,12 +166,11 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Log activity
     await supabase.from('activity_log').insert({
       user_id: user.id,
       action: `purchase_request_${action}`,
       entity_type: 'device_purchase_request',
-      entity_id: params.id,
+      entity_id: id,
       details: {
         request_number: currentRequest.request_number,
         old_status: currentRequest.status,
