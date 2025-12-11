@@ -1,9 +1,11 @@
+"use client";
+
 // =============================================================================
 // APPROVE DIALOG
 // File: src/components/admin/device-purchases/dialogs/ApproveDialog.tsx
 // =============================================================================
 
-'use client';
+
 
 import { useState } from 'react';
 import { PurchaseRequest } from '@/lib/types/purchase-request';
@@ -129,7 +131,7 @@ export function ApproveDialog({
 // File: src/components/admin/device-purchases/dialogs/RejectDialog.tsx
 // =============================================================================
 
-'use client';
+
 
 import { useState } from 'react';
 import { PurchaseRequest } from '@/lib/types/purchase-request';
@@ -236,7 +238,7 @@ export function RejectDialog({
 // File: src/components/admin/device-purchases/dialogs/MarkOrderedDialog.tsx
 // =============================================================================
 
-'use client';
+
 
 import { useState } from 'react';
 import { PurchaseRequest } from '@/lib/types/purchase-request';
@@ -378,7 +380,7 @@ export function MarkOrderedDialog({
 // File: src/components/admin/device-purchases/dialogs/MarkShippedDialog.tsx
 // =============================================================================
 
-'use client';
+
 
 import { useState } from 'react';
 import { PurchaseRequest } from '@/lib/types/purchase-request';
@@ -476,7 +478,7 @@ export function MarkShippedDialog({
 // File: src/components/admin/device-purchases/dialogs/MarkReceivedDialog.tsx
 // =============================================================================
 
-'use client';
+
 
 import { useState } from 'react';
 import { PurchaseRequest } from '@/lib/types/purchase-request';
@@ -576,7 +578,7 @@ export function MarkReceivedDialog({
 // File: src/components/admin/device-purchases/dialogs/AssignDeviceDialog.tsx
 // =============================================================================
 
-'use client';
+
 
 import { useState } from 'react';
 import { PurchaseRequest } from '@/lib/types/purchase-request';
