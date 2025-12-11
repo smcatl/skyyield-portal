@@ -9,9 +9,9 @@
 
 import { useState } from 'react';
 import { PurchaseRequest } from '@/lib/types/purchase-request';
-import { approvePurchaseRequest } from '@/lib/api/purchase-requests';
+import { approvePurchaseRequest, cancelPurchaseRequest, markAsOrdered, markAsShipped, markAsReceived, assignToDevice } from '@/lib/api/purchase-requests';
 import { toast } from 'sonner';
-import { X, Loader2, Check } from 'lucide-react';
+import { X, Loader2, Check, ShoppingCart, Truck, Package, MapPin } from 'lucide-react';
 
 interface ApproveDialogProps {
   open: boolean;
@@ -133,11 +133,6 @@ export function ApproveDialog({
 
 
 
-import { useState } from 'react';
-import { PurchaseRequest } from '@/lib/types/purchase-request';
-import { cancelPurchaseRequest } from '@/lib/api/purchase-requests';
-import { toast } from 'sonner';
-import { X, Loader2 } from 'lucide-react';
 
 interface RejectDialogProps {
   open: boolean;
@@ -240,11 +235,6 @@ export function RejectDialog({
 
 
 
-import { useState } from 'react';
-import { PurchaseRequest } from '@/lib/types/purchase-request';
-import { markAsOrdered } from '@/lib/api/purchase-requests';
-import { toast } from 'sonner';
-import { X, Loader2, ShoppingCart } from 'lucide-react';
 
 interface MarkOrderedDialogProps {
   open: boolean;
@@ -382,11 +372,6 @@ export function MarkOrderedDialog({
 
 
 
-import { useState } from 'react';
-import { PurchaseRequest } from '@/lib/types/purchase-request';
-import { markAsShipped } from '@/lib/api/purchase-requests';
-import { toast } from 'sonner';
-import { X, Loader2, Truck } from 'lucide-react';
 
 interface MarkShippedDialogProps {
   open: boolean;
@@ -480,11 +465,6 @@ export function MarkShippedDialog({
 
 
 
-import { useState } from 'react';
-import { PurchaseRequest } from '@/lib/types/purchase-request';
-import { markAsReceived } from '@/lib/api/purchase-requests';
-import { toast } from 'sonner';
-import { X, Loader2, Package } from 'lucide-react';
 
 interface MarkReceivedDialogProps {
   open: boolean;
@@ -580,11 +560,6 @@ export function MarkReceivedDialog({
 
 
 
-import { useState } from 'react';
-import { PurchaseRequest } from '@/lib/types/purchase-request';
-import { assignToDevice } from '@/lib/api/purchase-requests';
-import { toast } from 'sonner';
-import { X, Loader2, MapPin } from 'lucide-react';
 
 interface AssignDeviceDialogProps {
   open: boolean;
