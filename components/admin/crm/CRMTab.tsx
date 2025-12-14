@@ -112,6 +112,10 @@ export default function CRMTab() {
     email: '',
     follow_up_count: 0,
   })
+  
+  // Note input state
+  const [newNote, setNewNote] = useState('')
+  const [sendingInvite, setSendingInvite] = useState(false)
 
   // Fetch prospects
   const fetchProspects = async () => {
@@ -192,16 +196,74 @@ export default function CRMTab() {
 
   // Send invite form
   const sendInviteForm = async (prospect: Prospect) => {
+    setSendingInvite(true)
     try {
       const res = await fetch(`/api/crm/prospects/${prospect.id}/invite`, {
         method: 'POST',
       })
+      const data = await res.json()
       if (res.ok) {
-        alert(`Invite form sent to ${prospect.email}`)
+        alert(`✅ Invite form sent to ${prospect.email}\n\nForm URL: ${data.formUrl}\n\n(Note: Email delivery requires Resend API key to be configured)`)
         fetchProspects()
+      } else {
+        alert(`Error: ${data.error}`)
       }
     } catch (err) {
       console.error('Error sending invite:', err)
+      alert('Failed to send invite')
+    } finally {
+      setSendingInvite(false)
+    }
+  }
+
+  // Delete prospect
+  const deleteProspect = async (prospectId: string) => {
+    if (!confirm('Are you sure you want to delete this prospect? This cannot be undone.')) return
+    
+    try {
+      const res = await fetch(`/api/crm/prospects/${prospectId}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        setShowDetailModal(false)
+        setSelectedProspect(null)
+        fetchProspects()
+      } else {
+        const data = await res.json()
+        alert(`Error: ${data.error}`)
+      }
+    } catch (err) {
+      console.error('Error deleting prospect:', err)
+      alert('Failed to delete prospect')
+    }
+  }
+
+  // Add note
+  const addNote = async (prospectId: string, note: string) => {
+    if (!note.trim()) return
+    
+    try {
+      await fetch(`/api/crm/prospects/${prospectId}/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          type: 'note', 
+          description: note,
+          created_by: 'Admin'
+        }),
+      })
+      setNewNote('')
+      fetchProspects()
+      // Refresh selected prospect activities
+      if (selectedProspect) {
+        const res = await fetch(`/api/crm/prospects/${prospectId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setSelectedProspect(data.prospect)
+        }
+      }
+    } catch (err) {
+      console.error('Error adding note:', err)
     }
   }
 
@@ -750,10 +812,11 @@ export default function CRMTab() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => sendInviteForm(selectedProspect)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+                  disabled={sendingInvite}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
-                  Send Invite Form
+                  {sendingInvite ? 'Sending...' : 'Send Invite Form'}
                 </button>
                 <button
                   onClick={() => logActivity(selectedProspect.id, 'email', 'Sent follow-up email')}
@@ -785,6 +848,39 @@ export default function CRMTab() {
                     Convert to Pipeline
                   </button>
                 )}
+                <button
+                  onClick={() => deleteProspect(selectedProspect.id)}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors ml-auto"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </div>
+
+              {/* Add Note */}
+              <div className="bg-[#0A0F2C] rounded-lg p-4">
+                <div className="text-[#64748B] text-sm mb-2">Add Note</div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newNote.trim()) {
+                        addNote(selectedProspect.id, newNote)
+                      }
+                    }}
+                    placeholder="Type a note and press Enter..."
+                    className="flex-1 px-3 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white text-sm placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
+                  />
+                  <button
+                    onClick={() => addNote(selectedProspect.id, newNote)}
+                    disabled={!newNote.trim()}
+                    className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
 
               {/* Activity Timeline */}
