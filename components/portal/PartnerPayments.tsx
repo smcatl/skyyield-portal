@@ -5,7 +5,6 @@ import {
   DollarSign, Download, CheckCircle, Clock, AlertCircle,
   CreditCard, Building2, ExternalLink, Calendar, Filter
 } from 'lucide-react'
-import TipaltiIFrame from '@/components/TipaltiIFrame'
 
 interface Payment {
   id: string
@@ -305,10 +304,10 @@ export default function PartnerPayments({
         </div>
       </div>
 
-      {/* Tipalti Modal */}
+      {/* Tipalti Info Modal */}
       {showTipalti && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-lg w-full">
             <div className="p-4 border-b border-[#2D3B5F] flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">Payment Settings</h3>
               <button
@@ -318,8 +317,40 @@ export default function PartnerPayments({
                 ✕
               </button>
             </div>
-            <div className="p-4" style={{ height: '600px' }}>
-              <TipaltiIFrame payeeId={tipaltiPayeeId || partnerId} />
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <CreditCard className="w-6 h-6 text-green-400" />
+                </div>
+                <div>
+                  <div className="text-white font-medium">Tipalti Payment Portal</div>
+                  <div className="text-[#64748B] text-sm">Manage payment methods and tax info</div>
+                </div>
+              </div>
+              
+              <p className="text-[#94A3B8] text-sm">
+                Click the button below to access the Tipalti portal where you can:
+              </p>
+              <ul className="text-[#94A3B8] text-sm space-y-2 ml-4">
+                <li>• Set up or update your payment method (ACH, PayPal, etc.)</li>
+                <li>• Submit tax information (W-9)</li>
+                <li>• View payment history</li>
+                <li>• Update banking details</li>
+              </ul>
+
+              <a
+                href="https://suppliers.tipalti.com/skyyield/account/login"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors font-medium"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open Tipalti Portal
+              </a>
+
+              <p className="text-[#64748B] text-xs text-center">
+                You&apos;ll be redirected to Tipalti&apos;s secure portal
+              </p>
             </div>
           </div>
         </div>
