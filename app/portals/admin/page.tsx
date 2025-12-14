@@ -557,6 +557,94 @@ export default function AdminPortalPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabType>('overview')
 
+  // Draggable tabs state
+  const defaultTabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'users', label: 'Users', icon: Users },
+    { id: 'crm', label: 'CRM', icon: Target },
+    { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
+    { id: 'followups', label: 'Follow-Ups', icon: Bell },
+    { id: 'device-purchases', label: 'Device Purchases', icon: Package },
+    { id: 'products', label: 'Store Products', icon: ShoppingBag },
+    { id: 'approved-products', label: 'Approved Products', icon: Star },
+    { id: 'blog', label: 'Blog', icon: FileText },
+    { id: 'forms', label: 'Forms', icon: ClipboardList },
+    { id: 'calculators', label: 'Calculators', icon: Calculator },
+    { id: 'payments', label: 'Payments', icon: Wallet },
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+  ]
+  
+  const [tabs, setTabs] = useState(defaultTabs)
+  const [draggedTab, setDraggedTab] = useState<string | null>(null)
+  const [dragOverTab, setDragOverTab] = useState<string | null>(null)
+
+  // Load saved tab order from localStorage
+  useEffect(() => {
+    const savedOrder = localStorage.getItem('adminTabOrder')
+    if (savedOrder) {
+      try {
+        const orderIds = JSON.parse(savedOrder) as string[]
+        const reorderedTabs = orderIds
+          .map(id => defaultTabs.find(t => t.id === id))
+          .filter(Boolean) as typeof defaultTabs
+        // Add any new tabs that weren't in saved order
+        defaultTabs.forEach(tab => {
+          if (!reorderedTabs.find(t => t.id === tab.id)) {
+            reorderedTabs.push(tab)
+          }
+        })
+        setTabs(reorderedTabs)
+      } catch (e) {
+        console.error('Failed to load tab order:', e)
+      }
+    }
+  }, [])
+
+  // Save tab order to localStorage
+  const saveTabOrder = (newTabs: typeof defaultTabs) => {
+    localStorage.setItem('adminTabOrder', JSON.stringify(newTabs.map(t => t.id)))
+  }
+
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent, tabId: string) => {
+    setDraggedTab(tabId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent, tabId: string) => {
+    e.preventDefault()
+    if (tabId !== draggedTab) {
+      setDragOverTab(tabId)
+    }
+  }
+
+  const handleDragLeave = () => {
+    setDragOverTab(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, targetTabId: string) => {
+    e.preventDefault()
+    if (!draggedTab || draggedTab === targetTabId) return
+
+    const newTabs = [...tabs]
+    const draggedIndex = newTabs.findIndex(t => t.id === draggedTab)
+    const targetIndex = newTabs.findIndex(t => t.id === targetTabId)
+    
+    const [removed] = newTabs.splice(draggedIndex, 1)
+    newTabs.splice(targetIndex, 0, removed)
+    
+    setTabs(newTabs)
+    saveTabOrder(newTabs)
+    setDraggedTab(null)
+    setDragOverTab(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedTab(null)
+    setDragOverTab(null)
+  }
+
   // Users state
   const [users, setUsers] = useState<User[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
@@ -1278,23 +1366,6 @@ export default function AdminPortalPage() {
   const totalProducts = products.length
   const approvedProductsCount = approvedProducts.length
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'crm', label: 'CRM', icon: Target },
-    { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
-    { id: 'followups', label: 'Follow-Ups', icon: Bell },
-    { id: 'device-purchases', label: 'Device Purchases', icon: Package },
-    { id: 'products', label: 'Store Products', icon: ShoppingBag },
-    { id: 'approved-products', label: 'Approved Products', icon: Star },
-    { id: 'blog', label: 'Blog', icon: FileText },
-    { id: 'forms', label: 'Forms', icon: ClipboardList },
-    { id: 'calculators', label: 'Calculators', icon: Calculator },
-    { id: 'payments', label: 'Payments', icon: Wallet },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-  ]
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved': return 'bg-green-500/20 text-green-400 border-green-500/30'
@@ -1373,12 +1444,24 @@ export default function AdminPortalPage() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, tab.id)}
+                onDragOver={(e) => handleDragOver(e, tab.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, tab.id)}
+                onDragEnd={handleDragEnd}
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === tab.id
-                  ? 'bg-[#0EA5E9] text-white'
-                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
-                  }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all cursor-grab active:cursor-grabbing ${
+                  activeTab === tab.id
+                    ? 'bg-[#0EA5E9] text-white'
+                    : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
+                } ${
+                  draggedTab === tab.id ? 'opacity-50 scale-95' : ''
+                } ${
+                  dragOverTab === tab.id ? 'ring-2 ring-[#0EA5E9] ring-offset-2 ring-offset-[#0A0F2C]' : ''
+                }`}
               >
+                <GripVertical className="w-3 h-3 opacity-40" />
                 <tab.icon className="w-4 h-4" />
                 {tab.label}
               </button>
