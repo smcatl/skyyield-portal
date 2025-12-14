@@ -714,7 +714,7 @@ export default function AdminPortalPage() {
   const [followUpSearch, setFollowUpSearch] = useState('')
 
   // Settings state
-  const [settingsTab, setSettingsTab] = useState<'dropdowns' | 'stages' | 'calendly' | 'emails'>('emails')
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'dropdowns' | 'stages' | 'calendly' | 'emails'>('profile')
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(DEFAULT_EMAIL_TEMPLATES)
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
   const [dropdowns, setDropdowns] = useState<Dropdown[]>([])

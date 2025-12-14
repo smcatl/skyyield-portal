@@ -7,7 +7,7 @@ import {
   Save, Loader2, CheckCircle, Camera, CreditCard,
   Bell, Shield, Key
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
 interface PersonalInfo {
   firstName: string
@@ -96,8 +96,6 @@ export default function PartnerSettings({
   const loadSettings = async () => {
     setLoading(true)
     try {
-      const supabase = createClient()
-      
       // Load from appropriate table based on partner type
       const tableName = getTableName(partnerType)
       const { data, error } = await supabase
@@ -162,7 +160,6 @@ export default function PartnerSettings({
     setSaving(true)
     setError(null)
     try {
-      const supabase = createClient()
       const tableName = getTableName(partnerType)
 
       const updateData: any = {
