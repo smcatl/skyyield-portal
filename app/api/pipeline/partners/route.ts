@@ -118,6 +118,30 @@ async function handleStageTransition(
   }
 }
 
+// Helper: Transform DB partner to frontend format
+function transformPartner(p: any) {
+  return {
+    ...p,
+    // Map to expected frontend field names
+    stage: p.pipeline_stage,
+    contactFullName: `${p.contact_first_name || ''} ${p.contact_last_name || ''}`.trim(),
+    contactEmail: p.contact_email,
+    contactPhone: p.contact_phone,
+    companyLegalName: p.company_legal_name,
+    companyDBA: p.dba_name,
+    companyCity: p.city,
+    companyState: p.state,
+    initialReviewStatus: p.pipeline_stage === 'initial_review' ? 'pending' : 'complete',
+    postCallReviewStatus: p.intro_call_calendly_status,
+    discoveryCallStatus: p.intro_call_calendly_status,
+    trialDaysRemaining: p.trial_days_remaining,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+    status: p.pipeline_stage === 'inactive' ? 'inactive' : 'active',
+    partnerType: 'Location Partner',
+  }
+}
+
 // GET: Fetch partners
 export async function GET(request: NextRequest) {
   try {
@@ -227,7 +251,10 @@ export async function GET(request: NextRequest) {
       if (p.pipeline_stage === 'active') stats.active++
     })
 
-    return NextResponse.json({ partners: partnersWithTrialDays, stats })
+    // Transform partners for frontend
+    const transformedPartners = partnersWithTrialDays.map(transformPartner)
+
+    return NextResponse.json({ partners: transformedPartners, stats })
   } catch (error) {
     console.error('GET /api/pipeline/partners error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
