@@ -16,7 +16,8 @@ import {
   ChevronDown, ChevronRight, Save, AlertCircle, Sparkles,
   GripVertical, Phone, MoreVertical, Filter, UserPlus,
   CreditCard, Wallet, PieChart, MessageSquare, Bell,
-  SkipForward, AlertTriangle, Pause, Play, Archive, History
+  SkipForward, AlertTriangle, Pause, Play, Archive, History,
+  Key, Shield, User
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
@@ -3563,13 +3564,14 @@ export default function AdminPortalPage() {
         {activeTab === 'settings' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-white">System Settings</h2>
-              <p className="text-[#94A3B8] text-sm">Configure email templates, dropdowns, and integrations</p>
+              <h2 className="text-xl font-semibold text-white">Settings</h2>
+              <p className="text-[#94A3B8] text-sm">Manage your profile and system settings</p>
             </div>
 
             {/* Settings Sub-tabs */}
             <div className="flex gap-2 border-b border-[#2D3B5F]">
               {[
+                { id: 'profile', label: 'My Profile', icon: User },
                 { id: 'emails', label: 'Email Templates', icon: Mail },
                 { id: 'dropdowns', label: 'Dropdowns', icon: List },
                 { id: 'calendly', label: 'Calendly', icon: Calendar },
@@ -3588,6 +3590,126 @@ export default function AdminPortalPage() {
                 </button>
               ))}
             </div>
+
+            {/* My Profile */}
+            {settingsTab === 'profile' && (
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                <div className="p-6 border-b border-[#2D3B5F]">
+                  <h3 className="text-lg font-semibold text-white mb-1">Personal Information</h3>
+                  <p className="text-[#64748B] text-sm">Update your profile details</p>
+                </div>
+                <div className="p-6 space-y-6">
+                  {/* Avatar */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 bg-[#0A0F2C] rounded-full flex items-center justify-center overflow-hidden">
+                      {user?.imageUrl ? (
+                        <img src={user.imageUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="w-8 h-8 text-[#64748B]" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-white font-medium">{user?.fullName}</div>
+                      <div className="text-[#64748B] text-sm">{user?.primaryEmailAddress?.emailAddress}</div>
+                      <button className="mt-2 text-[#0EA5E9] text-sm hover:underline">
+                        Change Photo
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Profile Form */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#94A3B8] text-sm mb-2">First Name</label>
+                      <input
+                        type="text"
+                        defaultValue={user?.firstName || ''}
+                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#94A3B8] text-sm mb-2">Last Name</label>
+                      <input
+                        type="text"
+                        defaultValue={user?.lastName || ''}
+                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#94A3B8] text-sm mb-2">Email Address</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                      <input
+                        type="email"
+                        defaultValue={user?.primaryEmailAddress?.emailAddress || ''}
+                        className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                        disabled
+                      />
+                    </div>
+                    <p className="text-[#64748B] text-xs mt-1">Email is managed through Clerk authentication</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#94A3B8] text-sm mb-2">Phone Number</label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                      <input
+                        type="tel"
+                        placeholder="(555) 555-5555"
+                        className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Security Section */}
+                  <div className="pt-6 border-t border-[#2D3B5F]">
+                    <h4 className="text-white font-medium mb-4">Security</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Key className="w-5 h-5 text-[#64748B]" />
+                          <div>
+                            <div className="text-white">Password</div>
+                            <div className="text-[#64748B] text-sm">Change your account password</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => window.open('https://accounts.clerk.dev/user/security', '_blank')}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
+                        >
+                          Change
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Shield className="w-5 h-5 text-[#64748B]" />
+                          <div>
+                            <div className="text-white">Two-Factor Authentication</div>
+                            <div className="text-[#64748B] text-sm">Add extra security to your account</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => window.open('https://accounts.clerk.dev/user/security', '_blank')}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
+                        >
+                          Configure
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="flex justify-end pt-4">
+                    <button className="flex items-center gap-2 px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
+                      <Save className="w-4 h-4" />
+                      Save Changes
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Email Templates */}
             {settingsTab === 'emails' && (

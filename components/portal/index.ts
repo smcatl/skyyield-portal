@@ -1,6 +1,7 @@
 // Portal Components - Shared across all user portals
 // Usage: import { ContactCard, ReferralCodeCard, ... } from '@/components/portal'
 
+// Core Components
 export { default as ContactCard } from './ContactCard'
 export { default as ReferralCodeCard } from './ReferralCodeCard'
 export { default as DashboardCard, EarningsCard, DataUsageCard, ReferralsCard, VenuesCard, JobsCard } from './DashboardCard'
@@ -9,3 +10,8 @@ export { default as DocumentsSection } from './DocumentsSection'
 export { default as TrainingSection } from './TrainingSection'
 export { default as JobsSection } from './JobsSection'
 export { default as VenuesSection } from './VenuesSection'
+
+// Partner-specific Components
+export { default as PartnerSettings } from './PartnerSettings'
+export { default as PartnerAnalytics } from './PartnerAnalytics'
+export { default as PartnerPayments } from './PartnerPayments'
