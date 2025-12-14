@@ -1,254 +1,195 @@
-import { NextRequest, NextResponse } from "next/server"
-import Stripe from "stripe"
+// API Route: Products (Supabase)
+// app/api/admin/products/route.ts
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-11-17.clover",
-})
+import { NextRequest, NextResponse } from 'next/server'
+import { getSupabaseAdmin } from '@/lib/supabase/client'
 
-// Helper to clean category names (remove "SkyYield " prefix)
-const cleanCategory = (cat: string) => {
-  return cat?.replace(/^SkyYield\s+/i, "") || "Uncategorized"
-}
-
-// GET - Fetch all products from Stripe
-export async function GET() {
+// GET: Fetch products
+export async function GET(request: NextRequest) {
   try {
-    const products = await stripe.products.list({
-      active: true,
-      expand: ["data.default_price"],
-      limit: 100,
-    })
+    const supabase = getSupabaseAdmin()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
 
-    const storeProducts = products.data
-      .filter(product => product.default_price)
-      .map(product => {
-        const price = product.default_price as Stripe.Price
-        const unitAmount = price.unit_amount || 0
-        const storePrice = unitAmount / 100
+    // Single product fetch
+    if (id) {
+      const { data: product, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single()
 
-        return {
-          id: product.id,
-          priceId: price.id,
-          name: product.name,
-          description: product.description || "",
-          sku: product.metadata.sku || "",
-          category: cleanCategory(product.metadata.category),
-          manufacturer: product.metadata.manufacturer || "",
-          msrp: parseFloat(product.metadata.msrp || "0"),
-          storePrice: storePrice,
-          markup: parseFloat(product.metadata.markup || "0.2"),
-          features: product.metadata.features || "",
-          typeLayer: product.metadata.type_layer || "",
-          availability: product.metadata.availability || "In Stock",
-          showInStore: product.metadata.show_in_store !== "false",
-          productUrl: product.metadata.product_url || "",
-          images: product.images || [],
-          active: product.active,
-          createdAt: product.created,
-        }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name))
+      if (error || !product) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
 
-    return NextResponse.json({ products: storeProducts })
+      return NextResponse.json({ product })
+    }
+
+    // List products
+    let query = supabase.from('products').select('*')
+
+    const category = searchParams.get('category')
+    if (category) {
+      query = query.eq('category', category)
+    }
+
+    const visible = searchParams.get('visible')
+    if (visible === 'true') {
+      query = query.eq('is_visible', true)
+    }
+
+    const featured = searchParams.get('featured')
+    if (featured === 'true') {
+      query = query.eq('is_featured', true)
+    }
+
+    const inStock = searchParams.get('inStock')
+    if (inStock === 'true') {
+      query = query.eq('in_stock', true)
+    }
+
+    const search = searchParams.get('search')?.toLowerCase()
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%,manufacturer.ilike.%${search}%`)
+    }
+
+    const { data: products, error } = await query.order('sort_order', { ascending: true })
+
+    if (error) {
+      console.error('Supabase error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ products: products || [] })
   } catch (error) {
-    console.error("Error fetching products:", error)
-    return NextResponse.json({ error: "Failed to fetch products" }, { status: 500 })
+    console.error('GET /api/admin/products error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// POST - Create a new product in Stripe
+// POST: Create product
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin()
     const body = await request.json()
-    const {
-      name,
-      description,
-      sku,
-      category,
-      manufacturer,
-      msrp,
-      storePrice,
-      markup,
-      features,
-      typeLayer,
-      availability,
-      showInStore,
-      productUrl,
-      images,
-    } = body
 
-    if (!name || !storePrice) {
-      return NextResponse.json({ error: "Name and store price are required" }, { status: 400 })
+    const productData = {
+      sku: body.sku,
+      name: body.name,
+      manufacturer: body.manufacturer,
+      category: body.category,
+      subcategory: body.subcategory,
+      our_cost: body.ourCost || body.our_cost,
+      partner_price: body.partnerPrice || body.partner_price,
+      retail_price: body.retailPrice || body.retail_price,
+      msrp: body.msrp,
+      description: body.description,
+      specifications: body.specifications || {},
+      image_url: body.imageUrl || body.image_url,
+      product_url: body.productUrl || body.product_url,
+      in_stock: body.inStock ?? body.in_stock ?? true,
+      stock_quantity: body.stockQuantity || body.stock_quantity || 0,
+      lead_time_days: body.leadTimeDays || body.lead_time_days,
+      is_visible: body.isVisible ?? body.is_visible ?? true,
+      is_featured: body.isFeatured ?? body.is_featured ?? false,
+      sort_order: body.sortOrder || body.sort_order || 0,
+      tags: body.tags || [],
+      stripe_product_id: body.stripeProductId || body.stripe_product_id,
+      stripe_price_id: body.stripePriceId || body.stripe_price_id,
     }
 
-    // Create product in Stripe
-    const product = await stripe.products.create({
-      name,
-      description: description || undefined,
-      images: images?.filter((img: string) => img).slice(0, 8) || [],
-      metadata: {
-        sku: sku || "",
-        category: category || "Uncategorized",
-        manufacturer: manufacturer || "",
-        msrp: msrp?.toString() || "0",
-        markup: markup?.toString() || "0.2",
-        features: features || "",
-        type_layer: typeLayer || "",
-        availability: availability || "In Stock",
-        show_in_store: showInStore === false ? "false" : "true",
-        product_url: productUrl || "",
-      },
-    })
+    const { data: product, error } = await supabase
+      .from('products')
+      .insert(productData)
+      .select()
+      .single()
 
-    // Create price for the product
-    const price = await stripe.prices.create({
-      product: product.id,
-      unit_amount: Math.round(storePrice * 100),
-      currency: "usd",
-    })
+    if (error) {
+      console.error('Insert error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
-    // Update product with default price
-    await stripe.products.update(product.id, {
-      default_price: price.id,
-    })
-
-    return NextResponse.json({
-      success: true,
-      product: {
-        id: product.id,
-        priceId: price.id,
-        name: product.name,
-        description: product.description,
-        sku,
-        category,
-        manufacturer,
-        msrp,
-        storePrice,
-        markup,
-        features,
-        typeLayer,
-        availability,
-        productUrl,
-        images: product.images,
-      },
-    })
+    return NextResponse.json({ product }, { status: 201 })
   } catch (error) {
-    console.error("Error creating product:", error)
-    return NextResponse.json({ error: "Failed to create product" }, { status: 500 })
+    console.error('POST /api/admin/products error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// PUT - Update an existing product in Stripe
+// PUT: Update product
 export async function PUT(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin()
     const body = await request.json()
-    const {
-      id,
-      priceId,
-      name,
-      description,
-      sku,
-      category,
-      manufacturer,
-      msrp,
-      storePrice,
-      markup,
-      features,
-      typeLayer,
-      availability,
-      showInStore,
-      productUrl,
-      images,
-    } = body
+    const { id, ...updates } = body
 
     if (!id) {
-      return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    // Update product in Stripe
-    const product = await stripe.products.update(id, {
-      name,
-      description: description || "",
-      images: images?.filter((img: string) => img).slice(0, 8) || [],
-      metadata: {
-        sku: sku || "",
-        category: category || "Uncategorized",
-        manufacturer: manufacturer || "",
-        msrp: msrp?.toString() || "0",
-        markup: markup?.toString() || "0.2",
-        features: features || "",
-        type_layer: typeLayer || "",
-        availability: availability || "In Stock",
-        show_in_store: showInStore === false ? "false" : "true",
-        product_url: productUrl || "",
-      },
-    })
-
-    // Check if price changed
-    let finalPriceId = priceId
-    if (priceId) {
-      const existingPrice = await stripe.prices.retrieve(priceId)
-      const newAmount = Math.round(storePrice * 100)
-
-      if (existingPrice.unit_amount !== newAmount) {
-        // Archive old price and create new one
-        await stripe.prices.update(priceId, { active: false })
-        
-        const newPrice = await stripe.prices.create({
-          product: id,
-          unit_amount: newAmount,
-          currency: "usd",
-        })
-        
-        await stripe.products.update(id, {
-          default_price: newPrice.id,
-        })
-        
-        finalPriceId = newPrice.id
-      }
+    // Map camelCase to snake_case
+    const updateData: Record<string, any> = {}
+    const fieldMap: Record<string, string> = {
+      ourCost: 'our_cost',
+      partnerPrice: 'partner_price',
+      retailPrice: 'retail_price',
+      imageUrl: 'image_url',
+      productUrl: 'product_url',
+      inStock: 'in_stock',
+      stockQuantity: 'stock_quantity',
+      leadTimeDays: 'lead_time_days',
+      isVisible: 'is_visible',
+      isFeatured: 'is_featured',
+      sortOrder: 'sort_order',
+      stripeProductId: 'stripe_product_id',
+      stripePriceId: 'stripe_price_id',
     }
 
-    return NextResponse.json({
-      success: true,
-      product: {
-        id: product.id,
-        priceId: finalPriceId,
-        name: product.name,
-        description: product.description,
-        sku,
-        category,
-        manufacturer,
-        msrp,
-        storePrice,
-        markup,
-        features,
-        typeLayer,
-        availability,
-        productUrl,
-        images: product.images,
-      },
-    })
+    for (const [key, value] of Object.entries(updates)) {
+      const dbField = fieldMap[key] || key
+      updateData[dbField] = value
+    }
+
+    const { data: product, error } = await supabase
+      .from('products')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Update error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ product })
   } catch (error) {
-    console.error("Error updating product:", error)
-    return NextResponse.json({ error: "Failed to update product" }, { status: 500 })
+    console.error('PUT /api/admin/products error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// DELETE - Archive a product in Stripe
+// DELETE: Remove product
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin()
     const { searchParams } = new URL(request.url)
-    const id = searchParams.get("id")
+    const id = searchParams.get('id')
 
     if (!id) {
-      return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    await stripe.products.update(id, { active: false })
+    const { error } = await supabase.from('products').delete().eq('id', id)
 
-    return NextResponse.json({ success: true, message: "Product archived successfully" })
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error deleting product:", error)
-    return NextResponse.json({ error: "Failed to delete product" }, { status: 500 })
+    console.error('DELETE /api/admin/products error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,20 +1,27 @@
-// API Route: PandaDoc Webhook
-// app/api/webhooks/pandadoc/route.ts
+// API Route: PandaDoc Webhook (Supabase)
+// app/api/webhooks/pandadocs/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getSupabaseAdmin } from '@/lib/supabase/client'
 import crypto from 'crypto'
 
 // Verify webhook signature from PandaDoc
 function verifySignature(payload: string, signature: string, secret: string): boolean {
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex')
+  const expectedSignature = crypto.createHmac('sha256', secret).update(payload).digest('hex')
   return signature === expectedSignature
+}
+
+// Detect document type from name
+function detectDocumentType(name: string): 'loi' | 'contract' | 'other' {
+  const nameLower = name.toLowerCase()
+  if (nameLower.includes('letter of intent') || nameLower.includes('loi')) return 'loi'
+  if (nameLower.includes('deployment') || nameLower.includes('contract')) return 'contract'
+  return 'other'
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin()
     const body = await request.text()
     const signature = request.headers.get('x-pandadoc-signature') || ''
     const webhookSecret = process.env.PANDADOC_WEBHOOK_SECRET
@@ -32,147 +39,192 @@ export async function POST(request: NextRequest) {
 
     const { event, data: eventData } = data
 
-    // Handle different document events
-    switch (event) {
-      case 'document_state_changed': {
-        const { id: documentId, name, status, metadata } = eventData
-        const partnerId = metadata?.partner_id
+    // Log the webhook
+    await supabase.from('activity_log').insert({
+      entity_type: 'pandadoc_webhook',
+      entity_id: eventData?.id || 'unknown',
+      action: event,
+      description: `PandaDoc event: ${event}`,
+    })
 
-        console.log(`📄 Document "${name}" (${documentId}) status: ${status}`)
+    // Handle document state changes
+    if (event === 'document_state_changed') {
+      const { id: documentId, name, status, metadata } = eventData
+      const partnerId = metadata?.partner_id
+      const documentType = detectDocumentType(name)
 
-        if (partnerId) {
-          // Update partner based on document status
+      console.log(`📄 Document "${name}" (${documentId}) status: ${status}`)
+
+      // Update or create document record
+      await supabase.from('documents').upsert(
+        {
+          pandadoc_id: documentId,
+          document_type: documentType,
+          name,
+          status: status.replace('document.', ''),
+          entity_type: 'location_partner',
+          entity_id: partnerId,
+          ...(status === 'document.sent' && { sent_at: new Date().toISOString() }),
+          ...(status === 'document.viewed' && { viewed_at: new Date().toISOString() }),
+          ...(status === 'document.completed' && {
+            signed_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+          }),
+        },
+        { onConflict: 'pandadoc_id' }
+      )
+
+      // Update partner if we have partner_id
+      if (partnerId) {
+        const updateData: Record<string, any> = {}
+
+        if (documentType === 'loi') {
+          // LOI status updates
           switch (status) {
-            case 'document.viewed':
-              console.log(`👁️ Partner ${partnerId} viewed document`)
-              // Log activity: "Partner viewed LOI"
-              await logPartnerActivity(partnerId, 'document_viewed', { documentId, name })
+            case 'document.sent':
+              updateData.loi_status = 'sent'
+              updateData.loi_sent_at = new Date().toISOString()
+              updateData.loi_pandadoc_id = documentId
               break
-
+            case 'document.viewed':
+              updateData.loi_status = 'viewed'
+              updateData.loi_viewed_at = new Date().toISOString()
+              break
             case 'document.completed':
-              console.log(`✅ Partner ${partnerId} signed document`)
-              // Update stage based on document type
-              if (name.toLowerCase().includes('letter of intent') || name.toLowerCase().includes('loi')) {
-                await updatePartnerStage(partnerId, 'loi_signed', { documentId, name })
-                // Trigger loiSigned email
-                await sendPartnerEmail(partnerId, 'loiSigned')
-              } else if (name.toLowerCase().includes('deployment') || name.toLowerCase().includes('contract')) {
-                await updatePartnerStage(partnerId, 'active', { documentId, name })
-                // Trigger welcomeActive email
-                await sendPartnerEmail(partnerId, 'welcomeActive')
+              updateData.loi_status = 'signed'
+              updateData.loi_signed_at = new Date().toISOString()
+              updateData.pipeline_stage = 'loi_signed'
+              updateData.pipeline_stage_changed_at = new Date().toISOString()
+
+              // Extract device ownership from metadata if present
+              if (metadata?.device_ownership) {
+                updateData.loi_device_ownership = metadata.device_ownership
+              }
+              if (metadata?.device_count) {
+                updateData.loi_device_count = parseInt(metadata.device_count)
+              }
+              if (metadata?.device_type) {
+                updateData.loi_device_type = metadata.device_type
               }
               break
-
-            case 'document.sent':
-              console.log(`📤 Document sent to partner ${partnerId}`)
-              await logPartnerActivity(partnerId, 'document_sent', { documentId, name })
-              break
-
-            case 'document.draft':
-              console.log(`📝 Document ${documentId} is in draft`)
-              break
-
-            case 'document.voided':
-              console.log(`🚫 Document ${documentId} was voided`)
-              await logPartnerActivity(partnerId, 'document_voided', { documentId, name })
-              break
-
-            default:
-              console.log(`📄 Document status: ${status}`)
           }
-        } else {
-          console.log('⚠️ No partner_id in document metadata')
+        } else if (documentType === 'contract') {
+          // Deployment contract status updates
+          switch (status) {
+            case 'document.sent':
+              updateData.contract_status = 'sent'
+              updateData.contract_sent_at = new Date().toISOString()
+              updateData.contract_pandadoc_id = documentId
+              updateData.pipeline_stage = 'contract_sent'
+              break
+            case 'document.viewed':
+              updateData.contract_status = 'viewed'
+              updateData.contract_viewed_at = new Date().toISOString()
+              break
+            case 'document.completed':
+              updateData.contract_status = 'signed'
+              updateData.contract_signed_at = new Date().toISOString()
+              updateData.pipeline_stage = 'active'
+              updateData.pipeline_stage_changed_at = new Date().toISOString()
+              updateData.payments_blocked_until_contract = false
+              break
+          }
         }
-        break
-      }
 
-      case 'recipient_completed': {
-        const { document_id, recipient } = eventData
-        console.log(`✍️ Recipient ${recipient.email} signed document ${document_id}`)
-        break
-      }
+        if (Object.keys(updateData).length > 0) {
+          await supabase.from('location_partners').update(updateData).eq('id', partnerId)
 
-      default:
-        console.log(`📄 Unknown PandaDoc event: ${event}`)
+          // Log activity
+          await supabase.from('activity_log').insert({
+            entity_type: 'location_partner',
+            entity_id: partnerId,
+            action: `document_${status.replace('document.', '')}`,
+            description: `${documentType.toUpperCase()} ${status.replace('document.', '')}: "${name}"`,
+          })
+
+          // If LOI signed with SkyYield ownership, create purchase request
+          if (
+            documentType === 'loi' &&
+            status === 'document.completed' &&
+            updateData.loi_device_ownership === 'skyyield_owned' &&
+            updateData.loi_device_count > 0
+          ) {
+            await supabase.from('device_purchase_requests').insert({
+              source: 'loi_auto',
+              source_document_id: documentId,
+              location_partner_id: partnerId,
+              product_name: updateData.loi_device_type || 'TBD',
+              quantity: updateData.loi_device_count,
+              ownership: 'skyyield_owned',
+              status: 'auto_created',
+              notes: `Auto-created from LOI signature (${name})`,
+            })
+
+            console.log(`📦 Auto-created purchase request for ${updateData.loi_device_count} devices`)
+          }
+
+          // Send appropriate emails
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+          if (documentType === 'loi' && status === 'document.completed') {
+            // Send LOI signed email with Calendly for install
+            await fetch(`${baseUrl}/api/pipeline/email`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                templateId: 'loiSigned',
+                partnerId,
+              }),
+            })
+          }
+
+          if (documentType === 'contract' && status === 'document.completed') {
+            // Send welcome to active email
+            await fetch(`${baseUrl}/api/pipeline/email`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                templateId: 'welcomeActive',
+                partnerId,
+              }),
+            })
+          }
+
+          console.log(`✅ Updated partner ${partnerId} for ${documentType} ${status}`)
+        }
+      } else {
+        console.log('⚠️ No partner_id in document metadata')
+      }
+    }
+
+    // Handle recipient completed
+    if (event === 'recipient_completed') {
+      const { document_id, recipient } = eventData
+      console.log(`✍️ Recipient ${recipient?.email} signed document ${document_id}`)
+
+      // Update document with signer info
+      await supabase
+        .from('documents')
+        .update({
+          recipient_email: recipient?.email,
+          recipient_name: recipient?.first_name
+            ? `${recipient.first_name} ${recipient.last_name || ''}`
+            : undefined,
+        })
+        .eq('pandadoc_id', document_id)
     }
 
     return NextResponse.json({ received: true, event })
-
   } catch (error) {
     console.error('PandaDoc webhook error:', error)
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
   }
 }
 
-// Helper: Log activity to partner record
-async function logPartnerActivity(partnerId: string, action: string, details: any) {
-  try {
-    // TODO: Replace with your actual database call
-    console.log(`📝 Logging activity for partner ${partnerId}: ${action}`, details)
-    
-    // Example: Update partner in database
-    // await db.partnerActivity.create({
-    //   data: { partnerId, action, details: JSON.stringify(details), timestamp: new Date() }
-    // })
-  } catch (error) {
-    console.error('Failed to log activity:', error)
-  }
-}
-
-// Helper: Update partner stage
-async function updatePartnerStage(partnerId: string, newStage: string, details: any) {
-  try {
-    console.log(`🔄 Updating partner ${partnerId} to stage: ${newStage}`)
-    
-    // Call internal API to update partner
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    await fetch(`${baseUrl}/api/pipeline/partners/${partnerId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        stage: newStage,
-        activity: {
-          action: 'document_signed',
-          details
-        }
-      })
-    })
-  } catch (error) {
-    console.error('Failed to update partner stage:', error)
-  }
-}
-
-// Helper: Send email to partner
-async function sendPartnerEmail(partnerId: string, templateId: string) {
-  try {
-    console.log(`📧 Sending ${templateId} email to partner ${partnerId}`)
-    
-    // Get partner data first, then send email
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    
-    // Fetch partner
-    const partnerRes = await fetch(`${baseUrl}/api/pipeline/partners/${partnerId}`)
-    if (!partnerRes.ok) {
-      console.error('Failed to fetch partner for email')
-      return
-    }
-    const { partner } = await partnerRes.json()
-    
-    // Send email
-    await fetch(`${baseUrl}/api/pipeline/email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ templateId, partner })
-    })
-  } catch (error) {
-    console.error('Failed to send partner email:', error)
-  }
-}
-
 // GET endpoint for webhook verification
 export async function GET() {
-  return NextResponse.json({ 
+  return NextResponse.json({
     status: 'PandaDoc webhook endpoint active',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   })
 }
