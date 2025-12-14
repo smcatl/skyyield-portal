@@ -103,6 +103,10 @@ export default function CRMTab() {
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
   
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
+  
   // Form state for new prospect
   const [newProspect, setNewProspect] = useState<Partial<Prospect>>({
     prospect_type: 'location_partner',
@@ -116,6 +120,47 @@ export default function CRMTab() {
   // Note input state
   const [newNote, setNewNote] = useState('')
   const [sendingInvite, setSendingInvite] = useState(false)
+
+  // Toggle selection
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds)
+    if (newSet.has(id)) {
+      newSet.delete(id)
+    } else {
+      newSet.add(id)
+    }
+    setSelectedIds(newSet)
+  }
+
+  // Select all / none
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredProspects.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredProspects.map(p => p.id)))
+    }
+  }
+
+  // Bulk delete
+  const bulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} prospect(s)? This cannot be undone.`)) return
+    
+    setDeleting(true)
+    try {
+      const deletePromises = Array.from(selectedIds).map(id =>
+        fetch(`/api/crm/prospects/${id}`, { method: 'DELETE' })
+      )
+      await Promise.all(deletePromises)
+      setSelectedIds(new Set())
+      fetchProspects()
+    } catch (err) {
+      console.error('Error deleting prospects:', err)
+      alert('Some deletions may have failed')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   // Fetch prospects
   const fetchProspects = async () => {
@@ -388,7 +433,7 @@ export default function CRMTab() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
           <input
@@ -428,6 +473,28 @@ export default function CRMTab() {
         >
           <RefreshCw className="w-4 h-4" />
         </button>
+
+        {/* Bulk Actions */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 ml-auto bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg px-3 py-1.5">
+            <span className="text-[#94A3B8] text-sm">{selectedIds.size} selected</span>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-[#64748B] hover:text-white text-sm"
+            >
+              Clear
+            </button>
+            <div className="w-px h-4 bg-[#2D3B5F]" />
+            <button
+              onClick={bulkDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 px-3 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors text-sm disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {deleting ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* List View */}
@@ -436,6 +503,14 @@ export default function CRMTab() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#2D3B5F]">
+                <th className="w-10 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={filteredProspects.length > 0 && selectedIds.size === filteredProspects.length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9] focus:ring-offset-0 cursor-pointer"
+                  />
+                </th>
                 <th className="text-left px-4 py-3 text-[#64748B] text-sm font-medium">Contact</th>
                 <th className="text-left px-4 py-3 text-[#64748B] text-sm font-medium">Company</th>
                 <th className="text-left px-4 py-3 text-[#64748B] text-sm font-medium">Type</th>
@@ -448,25 +523,34 @@ export default function CRMTab() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">
+                  <td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">
                     Loading prospects...
                   </td>
                 </tr>
               ) : filteredProspects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">
+                  <td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">
                     No prospects found. Add your first prospect to get started.
                   </td>
                 </tr>
               ) : (
                 filteredProspects.map(prospect => {
                   const statusInfo = getStatusInfo(prospect.status)
+                  const isSelected = selectedIds.has(prospect.id)
                   return (
                     <tr 
                       key={prospect.id} 
-                      className="border-b border-[#2D3B5F] hover:bg-[#0A0F2C]/50 cursor-pointer"
+                      className={`border-b border-[#2D3B5F] hover:bg-[#0A0F2C]/50 cursor-pointer ${isSelected ? 'bg-[#0EA5E9]/10' : ''}`}
                       onClick={() => { setSelectedProspect(prospect); setShowDetailModal(true) }}
                     >
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(prospect.id)}
+                          className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9] focus:ring-offset-0 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-white">
                           {prospect.first_name} {prospect.last_name}
