@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
             stripe_payment_intent_id: session.payment_intent as string,
             customer_email: session.customer_details?.email,
             customer_name: session.customer_details?.name,
-            shipping_address: session.shipping_details?.address,
+            shipping_address: (session as any).shipping_details?.address,
             subtotal: (session.amount_subtotal || 0) / 100,
             shipping_cost: (session.total_details?.amount_shipping || 0) / 100,
             tax: (session.total_details?.amount_tax || 0) / 100,
