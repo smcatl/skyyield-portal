@@ -3,6 +3,7 @@
 import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import CryptoPriceHeader from '@/components/CryptoPriceHeader'
+import CRMTab from '@/components/admin/crm/CRMTab'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
@@ -19,7 +20,7 @@ import {
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
-type TabType = 'overview' | 'users' | 'pipeline' | 'followups' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
+type TabType = 'overview' | 'users' | 'crm' | 'pipeline' | 'followups' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
 
 // Pipeline and Settings types
 interface FollowUpAttempt {
@@ -1280,6 +1281,7 @@ export default function AdminPortalPage() {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
+    { id: 'crm', label: 'CRM', icon: Target },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
     { id: 'followups', label: 'Follow-Ups', icon: Bell },
     { id: 'device-purchases', label: 'Device Purchases', icon: Package },
@@ -1635,6 +1637,11 @@ export default function AdminPortalPage() {
               </table>
             </div>
           </div>
+        )}
+
+        {/* CRM Tab */}
+        {activeTab === 'crm' && (
+          <CRMTab />
         )}
 
         {/* Store Products Tab */}
