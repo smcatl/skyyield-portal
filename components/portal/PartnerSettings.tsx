@@ -7,7 +7,7 @@ import {
   Save, Loader2, CheckCircle, Camera, CreditCard,
   Bell, Shield, Key
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
+import { supabase, isSupabaseAvailable } from '@/lib/supabase/client'
 
 interface PersonalInfo {
   firstName: string
@@ -96,6 +96,37 @@ export default function PartnerSettings({
   const loadSettings = async () => {
     setLoading(true)
     try {
+      // Skip DB load if supabase not available (e.g., preview mode)
+      if (!isSupabaseAvailable() || !supabase) {
+        // Use mock data for preview
+        setPersonalInfo({
+          firstName: user?.firstName || 'Preview',
+          lastName: user?.lastName || 'User',
+          email: user?.primaryEmailAddress?.emailAddress || 'preview@example.com',
+          phone: '(555) 123-4567',
+        })
+        setCompanyInfo({
+          companyName: 'Preview Company LLC',
+          companyWebsite: 'https://example.com',
+          companyPhone: '(555) 987-6543',
+          companyEmail: 'info@example.com',
+          address: '123 Preview Street',
+          city: 'Atlanta',
+          state: 'GA',
+          zipCode: '30301',
+          businessType: 'LLC',
+        })
+        setNotificationPrefs({
+          emailNotifications: true,
+          smsNotifications: false,
+          weeklyDigest: true,
+          paymentAlerts: true,
+          newReferralAlerts: true,
+        })
+        setLoading(false)
+        return
+      }
+
       // Load from appropriate table based on partner type
       const tableName = getTableName(partnerType)
       const { data, error } = await supabase
@@ -160,6 +191,15 @@ export default function PartnerSettings({
     setSaving(true)
     setError(null)
     try {
+      // Skip save if supabase not available (e.g., preview mode)
+      if (!isSupabaseAvailable() || !supabase) {
+        // Just simulate success in preview mode
+        setSaved(true)
+        setTimeout(() => setSaved(false), 3000)
+        setSaving(false)
+        return
+      }
+
       const tableName = getTableName(partnerType)
 
       const updateData: any = {

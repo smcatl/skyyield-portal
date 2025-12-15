@@ -1,29 +1,44 @@
 // Supabase Client Configuration
 // lib/supabase/client.ts
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 // Client for browser/public use (respects RLS)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Only create if we have valid credentials
+let supabase: SupabaseClient | null = null
+if (supabaseUrl && supabaseAnonKey) {
+  supabase = createClient(supabaseUrl, supabaseAnonKey)
+}
 
 // Admin client for server-side operations (bypasses RLS)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-})
+let supabaseAdmin: SupabaseClient | null = null
+if (supabaseUrl && supabaseServiceKey) {
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
+}
+
+// Export with type assertions for convenience (components should check for null)
+export { supabase, supabaseAdmin }
 
 // Helper to get admin client (for API routes)
 export function getSupabaseAdmin() {
-  if (!supabaseUrl || !supabaseServiceKey) {
+  if (!supabaseUrl || !supabaseServiceKey || !supabaseAdmin) {
     throw new Error('Missing Supabase environment variables')
   }
   return supabaseAdmin
+}
+
+// Helper to check if supabase is available
+export function isSupabaseAvailable(): boolean {
+  return !!(supabaseUrl && supabaseAnonKey && supabase)
 }
 
 // Database types (matches our schema)
