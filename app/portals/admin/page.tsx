@@ -1486,9 +1486,24 @@ export default function AdminPortalPage() {
                       Relationship Partner
                     </Link>
                     <div className="border-t border-[#2D3B5F] my-2" />
+                    <div className="text-[#64748B] text-xs uppercase px-3 py-2">Other Portals</div>
                     <Link href="/portals/contractor?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
                       <div className="w-2 h-2 rounded-full bg-orange-400" />
                       Contractor
+                    </Link>
+                    <Link href="/portals/employee?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      Employee
+                    </Link>
+                    <div className="border-t border-[#2D3B5F] my-2" />
+                    <div className="text-[#64748B] text-xs uppercase px-3 py-2">Tools & Apps</div>
+                    <Link href="/calculator?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
+                      <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                      Location Calculator
+                    </Link>
+                    <Link href="/portals/customer?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
+                      <div className="w-2 h-2 rounded-full bg-teal-400" />
+                      Customer Portal
                     </Link>
                   </div>
                 </div>
