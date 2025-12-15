@@ -51,12 +51,10 @@ function ReferralPartnerPortalContent() {
     if (!isLoaded) return
     if (!user) { router.push('/sign-in'); return }
     
-    const role = (user.unsafeMetadata as any)?.role || (user.publicMetadata as any)?.role
-    const userType = (user.unsafeMetadata as any)?.userType || (user.publicMetadata as any)?.userType
     const status = (user.unsafeMetadata as any)?.status || 'pending'
     
-    // Allow admins in preview mode
-    if (isPreviewMode && (role === 'admin' || userType === 'Admin')) {
+    // Allow preview mode for any authenticated user (only admins can access the preview links anyway)
+    if (isPreviewMode) {
       setPartnerId('preview-admin')
       loadPortalData()
       return
