@@ -68,23 +68,52 @@ function ReferralPartnerPortalContent() {
   const loadPortalData = async () => {
     setLoading(true)
     try {
-      // All venues from referrals (read-only view)
-      setVenues([
-        { id: '1', name: 'Downtown Coffee Shop', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', devicesInstalled: 2, dataUsageGB: 456.2, referredBy: 'You' },
-        { id: '2', name: 'Main St Restaurant', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', devicesInstalled: 1, dataUsageGB: 312.8, referredBy: 'You' },
-        { id: '3', name: 'Midtown Gym', address: '789 Fitness Blvd', city: 'Atlanta', state: 'GA', type: 'Gym', status: 'trial', devicesInstalled: 3, dataUsageGB: 125.4, referredBy: 'You' },
-      ])
-      setDevices([
-        { id: '1', name: 'AP-Coffee-Main', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-001234', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z' },
-        { id: '2', name: 'AP-Coffee-Patio', type: 'UniFi U6 Mesh', serialNumber: 'UNF6M-005678', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 221.7, lastSeen: '2024-12-14T18:30:00Z' },
-        { id: '3', name: 'AP-Restaurant-1', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-009876', venueId: '2', venueName: 'Main St Restaurant', status: 'online', dataUsageGB: 312.8, lastSeen: '2024-12-14T18:25:00Z' },
-        { id: '4', name: 'AP-Gym-Floor', type: 'UniFi U6 Enterprise', serialNumber: 'UNF6E-001111', venueId: '3', venueName: 'Midtown Gym', status: 'online', dataUsageGB: 65.2, lastSeen: '2024-12-14T18:28:00Z' },
-        { id: '5', name: 'AP-Gym-Cardio', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-002222', venueId: '3', venueName: 'Midtown Gym', status: 'offline', dataUsageGB: 35.1, lastSeen: '2024-12-14T12:00:00Z' },
-      ])
+      // Fetch real data from API
+      const res = await fetch(`/api/portal/partner-data?partnerType=referral_partner${partnerId ? `&partnerId=${partnerId}` : ''}`)
+      const data = await res.json()
+      
+      if (data.venues) {
+        setVenues(data.venues.map((v: any) => ({ ...v, referredBy: 'You' })))
+      } else {
+        // Fallback mock data
+        setVenues([
+          { id: '1', name: 'Downtown Coffee Shop', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', devicesInstalled: 2, dataUsageGB: 456.2, referredBy: 'You' },
+          { id: '2', name: 'Main St Restaurant', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', devicesInstalled: 1, dataUsageGB: 312.8, referredBy: 'You' },
+          { id: '3', name: 'Midtown Gym', address: '789 Fitness Blvd', city: 'Atlanta', state: 'GA', type: 'Gym', status: 'trial', devicesInstalled: 3, dataUsageGB: 125.4, referredBy: 'You' },
+        ])
+      }
+      
+      if (data.devices) {
+        setDevices(data.devices)
+      } else {
+        setDevices([
+          { id: '1', name: 'AP-Coffee-Main', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-001234', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z' },
+          { id: '2', name: 'AP-Coffee-Patio', type: 'UniFi U6 Mesh', serialNumber: 'UNF6M-005678', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 221.7, lastSeen: '2024-12-14T18:30:00Z' },
+          { id: '3', name: 'AP-Restaurant-1', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-009876', venueId: '2', venueName: 'Main St Restaurant', status: 'online', dataUsageGB: 312.8, lastSeen: '2024-12-14T18:25:00Z' },
+        ])
+      }
+      
+      if (data.stats) {
+        setStats({
+          totalVenues: data.stats.totalVenues || 0,
+          activeVenues: data.stats.activeVenues || 0,
+          totalDevices: data.stats.totalDevices || 0,
+          onlineDevices: data.stats.onlineDevices || 0,
+          totalDataGB: data.stats.totalDataGB || 0,
+          myEarnings: data.stats.monthlyEarnings || 0,
+          pendingPayments: data.stats.pendingPayments || 0,
+          totalReferrals: data.stats.totalReferrals || 0,
+          convertedReferrals: data.stats.activeReferrals || 0,
+        })
+      } else {
+        setStats({ totalVenues: 3, activeVenues: 2, totalDevices: 5, onlineDevices: 4, totalDataGB: 869.3, myEarnings: 223.75, pendingPayments: 77.75, totalReferrals: 5, convertedReferrals: 3 })
+      }
+      
       setDocuments([
         { id: '1', name: 'Referral Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'Commission Structure', type: 'policy', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
       ])
+      
       // Fetch materials from API
       try {
         const materialsRes = await fetch('/api/materials?partnerType=referral_partner')
@@ -110,8 +139,12 @@ function ReferralPartnerPortalContent() {
           { id: '3', title: 'Sales Best Practices', description: 'Tips for pitching SkyYield.', type: 'video', category: 'Sales', duration: '18:45', url: '#', completed: false, required: false },
         ])
       }
-      setStats({ totalVenues: 3, activeVenues: 2, totalDevices: 5, onlineDevices: 4, totalDataGB: 869.3, myEarnings: 223.75, pendingPayments: 77.75, totalReferrals: 5, convertedReferrals: 3 })
-    } catch (error) { console.error('Error:', error) }
+    } catch (error) { 
+      console.error('Error loading portal data:', error)
+      setVenues([])
+      setDevices([])
+      setStats({ totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0, totalDataGB: 0, myEarnings: 0, pendingPayments: 0, totalReferrals: 0, convertedReferrals: 0 })
+    }
     finally { setLoading(false) }
   }
 

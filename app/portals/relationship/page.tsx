@@ -78,33 +78,67 @@ function RelationshipPartnerPortalContent() {
   const loadPortalData = async () => {
     setLoading(true)
     try {
-      setIntroductions([
-        { id: '1', name: 'Robert Chen', company: 'Chen Investment Group', email: 'robert@chencapital.com', type: 'investor', status: 'converted', introducedAt: '2024-08-15', reward: 5000.00 },
-        { id: '2', name: 'Amanda Williams', company: 'Williams Hotel Group', email: 'amanda@williamshotels.com', type: 'channel_partner', status: 'converted', introducedAt: '2024-09-10', reward: 2500.00 },
-        { id: '3', name: 'David Park', company: 'Park Ventures', email: 'david@parkvc.com', type: 'investor', status: 'in_discussion', introducedAt: '2024-11-01' },
-        { id: '4', name: 'Jennifer Lee', company: 'Metro Retail Corp', email: 'jennifer@metroretail.com', type: 'location_partner', status: 'meeting_scheduled', introducedAt: '2024-11-20' },
-        { id: '5', name: 'Michael Brown', company: 'Brown Capital', email: 'michael@browncap.com', type: 'investor', status: 'introduced', introducedAt: '2024-12-01' },
-      ])
-      setVenues([
-        { id: '1', name: 'Williams Hotel Downtown', address: '100 Hotel Plaza', city: 'Atlanta', state: 'GA', type: 'Hotel', status: 'active', devicesInstalled: 5, dataUsageGB: 856.4 },
-        { id: '2', name: 'Williams Hotel Midtown', address: '200 Hotel Blvd', city: 'Atlanta', state: 'GA', type: 'Hotel', status: 'active', devicesInstalled: 4, dataUsageGB: 712.3 },
-        { id: '3', name: 'Williams Hotel Airport', address: '300 Terminal Dr', city: 'Atlanta', state: 'GA', type: 'Hotel', status: 'pending', devicesInstalled: 0, dataUsageGB: 0 },
-      ])
-      setDevices([
-        { id: '1', name: 'AP-Hotel-DT-Lobby', type: 'UniFi U6 Enterprise', venueName: 'Williams Hotel Downtown', status: 'online', dataUsageGB: 245.8, lastSeen: '2024-12-14T18:30:00Z' },
-        { id: '2', name: 'AP-Hotel-DT-Floor2', type: 'UniFi U6 Pro', venueName: 'Williams Hotel Downtown', status: 'online', dataUsageGB: 198.2, lastSeen: '2024-12-14T18:30:00Z' },
-        { id: '3', name: 'AP-Hotel-DT-Floor3', type: 'UniFi U6 Pro', venueName: 'Williams Hotel Downtown', status: 'online', dataUsageGB: 178.4, lastSeen: '2024-12-14T18:25:00Z' },
-        { id: '4', name: 'AP-Hotel-DT-Pool', type: 'UniFi U6 Mesh', venueName: 'Williams Hotel Downtown', status: 'online', dataUsageGB: 134.0, lastSeen: '2024-12-14T18:28:00Z' },
-        { id: '5', name: 'AP-Hotel-DT-Conf', type: 'UniFi U6 Lite', venueName: 'Williams Hotel Downtown', status: 'offline', dataUsageGB: 100.0, lastSeen: '2024-12-14T10:00:00Z' },
-        { id: '6', name: 'AP-Hotel-MT-Lobby', type: 'UniFi U6 Enterprise', venueName: 'Williams Hotel Midtown', status: 'online', dataUsageGB: 312.3, lastSeen: '2024-12-14T18:30:00Z' },
-        { id: '7', name: 'AP-Hotel-MT-Floor2', type: 'UniFi U6 Pro', venueName: 'Williams Hotel Midtown', status: 'online', dataUsageGB: 200.0, lastSeen: '2024-12-14T18:30:00Z' },
-        { id: '8', name: 'AP-Hotel-MT-Floor3', type: 'UniFi U6 Pro', venueName: 'Williams Hotel Midtown', status: 'online', dataUsageGB: 125.0, lastSeen: '2024-12-14T18:25:00Z' },
-        { id: '9', name: 'AP-Hotel-MT-Gym', type: 'UniFi U6 Lite', venueName: 'Williams Hotel Midtown', status: 'online', dataUsageGB: 75.0, lastSeen: '2024-12-14T18:28:00Z' },
-      ])
+      // Fetch real data from API
+      const res = await fetch(`/api/portal/partner-data?partnerType=relationship_partner${partnerId ? `&partnerId=${partnerId}` : ''}`)
+      const data = await res.json()
+      
+      // Transform referrals to introductions format
+      if (data.referrals) {
+        setIntroductions(data.referrals.map((r: any) => ({
+          id: r.id,
+          name: r.contactName,
+          company: r.companyName,
+          email: r.email,
+          type: 'location_partner',
+          status: r.status === 'active' ? 'converted' : r.status,
+          introducedAt: r.createdAt,
+          reward: 0,
+        })))
+      } else {
+        setIntroductions([
+          { id: '1', name: 'Robert Chen', company: 'Chen Investment Group', email: 'robert@chencapital.com', type: 'investor', status: 'converted', introducedAt: '2024-08-15', reward: 5000.00 },
+          { id: '2', name: 'Amanda Williams', company: 'Williams Hotel Group', email: 'amanda@williamshotels.com', type: 'channel_partner', status: 'converted', introducedAt: '2024-09-10', reward: 2500.00 },
+          { id: '3', name: 'David Park', company: 'Park Ventures', email: 'david@parkvc.com', type: 'investor', status: 'in_discussion', introducedAt: '2024-11-01' },
+        ])
+      }
+      
+      if (data.venues) {
+        setVenues(data.venues)
+      } else {
+        setVenues([
+          { id: '1', name: 'Williams Hotel Downtown', address: '100 Hotel Plaza', city: 'Atlanta', state: 'GA', type: 'Hotel', status: 'active', devicesInstalled: 5, dataUsageGB: 856.4 },
+          { id: '2', name: 'Williams Hotel Midtown', address: '200 Hotel Blvd', city: 'Atlanta', state: 'GA', type: 'Hotel', status: 'active', devicesInstalled: 4, dataUsageGB: 712.3 },
+        ])
+      }
+      
+      if (data.devices) {
+        setDevices(data.devices)
+      } else {
+        setDevices([
+          { id: '1', name: 'AP-Hotel-DT-Lobby', type: 'UniFi U6 Enterprise', venueName: 'Williams Hotel Downtown', status: 'online', dataUsageGB: 245.8, lastSeen: '2024-12-14T18:30:00Z' },
+        ])
+      }
+      
+      if (data.stats) {
+        setStats({
+          totalIntroductions: data.stats.totalReferrals || 0,
+          convertedIntroductions: data.stats.activeReferrals || 0,
+          pendingIntroductions: (data.stats.totalReferrals || 0) - (data.stats.activeReferrals || 0),
+          totalVenues: data.stats.totalVenues || 0,
+          activeVenues: data.stats.activeVenues || 0,
+          totalDevices: data.stats.totalDevices || 0,
+          onlineDevices: data.stats.onlineDevices || 0,
+          totalDataGB: data.stats.totalDataGB || 0,
+        })
+      } else {
+        setStats({ totalIntroductions: 5, convertedIntroductions: 2, pendingIntroductions: 3, totalVenues: 3, activeVenues: 2, totalDevices: 9, onlineDevices: 8, totalDataGB: 1568.7 })
+      }
+      
       setDocuments([
         { id: '1', name: 'Relationship Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'NDA - Confidentiality Agreement', type: 'agreement', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
       ])
+      
       // Fetch materials from API
       try {
         const materialsRes = await fetch('/api/materials?partnerType=relationship_partner')
@@ -123,14 +157,18 @@ function RelationshipPartnerPortalContent() {
           })))
         }
       } catch (err) {
-        // Fallback to default materials
         setMaterials([
           { id: '1', title: 'Relationship Partner Overview', description: 'Understanding your role.', type: 'video', category: 'Onboarding', duration: '10:00', url: '#', completed: true, required: true },
           { id: '2', title: 'Making Effective Introductions', description: 'Best practices for warm intros.', type: 'document', category: 'Skills', duration: '8 min', url: '#', completed: true, required: true },
         ])
       }
-      setStats({ totalIntroductions: 5, convertedIntroductions: 2, pendingIntroductions: 3, totalVenues: 3, activeVenues: 2, totalDevices: 9, onlineDevices: 8, totalDataGB: 1568.7 })
-    } catch (error) { console.error('Error:', error) }
+    } catch (error) { 
+      console.error('Error loading portal data:', error)
+      setIntroductions([])
+      setVenues([])
+      setDevices([])
+      setStats({ totalIntroductions: 0, convertedIntroductions: 0, pendingIntroductions: 0, totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0, totalDataGB: 0 })
+    }
     finally { setLoading(false) }
   }
 

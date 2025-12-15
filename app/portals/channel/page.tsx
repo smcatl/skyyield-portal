@@ -78,31 +78,67 @@ function ChannelPartnerPortalContent() {
   const loadPortalData = async () => {
     setLoading(true)
     try {
-      setClients([
-        { id: '1', name: 'John Smith', company: 'Smith Hospitality Group', email: 'john@smithhg.com', status: 'active', venueCount: 5, totalDataGB: 1245.6 },
-        { id: '2', name: 'Sarah Johnson', company: 'Metro Restaurant Group', email: 'sarah@metrorests.com', status: 'active', venueCount: 3, totalDataGB: 680.5 },
-        { id: '3', name: 'Mike Davis', company: 'FitLife Gyms', email: 'mike@fitlifegyms.com', status: 'pending', venueCount: 0, totalDataGB: 0 },
-      ])
-      setVenues([
-        { id: '1', name: 'Downtown Bistro', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', clientName: 'Smith Hospitality', devicesInstalled: 2, dataUsageGB: 456.2 },
-        { id: '2', name: 'Midtown Cafe', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', clientName: 'Smith Hospitality', devicesInstalled: 1, dataUsageGB: 298.2 },
-        { id: '3', name: 'Harbor Restaurant', address: '789 Bay Dr', city: 'Savannah', state: 'GA', type: 'Restaurant', status: 'active', clientName: 'Metro Restaurant', devicesInstalled: 3, dataUsageGB: 445.8 },
-        { id: '4', name: 'City Gym', address: '321 Fitness Blvd', city: 'Atlanta', state: 'GA', type: 'Gym', status: 'trial', clientName: 'FitLife Gyms', devicesInstalled: 2, dataUsageGB: 125.2 },
-      ])
-      setDevices([
-        { id: '1', name: 'AP-Bistro-Main', type: 'UniFi U6 Pro', clientName: 'Smith Hospitality', venueName: 'Downtown Bistro', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z' },
-        { id: '2', name: 'AP-Bistro-Bar', type: 'UniFi U6 Mesh', clientName: 'Smith Hospitality', venueName: 'Downtown Bistro', status: 'online', dataUsageGB: 221.7, lastSeen: '2024-12-14T18:30:00Z' },
-        { id: '3', name: 'AP-Cafe-1', type: 'UniFi U6 Lite', clientName: 'Smith Hospitality', venueName: 'Midtown Cafe', status: 'online', dataUsageGB: 298.2, lastSeen: '2024-12-14T18:25:00Z' },
-        { id: '4', name: 'AP-Harbor-Floor', type: 'UniFi U6 Enterprise', clientName: 'Metro Restaurant', venueName: 'Harbor Restaurant', status: 'online', dataUsageGB: 245.8, lastSeen: '2024-12-14T18:28:00Z' },
-        { id: '5', name: 'AP-Harbor-Patio', type: 'UniFi U6 Mesh', clientName: 'Metro Restaurant', venueName: 'Harbor Restaurant', status: 'online', dataUsageGB: 120.0, lastSeen: '2024-12-14T18:28:00Z' },
-        { id: '6', name: 'AP-Harbor-Bar', type: 'UniFi U6 Lite', clientName: 'Metro Restaurant', venueName: 'Harbor Restaurant', status: 'offline', dataUsageGB: 80.0, lastSeen: '2024-12-14T10:00:00Z' },
-        { id: '7', name: 'AP-Gym-Floor', type: 'UniFi U6 Pro', clientName: 'FitLife Gyms', venueName: 'City Gym', status: 'online', dataUsageGB: 85.2, lastSeen: '2024-12-14T18:20:00Z' },
-        { id: '8', name: 'AP-Gym-Cardio', type: 'UniFi U6 Lite', clientName: 'FitLife Gyms', venueName: 'City Gym', status: 'online', dataUsageGB: 40.0, lastSeen: '2024-12-14T18:20:00Z' },
-      ])
+      // Fetch real data from API
+      const res = await fetch(`/api/portal/partner-data?partnerType=channel_partner${partnerId ? `&partnerId=${partnerId}` : ''}`)
+      const data = await res.json()
+      
+      // Transform referrals to clients format
+      if (data.referrals) {
+        setClients(data.referrals.map((r: any) => ({
+          id: r.id,
+          name: r.contactName,
+          company: r.companyName,
+          email: r.email,
+          status: r.status,
+          venueCount: r.venueCount || 0,
+          totalDataGB: 0,
+        })))
+      } else {
+        setClients([
+          { id: '1', name: 'John Smith', company: 'Smith Hospitality Group', email: 'john@smithhg.com', status: 'active', venueCount: 5, totalDataGB: 1245.6 },
+          { id: '2', name: 'Sarah Johnson', company: 'Metro Restaurant Group', email: 'sarah@metrorests.com', status: 'active', venueCount: 3, totalDataGB: 680.5 },
+          { id: '3', name: 'Mike Davis', company: 'FitLife Gyms', email: 'mike@fitlifegyms.com', status: 'pending', venueCount: 0, totalDataGB: 0 },
+        ])
+      }
+      
+      if (data.venues) {
+        setVenues(data.venues.map((v: any) => ({ ...v, clientName: v.clientName || '' })))
+      } else {
+        setVenues([
+          { id: '1', name: 'Downtown Bistro', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', clientName: 'Smith Hospitality', devicesInstalled: 2, dataUsageGB: 456.2 },
+          { id: '2', name: 'Midtown Cafe', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', clientName: 'Smith Hospitality', devicesInstalled: 1, dataUsageGB: 298.2 },
+        ])
+      }
+      
+      if (data.devices) {
+        setDevices(data.devices.map((d: any) => ({ ...d, clientName: d.clientName || '' })))
+      } else {
+        setDevices([
+          { id: '1', name: 'AP-Bistro-Main', type: 'UniFi U6 Pro', clientName: 'Smith Hospitality', venueName: 'Downtown Bistro', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z' },
+        ])
+      }
+      
+      if (data.stats) {
+        setStats({
+          totalClients: data.stats.totalReferrals || 0,
+          activeClients: data.stats.activeReferrals || 0,
+          totalVenues: data.stats.totalVenues || 0,
+          activeVenues: data.stats.activeVenues || 0,
+          totalDevices: data.stats.totalDevices || 0,
+          onlineDevices: data.stats.onlineDevices || 0,
+          totalDataGB: data.stats.totalDataGB || 0,
+          myEarnings: data.stats.monthlyEarnings || 0,
+          pendingPayments: data.stats.pendingPayments || 0,
+        })
+      } else {
+        setStats({ totalClients: 3, activeClients: 2, totalVenues: 4, activeVenues: 3, totalDevices: 8, onlineDevices: 7, totalDataGB: 1325.4, myEarnings: 412.75, pendingPayments: 186.50 })
+      }
+      
       setDocuments([
         { id: '1', name: 'Channel Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'White Label Guidelines', type: 'policy', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
       ])
+      
       // Fetch materials from API
       try {
         const materialsRes = await fetch('/api/materials?partnerType=channel_partner')
@@ -121,14 +157,18 @@ function ChannelPartnerPortalContent() {
           })))
         }
       } catch (err) {
-        // Fallback to default materials
         setMaterials([
           { id: '1', title: 'Channel Partner Program Overview', description: 'Understanding the channel partner model.', type: 'video', category: 'Onboarding', duration: '15:00', url: '#', completed: true, required: true },
           { id: '2', title: 'Client Onboarding Process', description: 'How to onboard new clients.', type: 'document', category: 'Operations', duration: '12 min', url: '#', completed: true, required: true },
         ])
       }
-      setStats({ totalClients: 3, activeClients: 2, totalVenues: 4, activeVenues: 3, totalDevices: 8, onlineDevices: 7, totalDataGB: 1325.4, myEarnings: 412.75, pendingPayments: 186.50 })
-    } catch (error) { console.error('Error:', error) }
+    } catch (error) { 
+      console.error('Error loading portal data:', error)
+      setClients([])
+      setVenues([])
+      setDevices([])
+      setStats({ totalClients: 0, activeClients: 0, totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0, totalDataGB: 0, myEarnings: 0, pendingPayments: 0 })
+    }
     finally { setLoading(false) }
   }
 

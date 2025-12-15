@@ -70,23 +70,54 @@ function LocationPartnerPortalContent() {
   const loadPortalData = async () => {
     setLoading(true)
     try {
-      setVenues([
-        { id: '1', name: 'Downtown Coffee Shop', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', devicesInstalled: 2, dataUsageGB: 456.2, monthlyEarnings: 91.24 },
-        { id: '2', name: 'Main St Restaurant', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', devicesInstalled: 1, dataUsageGB: 312.8, monthlyEarnings: 62.56 },
-        { id: '3', name: 'Midtown Gym', address: '789 Fitness Blvd', city: 'Atlanta', state: 'GA', type: 'Gym', status: 'trial', devicesInstalled: 3, dataUsageGB: 125.4, monthlyEarnings: 0, trialDaysRemaining: 17 },
-      ])
-      setDevices([
-        { id: '1', name: 'AP-Coffee-Main', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-001234', macAddress: 'AA:BB:CC:11:22:33', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z', installedAt: '2024-06-15' },
-        { id: '2', name: 'AP-Coffee-Patio', type: 'UniFi U6 Mesh', serialNumber: 'UNF6M-005678', macAddress: 'AA:BB:CC:44:55:66', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 221.7, lastSeen: '2024-12-14T18:30:00Z', installedAt: '2024-06-15' },
-        { id: '3', name: 'AP-Restaurant-1', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-009876', macAddress: 'AA:BB:CC:77:88:99', venueId: '2', venueName: 'Main St Restaurant', status: 'online', dataUsageGB: 312.8, lastSeen: '2024-12-14T18:25:00Z', installedAt: '2024-08-20' },
-        { id: '4', name: 'AP-Gym-Floor', type: 'UniFi U6 Enterprise', serialNumber: 'UNF6E-001111', macAddress: 'DD:EE:FF:11:22:33', venueId: '3', venueName: 'Midtown Gym', status: 'online', dataUsageGB: 65.2, lastSeen: '2024-12-14T18:28:00Z', installedAt: '2024-12-01' },
-        { id: '5', name: 'AP-Gym-Cardio', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-002222', macAddress: 'DD:EE:FF:44:55:66', venueId: '3', venueName: 'Midtown Gym', status: 'online', dataUsageGB: 35.1, lastSeen: '2024-12-14T18:28:00Z', installedAt: '2024-12-01' },
-        { id: '6', name: 'AP-Gym-Locker', type: 'UniFi U6 Lite', serialNumber: 'UNF6L-003333', macAddress: 'DD:EE:FF:77:88:99', venueId: '3', venueName: 'Midtown Gym', status: 'offline', dataUsageGB: 25.1, lastSeen: '2024-12-14T12:00:00Z', installedAt: '2024-12-01' },
-      ])
+      // Fetch real data from API
+      const res = await fetch(`/api/portal/partner-data?partnerType=location_partner${partnerId ? `&partnerId=${partnerId}` : ''}`)
+      const data = await res.json()
+      
+      if (data.venues) {
+        setVenues(data.venues)
+      } else {
+        // Fallback mock data for preview/demo
+        setVenues([
+          { id: '1', name: 'Downtown Coffee Shop', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', devicesInstalled: 2, dataUsageGB: 456.2, monthlyEarnings: 91.24 },
+          { id: '2', name: 'Main St Restaurant', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', devicesInstalled: 1, dataUsageGB: 312.8, monthlyEarnings: 62.56 },
+          { id: '3', name: 'Midtown Gym', address: '789 Fitness Blvd', city: 'Atlanta', state: 'GA', type: 'Gym', status: 'trial', devicesInstalled: 3, dataUsageGB: 125.4, monthlyEarnings: 0, trialDaysRemaining: 17 },
+        ])
+      }
+      
+      if (data.devices) {
+        setDevices(data.devices)
+      } else {
+        // Fallback mock devices
+        setDevices([
+          { id: '1', name: 'AP-Coffee-Main', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-001234', macAddress: 'AA:BB:CC:11:22:33', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z', installedAt: '2024-06-15' },
+          { id: '2', name: 'AP-Coffee-Patio', type: 'UniFi U6 Mesh', serialNumber: 'UNF6M-005678', macAddress: 'AA:BB:CC:44:55:66', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 221.7, lastSeen: '2024-12-14T18:30:00Z', installedAt: '2024-06-15' },
+          { id: '3', name: 'AP-Restaurant-1', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-009876', macAddress: 'AA:BB:CC:77:88:99', venueId: '2', venueName: 'Main St Restaurant', status: 'online', dataUsageGB: 312.8, lastSeen: '2024-12-14T18:25:00Z', installedAt: '2024-08-20' },
+        ])
+      }
+      
+      if (data.stats) {
+        setStats({
+          totalVenues: data.stats.totalVenues || 0,
+          activeVenues: data.stats.activeVenues || 0,
+          totalDevices: data.stats.totalDevices || 0,
+          onlineDevices: data.stats.onlineDevices || 0,
+          totalDataGB: data.stats.totalDataGB || 0,
+          myEarnings: data.stats.monthlyEarnings || 0,
+          pendingPayments: data.stats.pendingPayments || 0,
+          totalReferrals: data.stats.totalReferrals || 0,
+          pendingReferrals: data.stats.activeReferrals || 0,
+        })
+      } else {
+        setStats({ totalVenues: 3, activeVenues: 2, totalDevices: 6, onlineDevices: 5, totalDataGB: 894.4, myEarnings: 153.80, pendingPayments: 153.80, totalReferrals: 5, pendingReferrals: 2 })
+      }
+      
+      // Fetch documents (would need separate endpoint)
       setDocuments([
         { id: '1', name: 'Location Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'Midtown Gym - Letter of Intent', type: 'loi', status: 'sent', createdAt: '2024-12-01', expiresAt: '2024-12-31' },
       ])
+      
       // Fetch materials from API
       try {
         const materialsRes = await fetch('/api/materials?partnerType=location_partner')
@@ -112,8 +143,13 @@ function LocationPartnerPortalContent() {
           { id: '3', title: 'Maximizing Revenue', description: 'Tips for increasing data offloading.', type: 'article', category: 'Growth', duration: '10 min', url: '#', completed: false, required: false },
         ])
       }
-      setStats({ totalVenues: 3, activeVenues: 2, totalDevices: 6, onlineDevices: 5, totalDataGB: 894.4, myEarnings: 153.80, pendingPayments: 153.80, totalReferrals: 5, pendingReferrals: 2 })
-    } catch (error) { console.error('Error:', error) }
+    } catch (error) { 
+      console.error('Error loading portal data:', error)
+      // Set fallback data
+      setVenues([])
+      setDevices([])
+      setStats({ totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0, totalDataGB: 0, myEarnings: 0, pendingPayments: 0, totalReferrals: 0, pendingReferrals: 0 })
+    }
     finally { setLoading(false) }
   }
 
