@@ -103,11 +103,30 @@ function ChannelPartnerPortalContent() {
         { id: '1', name: 'Channel Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'White Label Guidelines', type: 'policy', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
       ])
-      setMaterials([
-        { id: '1', title: 'Channel Partner Program Overview', description: 'Understanding the channel partner model.', type: 'video', category: 'Onboarding', duration: '15:00', url: '#', completed: true, required: true },
-        { id: '2', title: 'Client Onboarding Process', description: 'How to onboard new clients.', type: 'document', category: 'Operations', duration: '12 min', url: '#', completed: true, required: true },
-        { id: '3', title: 'White Label Branding', description: 'Setting up white label options.', type: 'video', category: 'Branding', duration: '20:00', url: '#', completed: false, required: false },
-      ])
+      // Fetch materials from API
+      try {
+        const materialsRes = await fetch('/api/materials?partnerType=channel_partner')
+        const materialsData = await materialsRes.json()
+        if (materialsData.materials) {
+          setMaterials(materialsData.materials.map((m: any) => ({
+            id: m.id,
+            title: m.title,
+            description: m.description,
+            type: m.type,
+            category: m.category,
+            duration: m.duration,
+            url: m.url,
+            completed: false,
+            required: m.required,
+          })))
+        }
+      } catch (err) {
+        // Fallback to default materials
+        setMaterials([
+          { id: '1', title: 'Channel Partner Program Overview', description: 'Understanding the channel partner model.', type: 'video', category: 'Onboarding', duration: '15:00', url: '#', completed: true, required: true },
+          { id: '2', title: 'Client Onboarding Process', description: 'How to onboard new clients.', type: 'document', category: 'Operations', duration: '12 min', url: '#', completed: true, required: true },
+        ])
+      }
       setStats({ totalClients: 3, activeClients: 2, totalVenues: 4, activeVenues: 3, totalDevices: 8, onlineDevices: 7, totalDataGB: 1325.4, myEarnings: 412.75, pendingPayments: 186.50 })
     } catch (error) { console.error('Error:', error) }
     finally { setLoading(false) }

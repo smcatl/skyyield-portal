@@ -728,16 +728,73 @@ export default function AdminPortalPage() {
     required?: boolean
     partnerTypes: string[]
     createdAt: string
-  }[]>([
-    { id: '1', title: 'Partner Onboarding Guide', description: 'Complete guide to getting started with SkyYield', type: 'document', category: 'Onboarding', duration: '10 min read', url: 'https://docs.skyyield.io/onboarding', required: true, partnerTypes: ['all'], createdAt: '2024-01-15' },
-    { id: '2', title: 'WiFi Installation Video', description: 'Step-by-step video guide for installing UniFi access points', type: 'video', category: 'Installation', duration: '12:30', url: 'https://youtube.com/watch?v=example', required: true, partnerTypes: ['location_partner', 'contractor'], createdAt: '2024-02-20' },
-    { id: '3', title: 'Commission Structure Explained', description: 'Understanding how earnings and commissions work', type: 'article', category: 'Payments', duration: '5 min read', url: 'https://docs.skyyield.io/commissions', required: false, partnerTypes: ['all'], createdAt: '2024-03-10' },
-    { id: '4', title: 'Referral Best Practices', description: 'Tips for maximizing your referral conversions', type: 'article', category: 'Referrals', duration: '7 min read', url: 'https://docs.skyyield.io/referrals', required: false, partnerTypes: ['referral_partner', 'relationship_partner'], createdAt: '2024-04-05' },
-    { id: '5', title: 'Partner Certification Quiz', description: 'Test your knowledge and get certified', type: 'quiz', category: 'Certification', duration: '15 min', url: 'https://quiz.skyyield.io/certification', required: false, partnerTypes: ['all'], createdAt: '2024-05-12' },
-  ])
+  }[]>([])
+  const [materialsLoading, setMaterialsLoading] = useState(false)
   const [showMaterialModal, setShowMaterialModal] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<typeof materials[0] | null>(null)
   const [materialFilter, setMaterialFilter] = useState<string>('all')
+
+  // Load materials from API
+  const loadMaterials = async () => {
+    setMaterialsLoading(true)
+    try {
+      const res = await fetch('/api/materials')
+      const data = await res.json()
+      if (data.materials) {
+        setMaterials(data.materials.map((m: any) => ({
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          type: m.type,
+          category: m.category,
+          duration: m.duration,
+          url: m.url,
+          required: m.required,
+          partnerTypes: m.partner_types || ['all'],
+          createdAt: m.created_at,
+        })))
+      }
+    } catch (error) {
+      console.error('Error loading materials:', error)
+      // Fallback to default materials if API fails
+      setMaterials([
+        { id: '1', title: 'Partner Onboarding Guide', description: 'Complete guide to getting started with SkyYield', type: 'document', category: 'Onboarding', duration: '10 min read', url: 'https://docs.skyyield.io/onboarding', required: true, partnerTypes: ['all'], createdAt: '2024-01-15' },
+        { id: '2', title: 'WiFi Installation Video', description: 'Step-by-step video guide for installing UniFi access points', type: 'video', category: 'Installation', duration: '12:30', url: 'https://youtube.com/watch?v=example', required: true, partnerTypes: ['location_partner', 'contractor'], createdAt: '2024-02-20' },
+        { id: '3', title: 'Commission Structure Explained', description: 'Understanding how earnings and commissions work', type: 'article', category: 'Payments', duration: '5 min read', url: 'https://docs.skyyield.io/commissions', required: false, partnerTypes: ['all'], createdAt: '2024-03-10' },
+      ])
+    } finally {
+      setMaterialsLoading(false)
+    }
+  }
+
+  // Save material to API
+  const saveMaterial = async (material: typeof materials[0], isNew: boolean) => {
+    try {
+      const method = isNew ? 'POST' : 'PUT'
+      const res = await fetch('/api/materials', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(material),
+      })
+      if (res.ok) {
+        loadMaterials() // Reload to get updated data
+      }
+    } catch (error) {
+      console.error('Error saving material:', error)
+    }
+  }
+
+  // Delete material from API
+  const deleteMaterial = async (id: string) => {
+    try {
+      const res = await fetch(`/api/materials?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setMaterials(materials.filter(m => m.id !== id))
+      }
+    } catch (error) {
+      console.error('Error deleting material:', error)
+    }
+  }
 
   // Pipeline state
   const [partners, setPartners] = useState<LocationPartner[]>([])
@@ -1272,6 +1329,7 @@ export default function AdminPortalPage() {
       fetchForms()
       fetchSubmissions()
     }
+    if (activeTab === 'materials') loadMaterials()
     if (activeTab === 'pipeline') fetchPipeline()
     if (activeTab === 'followups') fetchPipeline() // Uses same data as pipeline
     if (activeTab === 'settings') {
@@ -2664,7 +2722,7 @@ export default function AdminPortalPage() {
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => setMaterials(materials.filter(m => m.id !== material.id))}
+                            onClick={() => deleteMaterial(material.id)}
                             className="p-2 text-[#64748B] hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -2717,7 +2775,7 @@ export default function AdminPortalPage() {
                 </button>
               </div>
               <form
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault()
                   const form = e.target as HTMLFormElement
                   const formData = new FormData(form)
@@ -2733,11 +2791,7 @@ export default function AdminPortalPage() {
                     partnerTypes: Array.from(form.querySelectorAll('input[name="partnerTypes"]:checked')).map((el: any) => el.value),
                     createdAt: editingMaterial?.createdAt || new Date().toISOString().split('T')[0],
                   }
-                  if (editingMaterial) {
-                    setMaterials(materials.map(m => m.id === editingMaterial.id ? newMaterial : m))
-                  } else {
-                    setMaterials([...materials, newMaterial])
-                  }
+                  await saveMaterial(newMaterial, !editingMaterial)
                   setShowMaterialModal(false)
                   setEditingMaterial(null)
                 }}

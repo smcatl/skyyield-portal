@@ -105,11 +105,30 @@ function RelationshipPartnerPortalContent() {
         { id: '1', name: 'Relationship Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'NDA - Confidentiality Agreement', type: 'agreement', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
       ])
-      setMaterials([
-        { id: '1', title: 'Relationship Partner Overview', description: 'Understanding your role.', type: 'video', category: 'Onboarding', duration: '10:00', url: '#', completed: true, required: true },
-        { id: '2', title: 'Making Effective Introductions', description: 'Best practices for warm intros.', type: 'document', category: 'Skills', duration: '8 min', url: '#', completed: true, required: true },
-        { id: '3', title: 'SkyYield Pitch Deck', description: 'Materials to share.', type: 'document', category: 'Resources', duration: '5 min', url: '#', completed: false, required: false },
-      ])
+      // Fetch materials from API
+      try {
+        const materialsRes = await fetch('/api/materials?partnerType=relationship_partner')
+        const materialsData = await materialsRes.json()
+        if (materialsData.materials) {
+          setMaterials(materialsData.materials.map((m: any) => ({
+            id: m.id,
+            title: m.title,
+            description: m.description,
+            type: m.type,
+            category: m.category,
+            duration: m.duration,
+            url: m.url,
+            completed: false,
+            required: m.required,
+          })))
+        }
+      } catch (err) {
+        // Fallback to default materials
+        setMaterials([
+          { id: '1', title: 'Relationship Partner Overview', description: 'Understanding your role.', type: 'video', category: 'Onboarding', duration: '10:00', url: '#', completed: true, required: true },
+          { id: '2', title: 'Making Effective Introductions', description: 'Best practices for warm intros.', type: 'document', category: 'Skills', duration: '8 min', url: '#', completed: true, required: true },
+        ])
+      }
       setStats({ totalIntroductions: 5, convertedIntroductions: 2, pendingIntroductions: 3, totalVenues: 3, activeVenues: 2, totalDevices: 9, onlineDevices: 8, totalDataGB: 1568.7 })
     } catch (error) { console.error('Error:', error) }
     finally { setLoading(false) }

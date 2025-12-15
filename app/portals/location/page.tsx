@@ -87,12 +87,31 @@ function LocationPartnerPortalContent() {
         { id: '1', name: 'Location Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'Midtown Gym - Letter of Intent', type: 'loi', status: 'sent', createdAt: '2024-12-01', expiresAt: '2024-12-31' },
       ])
-      setMaterials([
-        { id: '1', title: 'Getting Started with SkyYield', description: 'Learn the basics of the platform.', type: 'video', category: 'Onboarding', duration: '8:45', url: '#', completed: true, required: true },
-        { id: '2', title: 'Equipment Installation Guide', description: 'Step-by-step installation.', type: 'document', category: 'Installation', duration: '15 min', url: '#', completed: true, required: true },
-        { id: '3', title: 'Maximizing Revenue', description: 'Tips for increasing data offloading.', type: 'article', category: 'Growth', duration: '10 min', url: '#', completed: false, required: false },
-        { id: '4', title: 'Troubleshooting Common Issues', description: 'Fix connection problems.', type: 'document', category: 'Support', duration: '12 min', url: '#', completed: false, required: false },
-      ])
+      // Fetch materials from API
+      try {
+        const materialsRes = await fetch('/api/materials?partnerType=location_partner')
+        const materialsData = await materialsRes.json()
+        if (materialsData.materials) {
+          setMaterials(materialsData.materials.map((m: any) => ({
+            id: m.id,
+            title: m.title,
+            description: m.description,
+            type: m.type,
+            category: m.category,
+            duration: m.duration,
+            url: m.url,
+            completed: false,
+            required: m.required,
+          })))
+        }
+      } catch (err) {
+        // Fallback to default materials
+        setMaterials([
+          { id: '1', title: 'Getting Started with SkyYield', description: 'Learn the basics of the platform.', type: 'video', category: 'Onboarding', duration: '8:45', url: '#', completed: true, required: true },
+          { id: '2', title: 'Equipment Installation Guide', description: 'Step-by-step installation.', type: 'document', category: 'Installation', duration: '15 min', url: '#', completed: true, required: true },
+          { id: '3', title: 'Maximizing Revenue', description: 'Tips for increasing data offloading.', type: 'article', category: 'Growth', duration: '10 min', url: '#', completed: false, required: false },
+        ])
+      }
       setStats({ totalVenues: 3, activeVenues: 2, totalDevices: 6, onlineDevices: 5, totalDataGB: 894.4, myEarnings: 153.80, pendingPayments: 153.80, totalReferrals: 5, pendingReferrals: 2 })
     } catch (error) { console.error('Error:', error) }
     finally { setLoading(false) }

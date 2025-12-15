@@ -85,12 +85,31 @@ function ReferralPartnerPortalContent() {
         { id: '1', name: 'Referral Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'Commission Structure', type: 'policy', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
       ])
-      setMaterials([
-        { id: '1', title: 'Referral Partner Onboarding', description: 'How to effectively refer partners.', type: 'video', category: 'Onboarding', duration: '12:30', url: '#', completed: true, required: true },
-        { id: '2', title: 'Understanding Commission Structure', description: 'How commissions are calculated.', type: 'document', category: 'Compensation', duration: '10 min', url: '#', completed: true, required: true },
-        { id: '3', title: 'Sales Best Practices', description: 'Tips for pitching SkyYield.', type: 'video', category: 'Sales', duration: '18:45', url: '#', completed: false, required: false },
-        { id: '4', title: 'Using the CRM', description: 'Track leads effectively.', type: 'article', category: 'Tools', duration: '8 min', url: '#', completed: false, required: false },
-      ])
+      // Fetch materials from API
+      try {
+        const materialsRes = await fetch('/api/materials?partnerType=referral_partner')
+        const materialsData = await materialsRes.json()
+        if (materialsData.materials) {
+          setMaterials(materialsData.materials.map((m: any) => ({
+            id: m.id,
+            title: m.title,
+            description: m.description,
+            type: m.type,
+            category: m.category,
+            duration: m.duration,
+            url: m.url,
+            completed: false,
+            required: m.required,
+          })))
+        }
+      } catch (err) {
+        // Fallback to default materials
+        setMaterials([
+          { id: '1', title: 'Referral Partner Onboarding', description: 'How to effectively refer partners.', type: 'video', category: 'Onboarding', duration: '12:30', url: '#', completed: true, required: true },
+          { id: '2', title: 'Understanding Commission Structure', description: 'How commissions are calculated.', type: 'document', category: 'Compensation', duration: '10 min', url: '#', completed: true, required: true },
+          { id: '3', title: 'Sales Best Practices', description: 'Tips for pitching SkyYield.', type: 'video', category: 'Sales', duration: '18:45', url: '#', completed: false, required: false },
+        ])
+      }
       setStats({ totalVenues: 3, activeVenues: 2, totalDevices: 5, onlineDevices: 4, totalDataGB: 869.3, myEarnings: 223.75, pendingPayments: 77.75, totalReferrals: 5, convertedReferrals: 3 })
     } catch (error) { console.error('Error:', error) }
     finally { setLoading(false) }
