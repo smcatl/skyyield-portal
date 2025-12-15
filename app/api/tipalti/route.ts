@@ -11,7 +11,8 @@ import {
   generatePaymentHistoryUrl,
   createBill,
   getPaymentHistory,
-  getPayeeInvoices 
+  getPayeeInvoices,
+  getAllPayees
 } from '@/lib/tipalti'
 
 export async function GET(request: NextRequest) {
@@ -91,10 +92,16 @@ export async function GET(request: NextRequest) {
         })
       }
 
+      case 'pull_from_tipalti': {
+        // Pull all payees directly from Tipalti
+        const result = await getAllPayees()
+        return NextResponse.json(result)
+      }
+
       default:
         return NextResponse.json({ 
           error: 'Invalid action',
-          validActions: ['payee', 'onboarding_url', 'payment_history_url', 'payments', 'invoices', 'list_payees']
+          validActions: ['payee', 'onboarding_url', 'payment_history_url', 'payments', 'invoices', 'list_payees', 'pull_from_tipalti']
         }, { status: 400 })
     }
   } catch (error) {

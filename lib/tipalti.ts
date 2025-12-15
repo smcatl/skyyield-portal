@@ -405,6 +405,77 @@ function parseInvoicesResponse(xml: string): any[] {
   return invoices
 }
 
+// ============================================
+// GET ALL PAYEES FROM TIPALTI
+// ============================================
+
+export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]; error?: string }> {
+  const timestamp = generateTimestamp()
+  const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
+  const signature = generateHmacSignature(dataToSign)
+
+  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
+  <soap:Body>
+    <tip:GetExtendedPayeeStatusList>
+      <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
+      <tip:timestamp>${timestamp}</tip:timestamp>
+      <tip:key>${signature}</tip:key>
+    </tip:GetExtendedPayeeStatusList>
+  </soap:Body>
+</soap:Envelope>`
+
+  try {
+    const response = await fetch(TIPALTI_CONFIG.soapPayerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': 'http://Tipalti.org/GetExtendedPayeeStatusList',
+      },
+      body: soapEnvelope,
+    })
+
+    const responseText = await response.text()
+    const payees = parsePayeeListResponse(responseText)
+    return { success: true, payees }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+}
+
+function parsePayeeListResponse(xml: string): any[] {
+  const payees: any[] = []
+  
+  // Match each payee item in the response
+  const payeeMatches = xml.matchAll(/<ExtendedPayeeStatusItem>([\s\S]*?)<\/ExtendedPayeeStatusItem>/gi)
+  
+  for (const match of payeeMatches) {
+    const payeeXml = match[1]
+    const extractValue = (tag: string) => {
+      const m = payeeXml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
+      return m?.[1] || null
+    }
+
+    payees.push({
+      payeeId: extractValue('Idap') || extractValue('idap'),
+      email: extractValue('Email') || extractValue('email'),
+      firstName: extractValue('FirstName') || extractValue('firstName'),
+      lastName: extractValue('LastName') || extractValue('lastName'),
+      company: extractValue('Company') || extractValue('company') || extractValue('CompanyName'),
+      paymentMethod: extractValue('PaymentMethod') || extractValue('paymentMethod'),
+      payeeStatus: extractValue('PayeeStatus') || extractValue('payeeStatus') || extractValue('Status'),
+      isPayable: (extractValue('IsPayable') || extractValue('isPayable'))?.toLowerCase() === 'true',
+      street1: extractValue('Street1') || extractValue('street1'),
+      city: extractValue('City') || extractValue('city'),
+      state: extractValue('State') || extractValue('state'),
+      zip: extractValue('Zip') || extractValue('zip'),
+      country: extractValue('Country') || extractValue('country'),
+    })
+  }
+
+  return payees
+}
+
 // Export all functions
 export const Tipalti = {
   createOrUpdatePayee,
@@ -414,5 +485,6 @@ export const Tipalti = {
   createBill,
   getPaymentHistory,
   getPayeeInvoices,
+  getAllPayees,
   verifyWebhookSignature,
 }
