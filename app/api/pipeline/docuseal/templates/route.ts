@@ -87,7 +87,7 @@ async function createTemplate(type: string) {
     docuseal_template_id: result.id, name: t.name, slug: result.slug, template_type: type, is_active: true, is_default: true,
   }, { onConflict: 'template_type' })
 
-  return { id: result.id, name: result.name, slug: result.slug, type }
+  return { id: result.id, name: result.name, slug: result.slug, templateType: type }
 }
 
 const css = `body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:10pt;line-height:1.4;color:#333;margin:30px 40px}.header{text-align:center;margin-bottom:25px;border-bottom:2px solid #0EA5E9;padding-bottom:15px}.logo{font-size:28pt;font-weight:bold;color:#0EA5E9}.title{font-size:14pt;margin-top:8px;color:#0A0F2C;text-transform:uppercase}.section{margin-bottom:15px}.section-title{font-weight:bold;font-size:11pt;color:#0A0F2C;background:#f5f5f5;padding:8px 12px;margin-bottom:10px;border-left:3px solid #0EA5E9}.field-row{display:flex;margin-bottom:8px;align-items:center}.field-label{width:180px;font-weight:500;color:#555}.signature-block{margin-top:30px;display:flex;justify-content:space-between}.signature-party{width:45%;border:1px solid #ddd;padding:15px;border-radius:5px}.signature-party h4{margin:0 0 15px 0;color:#0A0F2C;border-bottom:1px solid #eee;padding-bottom:8px}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:9pt}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#0A0F2C;color:white}.highlight{background:#E3F2FD;padding:12px;border-radius:5px;margin:12px 0;border-left:3px solid #0EA5E9}.warning{background:#FFF3E0;border-left-color:#FF9800}`
