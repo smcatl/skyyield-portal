@@ -17,11 +17,11 @@ import {
   GripVertical, Phone, MoreVertical, Filter, UserPlus,
   CreditCard, Wallet, PieChart, MessageSquare, Bell,
   SkipForward, AlertTriangle, Pause, Play, Archive, History,
-  Key, Shield, User
+  Key, Shield, User, BookOpen, Video
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
-type TabType = 'overview' | 'users' | 'crm' | 'pipeline' | 'followups' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'calculators' | 'payments' | 'settings' | 'analytics'
+type TabType = 'overview' | 'users' | 'crm' | 'pipeline' | 'followups' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'materials' | 'calculators' | 'payments' | 'settings' | 'analytics'
 
 // Pipeline and Settings types
 interface FollowUpAttempt {
@@ -596,6 +596,7 @@ export default function AdminPortalPage() {
     { id: 'approved-products', label: 'Approved Products', icon: Star },
     { id: 'blog', label: 'Blog', icon: FileText },
     { id: 'forms', label: 'Forms', icon: ClipboardList },
+    { id: 'materials', label: 'Materials', icon: BookOpen },
     { id: 'calculators', label: 'Calculators', icon: Calculator },
     { id: 'payments', label: 'Payments', icon: Wallet },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -714,6 +715,29 @@ export default function AdminPortalPage() {
   const [editingForm, setEditingForm] = useState<Form | null>(null)
   const [showSubmissionDetailModal, setShowSubmissionDetailModal] = useState(false)
   const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null)
+
+  // Materials state
+  const [materials, setMaterials] = useState<{
+    id: string
+    title: string
+    description: string
+    type: 'video' | 'document' | 'article' | 'quiz'
+    category: string
+    duration?: string
+    url: string
+    required?: boolean
+    partnerTypes: string[]
+    createdAt: string
+  }[]>([
+    { id: '1', title: 'Partner Onboarding Guide', description: 'Complete guide to getting started with SkyYield', type: 'document', category: 'Onboarding', duration: '10 min read', url: 'https://docs.skyyield.io/onboarding', required: true, partnerTypes: ['all'], createdAt: '2024-01-15' },
+    { id: '2', title: 'WiFi Installation Video', description: 'Step-by-step video guide for installing UniFi access points', type: 'video', category: 'Installation', duration: '12:30', url: 'https://youtube.com/watch?v=example', required: true, partnerTypes: ['location_partner', 'contractor'], createdAt: '2024-02-20' },
+    { id: '3', title: 'Commission Structure Explained', description: 'Understanding how earnings and commissions work', type: 'article', category: 'Payments', duration: '5 min read', url: 'https://docs.skyyield.io/commissions', required: false, partnerTypes: ['all'], createdAt: '2024-03-10' },
+    { id: '4', title: 'Referral Best Practices', description: 'Tips for maximizing your referral conversions', type: 'article', category: 'Referrals', duration: '7 min read', url: 'https://docs.skyyield.io/referrals', required: false, partnerTypes: ['referral_partner', 'relationship_partner'], createdAt: '2024-04-05' },
+    { id: '5', title: 'Partner Certification Quiz', description: 'Test your knowledge and get certified', type: 'quiz', category: 'Certification', duration: '15 min', url: 'https://quiz.skyyield.io/certification', required: false, partnerTypes: ['all'], createdAt: '2024-05-12' },
+  ])
+  const [showMaterialModal, setShowMaterialModal] = useState(false)
+  const [editingMaterial, setEditingMaterial] = useState<typeof materials[0] | null>(null)
+  const [materialFilter, setMaterialFilter] = useState<string>('all')
 
   // Pipeline state
   const [partners, setPartners] = useState<LocationPartner[]>([])
@@ -2519,6 +2543,318 @@ export default function AdminPortalPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Materials Tab */}
+        {activeTab === 'materials' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Partner Materials</h2>
+                <p className="text-[#94A3B8] text-sm">Manage training resources, guides, and documents for partners</p>
+              </div>
+              <button
+                onClick={() => { setEditingMaterial(null); setShowMaterialModal(true) }}
+                className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Material
+              </button>
+            </div>
+
+            {/* Filter by Partner Type */}
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {['all', 'location_partner', 'referral_partner', 'channel_partner', 'relationship_partner', 'contractor'].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setMaterialFilter(type)}
+                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                    materialFilter === type
+                      ? 'bg-[#0EA5E9] text-white'
+                      : 'bg-[#1A1F3A] text-[#94A3B8] hover:text-white'
+                  }`}
+                >
+                  {type === 'all' ? 'All Partners' : type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </button>
+              ))}
+            </div>
+
+            {/* Materials List */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#2D3B5F]">
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Resource</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Category</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">For</th>
+                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Required</th>
+                    <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {materials
+                    .filter(m => materialFilter === 'all' || m.partnerTypes.includes('all') || m.partnerTypes.includes(materialFilter))
+                    .map(material => (
+                    <tr key={material.id} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            material.type === 'video' ? 'bg-red-500/20' :
+                            material.type === 'document' ? 'bg-blue-500/20' :
+                            material.type === 'article' ? 'bg-green-500/20' :
+                            'bg-purple-500/20'
+                          }`}>
+                            {material.type === 'video' ? <Video className="w-5 h-5 text-red-400" /> :
+                             material.type === 'document' ? <FileText className="w-5 h-5 text-blue-400" /> :
+                             material.type === 'article' ? <BookOpen className="w-5 h-5 text-green-400" /> :
+                             <CheckCircle className="w-5 h-5 text-purple-400" />}
+                          </div>
+                          <div>
+                            <div className="text-white font-medium">{material.title}</div>
+                            <div className="text-[#64748B] text-sm">{material.description}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          material.type === 'video' ? 'bg-red-500/20 text-red-400' :
+                          material.type === 'document' ? 'bg-blue-500/20 text-blue-400' :
+                          material.type === 'article' ? 'bg-green-500/20 text-green-400' :
+                          'bg-purple-500/20 text-purple-400'
+                        }`}>
+                          {material.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-[#94A3B8]">{material.category}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {material.partnerTypes.includes('all') ? (
+                            <span className="px-2 py-0.5 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded text-xs">All</span>
+                          ) : material.partnerTypes.map(pt => (
+                            <span key={pt} className="px-2 py-0.5 bg-[#2D3B5F] text-[#94A3B8] rounded text-xs">
+                              {pt.replace('_partner', '').replace('_', ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {material.required ? (
+                          <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">Required</span>
+                        ) : (
+                          <span className="text-[#64748B]">Optional</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <a
+                            href={material.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                          <button
+                            onClick={() => { setEditingMaterial(material); setShowMaterialModal(true) }}
+                            className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setMaterials(materials.filter(m => m.id !== material.id))}
+                            className="p-2 text-[#64748B] hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {materials.filter(m => materialFilter === 'all' || m.partnerTypes.includes('all') || m.partnerTypes.includes(materialFilter)).length === 0 && (
+                <div className="p-8 text-center text-[#64748B]">
+                  No materials found for this filter
+                </div>
+              )}
+            </div>
+
+            {/* Material Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-2xl font-bold text-white">{materials.length}</div>
+                <div className="text-[#64748B] text-sm">Total Resources</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-2xl font-bold text-red-400">{materials.filter(m => m.type === 'video').length}</div>
+                <div className="text-[#64748B] text-sm">Videos</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-2xl font-bold text-blue-400">{materials.filter(m => m.type === 'document').length}</div>
+                <div className="text-[#64748B] text-sm">Documents</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-2xl font-bold text-yellow-400">{materials.filter(m => m.required).length}</div>
+                <div className="text-[#64748B] text-sm">Required</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Material Add/Edit Modal */}
+        {showMaterialModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-4 border-b border-[#2D3B5F] flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">
+                  {editingMaterial ? 'Edit Material' : 'Add Material'}
+                </h3>
+                <button onClick={() => setShowMaterialModal(false)} className="text-[#64748B] hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const form = e.target as HTMLFormElement
+                  const formData = new FormData(form)
+                  const newMaterial = {
+                    id: editingMaterial?.id || Date.now().toString(),
+                    title: formData.get('title') as string,
+                    description: formData.get('description') as string,
+                    type: formData.get('type') as 'video' | 'document' | 'article' | 'quiz',
+                    category: formData.get('category') as string,
+                    duration: formData.get('duration') as string || undefined,
+                    url: formData.get('url') as string,
+                    required: formData.get('required') === 'on',
+                    partnerTypes: Array.from(form.querySelectorAll('input[name="partnerTypes"]:checked')).map((el: any) => el.value),
+                    createdAt: editingMaterial?.createdAt || new Date().toISOString().split('T')[0],
+                  }
+                  if (editingMaterial) {
+                    setMaterials(materials.map(m => m.id === editingMaterial.id ? newMaterial : m))
+                  } else {
+                    setMaterials([...materials, newMaterial])
+                  }
+                  setShowMaterialModal(false)
+                  setEditingMaterial(null)
+                }}
+                className="p-4 space-y-4"
+              >
+                <div>
+                  <label className="block text-sm text-[#94A3B8] mb-1">Title *</label>
+                  <input
+                    name="title"
+                    type="text"
+                    required
+                    defaultValue={editingMaterial?.title}
+                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#94A3B8] mb-1">Description</label>
+                  <textarea
+                    name="description"
+                    defaultValue={editingMaterial?.description}
+                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9] h-20 resize-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-[#94A3B8] mb-1">Type</label>
+                    <select
+                      name="type"
+                      defaultValue={editingMaterial?.type || 'document'}
+                      className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                    >
+                      <option value="document">Document</option>
+                      <option value="video">Video</option>
+                      <option value="article">Article</option>
+                      <option value="quiz">Quiz</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-[#94A3B8] mb-1">Category</label>
+                    <input
+                      name="category"
+                      type="text"
+                      defaultValue={editingMaterial?.category || 'General'}
+                      className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-[#94A3B8] mb-1">URL *</label>
+                  <input
+                    name="url"
+                    type="url"
+                    required
+                    defaultValue={editingMaterial?.url}
+                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#94A3B8] mb-1">Duration (e.g., "5 min read" or "12:30")</label>
+                  <input
+                    name="duration"
+                    type="text"
+                    defaultValue={editingMaterial?.duration}
+                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#94A3B8] mb-2">Available to Partner Types</label>
+                  <div className="space-y-2">
+                    {[
+                      { value: 'all', label: 'All Partners' },
+                      { value: 'location_partner', label: 'Location Partners' },
+                      { value: 'referral_partner', label: 'Referral Partners' },
+                      { value: 'channel_partner', label: 'Channel Partners' },
+                      { value: 'relationship_partner', label: 'Relationship Partners' },
+                      { value: 'contractor', label: 'Contractors' },
+                    ].map(opt => (
+                      <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="partnerTypes"
+                          value={opt.value}
+                          defaultChecked={editingMaterial?.partnerTypes.includes(opt.value) ?? opt.value === 'all'}
+                          className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9]"
+                        />
+                        <span className="text-sm text-[#94A3B8]">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="required"
+                    id="required"
+                    defaultChecked={editingMaterial?.required}
+                    className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9]"
+                  />
+                  <label htmlFor="required" className="text-sm text-[#94A3B8] cursor-pointer">Required for onboarding</label>
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => { setShowMaterialModal(false); setEditingMaterial(null) }}
+                    className="px-4 py-2 text-[#94A3B8] hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+                  >
+                    <Save className="w-4 h-4" />
+                    {editingMaterial ? 'Save Changes' : 'Add Material'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
