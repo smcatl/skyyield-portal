@@ -41,7 +41,7 @@ interface AnalyticsData {
 
 interface PartnerAnalyticsProps {
   partnerId: string
-  partnerType: 'location_partner' | 'referral_partner' | 'channel_partner' | 'contractor'
+  partnerType: 'location_partner' | 'referral_partner' | 'channel_partner' | 'contractor' | 'relationship_partner'
   showReferrals?: boolean
   showDataUsage?: boolean
 }
