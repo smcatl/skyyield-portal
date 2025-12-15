@@ -4,203 +4,220 @@ import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Users, DollarSign, Link2, Copy, Check, TrendingUp } from 'lucide-react'
+import { 
+  ArrowLeft, DollarSign, BarChart3, MapPin, Wifi,
+  Activity, Calculator, FileText, TrendingUp, Settings, 
+  Wallet, Target, Users, Cpu
+} from 'lucide-react'
+import CalculatorSection from '@/components/CalculatorSection'
+import {
+  ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
+  TrainingSection, VenuesSection, PartnerSettings, PartnerAnalytics, PartnerPayments,
+} from '@/components/portal'
+import CRMTab from '@/components/admin/crm/CRMTab'
 
-export default function ReferralPortalPage() {
+type TabType = 'overview' | 'referrals' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
+
+interface Device {
+  id: string
+  name: string
+  type: string
+  serialNumber: string
+  venueId: string
+  venueName: string
+  status: 'online' | 'offline'
+  dataUsageGB: number
+  lastSeen: string
+}
+
+export default function ReferralPartnerPortal() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
-  const [copied, setCopied] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabType>('overview')
+  const [loading, setLoading] = useState(true)
+  const [partnerId, setPartnerId] = useState<string>('')
+  const [venues, setVenues] = useState<any[]>([])
+  const [devices, setDevices] = useState<Device[]>([])
+  const [documents, setDocuments] = useState<any[]>([])
+  const [materials, setMaterials] = useState<any[]>([])
+  const [stats, setStats] = useState({
+    totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0,
+    totalDataGB: 0, myEarnings: 0, pendingPayments: 0, totalReferrals: 0, convertedReferrals: 0,
+  })
 
-  // Check approval status and redirect if not approved
   useEffect(() => {
     if (!isLoaded) return
-
-    if (!user) {
-      router.push('/sign-in')
-      return
-    }
-
+    if (!user) { router.push('/sign-in'); return }
     const status = (user.unsafeMetadata as any)?.status || 'pending'
-    
-    // If not approved, redirect to pending approval
-    if (status !== 'approved') {
-      router.push('/pending-approval')
-      return
-    }
+    if (status !== 'approved') { router.push('/pending-approval'); return }
+    setPartnerId((user.unsafeMetadata as any)?.partnerId || user.id)
+    loadPortalData()
   }, [isLoaded, user, router])
 
-  // Show loading while checking
+  const loadPortalData = async () => {
+    setLoading(true)
+    try {
+      // All venues from referrals (read-only view)
+      setVenues([
+        { id: '1', name: 'Downtown Coffee Shop', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', devicesInstalled: 2, dataUsageGB: 456.2, referredBy: 'You' },
+        { id: '2', name: 'Main St Restaurant', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', devicesInstalled: 1, dataUsageGB: 312.8, referredBy: 'You' },
+        { id: '3', name: 'Midtown Gym', address: '789 Fitness Blvd', city: 'Atlanta', state: 'GA', type: 'Gym', status: 'trial', devicesInstalled: 3, dataUsageGB: 125.4, referredBy: 'You' },
+      ])
+      setDevices([
+        { id: '1', name: 'AP-Coffee-Main', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-001234', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z' },
+        { id: '2', name: 'AP-Coffee-Patio', type: 'UniFi U6 Mesh', serialNumber: 'UNF6M-005678', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 221.7, lastSeen: '2024-12-14T18:30:00Z' },
+        { id: '3', name: 'AP-Restaurant-1', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-009876', venueId: '2', venueName: 'Main St Restaurant', status: 'online', dataUsageGB: 312.8, lastSeen: '2024-12-14T18:25:00Z' },
+        { id: '4', name: 'AP-Gym-Floor', type: 'UniFi U6 Enterprise', serialNumber: 'UNF6E-001111', venueId: '3', venueName: 'Midtown Gym', status: 'online', dataUsageGB: 65.2, lastSeen: '2024-12-14T18:28:00Z' },
+        { id: '5', name: 'AP-Gym-Cardio', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-002222', venueId: '3', venueName: 'Midtown Gym', status: 'offline', dataUsageGB: 35.1, lastSeen: '2024-12-14T12:00:00Z' },
+      ])
+      setDocuments([
+        { id: '1', name: 'Referral Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
+        { id: '2', name: 'Commission Structure', type: 'policy', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
+      ])
+      setMaterials([
+        { id: '1', title: 'Referral Partner Onboarding', description: 'How to effectively refer partners.', type: 'video', category: 'Onboarding', duration: '12:30', url: '#', completed: true, required: true },
+        { id: '2', title: 'Understanding Commission Structure', description: 'How commissions are calculated.', type: 'document', category: 'Compensation', duration: '10 min', url: '#', completed: true, required: true },
+        { id: '3', title: 'Sales Best Practices', description: 'Tips for pitching SkyYield.', type: 'video', category: 'Sales', duration: '18:45', url: '#', completed: false, required: false },
+        { id: '4', title: 'Using the CRM', description: 'Track leads effectively.', type: 'article', category: 'Tools', duration: '8 min', url: '#', completed: false, required: false },
+      ])
+      setStats({ totalVenues: 3, activeVenues: 2, totalDevices: 5, onlineDevices: 4, totalDataGB: 869.3, myEarnings: 223.75, pendingPayments: 77.75, totalReferrals: 5, convertedReferrals: 3 })
+    } catch (error) { console.error('Error:', error) }
+    finally { setLoading(false) }
+  }
+
   if (!isLoaded || !user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center pt-20">
-        <div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" />
-      </div>
-    )
+    return <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" /></div>
   }
 
-  const status = (user.unsafeMetadata as any)?.status || 'pending'
-  
-  // Don't render if not approved (will redirect)
-  if (status !== 'approved') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center pt-20">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white">Checking access...</p>
-        </div>
-      </div>
-    )
-  }
-  
-  // Generate a referral code from user ID
-  const referralCode = user?.id ? `SKY-${user.id.slice(-6).toUpperCase()}` : 'SKY-XXXXXX'
-  const referralLink = `https://skyyield.com/ref/${referralCode}`
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(referralLink)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+  const hasCalculatorSubscription = (user.unsafeMetadata as any)?.calculatorSubscription === true
+  const referralCode = `REF-${user.id?.slice(-6).toUpperCase()}`
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'referrals', label: 'My Referrals', icon: Target },
+    { id: 'venues', label: 'Venues', icon: MapPin },
+    { id: 'devices', label: 'Devices', icon: Wifi },
+    { id: 'materials', label: 'Materials', icon: FileText },
+    { id: 'calculator', label: 'Calculator', icon: Calculator },
+    { id: 'payments', label: 'Payments', icon: Wallet },
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+  ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-24 px-4 pb-12">
-      <div className="max-w-6xl mx-auto">
-        {/* Back Button */}
-        <Link 
-          href="/"
-          className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Home
-        </Link>
-
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Referral <span className="text-[#0EA5E9]">Partner Portal</span>
-          </h1>
-          <p className="text-[#94A3B8] mt-2">
-            Welcome back, {user?.firstName}! Track your referrals and earnings.
-          </p>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-[#0EA5E9]" />
-              </div>
-              <span className="text-[#94A3B8] text-sm">Total Referrals</span>
-            </div>
-            <div className="text-3xl font-bold text-white">0</div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20">
+      <div className="px-4 pb-4 border-b border-[#2D3B5F]">
+        <div className="max-w-7xl mx-auto">
+          <Link href="/" className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"><ArrowLeft className="w-4 h-4" />Back to Home</Link>
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold text-white">Referral <span className="text-[#0EA5E9]">Partner</span> Portal</h1>
+            <p className="text-[#94A3B8] mt-1">Welcome back, {user?.firstName}!</p>
           </div>
-
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                <Check className="w-5 h-5 text-green-400" />
-              </div>
-              <span className="text-[#94A3B8] text-sm">Converted</span>
-            </div>
-            <div className="text-3xl font-bold text-green-400">0</div>
-          </div>
-
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-yellow-400" />
-              </div>
-              <span className="text-[#94A3B8] text-sm">Pending Earnings</span>
-            </div>
-            <div className="text-3xl font-bold text-yellow-400">$0.00</div>
-          </div>
-
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-[#0EA5E9]" />
-              </div>
-              <span className="text-[#94A3B8] text-sm">Total Earned</span>
-            </div>
-            <div className="text-3xl font-bold text-[#0EA5E9]">$0.00</div>
+          <div className="flex gap-1 overflow-x-auto pb-2">
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id as TabType)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === tab.id ? 'bg-[#0EA5E9] text-white' : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'}`}>
+                <tab.icon className="w-4 h-4" />{tab.label}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
-        {/* Referral Link Section */}
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            <Link2 className="w-5 h-5 text-[#0EA5E9]" />
-            Your Referral Link
-          </h2>
-          <p className="text-[#94A3B8] text-sm mb-4">
-            Share this link with potential location partners. You'll earn a commission for every successful signup!
-          </p>
-          
-          <div className="flex gap-2">
-            <input
-              type="text"
-              readOnly
-              value={referralLink}
-              className="flex-1 px-4 py-3 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white font-mono text-sm"
-            />
-            <button
-              onClick={copyToClipboard}
-              className="px-4 py-3 bg-gradient-to-r from-[#0EA5E9] to-[#06B6D4] text-white rounded-lg font-medium hover:shadow-lg hover:shadow-[#0EA5E9]/25 transition-all flex items-center gap-2"
-            >
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-
-          <div className="mt-4 p-3 bg-[#0EA5E9]/10 border border-[#0EA5E9]/20 rounded-lg">
-            <p className="text-[#0EA5E9] text-sm">
-              <strong>Your Referral Code:</strong> {referralCode}
-            </p>
-          </div>
-        </div>
-
-        {/* Recent Referrals */}
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Recent Referrals</h2>
-          
-          <div className="text-center py-12 text-[#64748B]">
-            <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No referrals yet</p>
-            <p className="text-sm mt-1">Share your link to start earning!</p>
-          </div>
-        </div>
-
-        {/* How It Works */}
-        <div className="mt-8 bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">How It Works</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-[#0EA5E9] font-bold">1</span>
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <DashboardCard title="My Referrals" value={stats.totalReferrals} subtitle={`${stats.convertedReferrals} converted`} icon={<Users className="w-5 h-5 text-[#0EA5E9]" />} iconBgColor="bg-[#0EA5E9]/20" />
+                <DashboardCard title="Active Venues" value={stats.activeVenues} subtitle={`${stats.totalVenues} total`} icon={<MapPin className="w-5 h-5 text-green-400" />} iconBgColor="bg-green-500/20" />
+                <DashboardCard title="Total Data" value={stats.totalDataGB.toFixed(1)} suffix=" GB" icon={<Activity className="w-5 h-5 text-purple-400" />} iconBgColor="bg-purple-500/20" />
+                <DashboardCard title="Conversion" value={Math.round((stats.convertedReferrals / stats.totalReferrals) * 100) || 0} suffix="%" icon={<TrendingUp className="w-5 h-5 text-yellow-400" />} iconBgColor="bg-yellow-500/20" />
               </div>
-              <h3 className="text-white font-medium mb-2">Share Your Link</h3>
-              <p className="text-[#94A3B8] text-sm">Send your referral link to businesses that could benefit from SkyYield</p>
+              <VenuesSection venues={venues} loading={loading} title="Referred Venues" onViewDetails={() => setActiveTab('venues')} />
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white">Device Overview</h3>
+                  <button onClick={() => setActiveTab('devices')} className="text-[#0EA5E9] text-sm hover:underline">View All</button>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-white">{stats.totalDevices}</div>
+                    <div className="text-[#64748B] text-sm">Total Devices</div>
+                  </div>
+                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-green-400">{stats.onlineDevices}</div>
+                    <div className="text-[#64748B] text-sm">Online</div>
+                  </div>
+                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-[#0EA5E9]">{stats.totalDataGB.toFixed(0)}</div>
+                    <div className="text-[#64748B] text-sm">GB Total</div>
+                  </div>
+                </div>
+              </div>
             </div>
-            
-            <div className="text-center">
-              <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-[#0EA5E9] font-bold">2</span>
-              </div>
-              <h3 className="text-white font-medium mb-2">They Sign Up</h3>
-              <p className="text-[#94A3B8] text-sm">When they become a location partner using your link, we track the referral</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-[#0EA5E9] font-bold">3</span>
-              </div>
-              <h3 className="text-white font-medium mb-2">Earn Commissions</h3>
-              <p className="text-[#94A3B8] text-sm">Receive ongoing commissions based on their network earnings</p>
+            <div className="space-y-6">
+              {stats.pendingPayments > 0 && (
+                <div className="bg-gradient-to-br from-[#0EA5E9]/20 to-purple-500/20 border border-[#0EA5E9]/30 rounded-xl p-6">
+                  <div className="text-[#94A3B8] text-sm mb-1">Pending Payments</div>
+                  <div className="text-3xl font-bold text-[#0EA5E9]">${stats.pendingPayments.toFixed(2)}</div>
+                  <div className="text-[#64748B] text-sm mt-2">Next payout: Jan 1, 2025</div>
+                </div>
+              )}
+              <ReferralCodeCard referralCode={referralCode} totalReferrals={stats.totalReferrals} pendingReferrals={stats.totalReferrals - stats.convertedReferrals} earnedFromReferrals={stats.myEarnings} showStats={true} />
+              <ContactCard calendlyUrl="https://calendly.com/scohen-skyyield" supportEmail="support@skyyield.io" showTicketForm={true} />
+              <DocumentsSection documents={documents} loading={loading} title="Documents" />
             </div>
           </div>
-        </div>
+        )}
+
+        {activeTab === 'referrals' && <CRMTab />}
+        {activeTab === 'venues' && <VenuesSection venues={venues} loading={loading} title="All Referred Venues" />}
+        
+        {activeTab === 'devices' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <DashboardCard title="Total Devices" value={stats.totalDevices} icon={<Cpu className="w-5 h-5 text-purple-400" />} iconBgColor="bg-purple-500/20" />
+              <DashboardCard title="Online" value={stats.onlineDevices} icon={<Wifi className="w-5 h-5 text-green-400" />} iconBgColor="bg-green-500/20" />
+              <DashboardCard title="Offline" value={stats.totalDevices - stats.onlineDevices} icon={<Wifi className="w-5 h-5 text-red-400" />} iconBgColor="bg-red-500/20" />
+              <DashboardCard title="Total Data" value={stats.totalDataGB.toFixed(1)} suffix=" GB" icon={<Activity className="w-5 h-5 text-[#0EA5E9]" />} iconBgColor="bg-[#0EA5E9]/20" />
+            </div>
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+              <div className="p-6 border-b border-[#2D3B5F]"><h2 className="text-xl font-semibold text-white">All Devices</h2><p className="text-[#94A3B8] text-sm">Devices from your referred venues</p></div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead><tr className="border-b border-[#2D3B5F]">
+                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Device</th>
+                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Venue</th>
+                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Status</th>
+                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Data Usage</th>
+                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Last Seen</th>
+                  </tr></thead>
+                  <tbody>
+                    {devices.map(device => (
+                      <tr key={device.id} className="border-b border-[#2D3B5F] hover:bg-[#0A0F2C]/50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center"><Wifi className="w-5 h-5 text-purple-400" /></div>
+                            <div><div className="text-white font-medium">{device.name}</div><div className="text-[#64748B] text-xs">{device.type}</div></div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-[#94A3B8]">{device.venueName}</td>
+                        <td className="px-6 py-4"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${device.status === 'online' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}><span className={`w-1.5 h-1.5 rounded-full ${device.status === 'online' ? 'bg-green-400' : 'bg-red-400'}`} />{device.status}</span></td>
+                        <td className="px-6 py-4 text-[#0EA5E9] font-medium">{device.dataUsageGB.toFixed(1)} GB</td>
+                        <td className="px-6 py-4 text-[#64748B] text-sm">{new Date(device.lastSeen).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'materials' && <TrainingSection items={materials} loading={loading} title="Materials & Resources" showProgress={true} />}
+        {activeTab === 'calculator' && <CalculatorSection isSubscribed={hasCalculatorSubscription} showUpgradePrompt={true} />}
+        {activeTab === 'payments' && <PartnerPayments partnerId={partnerId} partnerType="referral_partner" />}
+        {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="referral_partner" showCompanyInfo={true} showPaymentSettings={true} showNotifications={true} />}
+        {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="referral_partner" showReferrals={true} showDataUsage={true} />}
       </div>
     </div>
   )
