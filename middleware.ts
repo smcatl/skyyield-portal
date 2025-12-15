@@ -33,6 +33,8 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks(.*)',        // <-- ADD THIS for DocuSeal webhooks
   '/api/crypto-prices(.*)',
   '/api/pipeline/docuseal(.*)', // <-- ADD THIS for DocuSeal API
+  '/api/tipalti(.*)',
+  '/api/webhooks/tipalti(.*)',
 ])
 
 export default clerkMiddleware(async (auth, req) => {
