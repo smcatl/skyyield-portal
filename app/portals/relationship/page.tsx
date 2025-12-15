@@ -2,7 +2,7 @@
 
 import { useUser } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { 
   ArrowLeft, DollarSign, BarChart3, MapPin, Wifi,
@@ -39,7 +39,7 @@ interface Device {
   lastSeen: string
 }
 
-export default function RelationshipPartnerPortal() {
+function RelationshipPartnerPortalContent() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -313,5 +313,13 @@ export default function RelationshipPartnerPortal() {
         {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="relationship_partner" showReferrals={true} showDataUsage={true} />}
       </div>
     </div>
+  )
+}
+
+export default function RelationshipPartnerPortal() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-pink-400 rounded-full animate-spin" /></div>}>
+      <RelationshipPartnerPortalContent />
+    </Suspense>
   )
 }

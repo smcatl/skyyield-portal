@@ -2,7 +2,7 @@
 
 import { useUser } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { 
   ArrowLeft, DollarSign, BarChart3, MapPin, Wifi,
@@ -32,7 +32,7 @@ interface Device {
   installedAt: string
 }
 
-export default function LocationPartnerPortal() {
+function LocationPartnerPortalContent() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -258,5 +258,13 @@ export default function LocationPartnerPortal() {
         {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="location_partner" showReferrals={true} showDataUsage={true} />}
       </div>
     </div>
+  )
+}
+
+export default function LocationPartnerPortal() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-green-400 rounded-full animate-spin" /></div>}>
+      <LocationPartnerPortalContent />
+    </Suspense>
   )
 }
