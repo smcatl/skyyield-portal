@@ -1,13 +1,13 @@
 'use client'
 
 import { useUser } from '@clerk/nextjs'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { 
   ArrowLeft, DollarSign, BarChart3, MapPin, Wifi,
   Activity, Calculator, FileText, TrendingUp, Settings, 
-  Wallet, Target, Users, Cpu
+  Wallet, Target, Users, Cpu, X
 } from 'lucide-react'
 import CalculatorSection from '@/components/CalculatorSection'
 import {
@@ -33,6 +33,8 @@ interface Device {
 export default function ReferralPartnerPortal() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isPreviewMode = searchParams.get('preview') === 'true'
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [loading, setLoading] = useState(true)
   const [partnerId, setPartnerId] = useState<string>('')
@@ -48,11 +50,20 @@ export default function ReferralPartnerPortal() {
   useEffect(() => {
     if (!isLoaded) return
     if (!user) { router.push('/sign-in'); return }
+    
+    const role = (user.unsafeMetadata as any)?.role
     const status = (user.unsafeMetadata as any)?.status || 'pending'
+    
+    if (isPreviewMode && role === 'admin') {
+      setPartnerId('preview-admin')
+      loadPortalData()
+      return
+    }
+    
     if (status !== 'approved') { router.push('/pending-approval'); return }
     setPartnerId((user.unsafeMetadata as any)?.partnerId || user.id)
     loadPortalData()
-  }, [isLoaded, user, router])
+  }, [isLoaded, user, router, isPreviewMode])
 
   const loadPortalData = async () => {
     setLoading(true)
@@ -105,9 +116,23 @@ export default function ReferralPartnerPortal() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20">
+      {isPreviewMode && (
+        <div className="bg-gradient-to-r from-[#0EA5E9] to-cyan-500 px-4 py-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 text-white">
+              <span className="font-medium">👁️ Preview Mode:</span>
+              <span>Viewing as Referral Partner</span>
+            </div>
+            <Link href="/portals/admin" className="flex items-center gap-1 text-white hover:text-white/80 transition-colors">
+              <X className="w-4 h-4" />
+              Exit Preview
+            </Link>
+          </div>
+        </div>
+      )}
       <div className="px-4 pb-4 border-b border-[#2D3B5F]">
         <div className="max-w-7xl mx-auto">
-          <Link href="/" className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"><ArrowLeft className="w-4 h-4" />Back to Home</Link>
+          <Link href={isPreviewMode ? "/portals/admin" : "/"} className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"><ArrowLeft className="w-4 h-4" />{isPreviewMode ? "Back to Admin" : "Back to Home"}</Link>
           <div className="mb-4">
             <h1 className="text-3xl font-bold text-white">Referral <span className="text-[#0EA5E9]">Partner</span> Portal</h1>
             <p className="text-[#94A3B8] mt-1">Welcome back, {user?.firstName}!</p>

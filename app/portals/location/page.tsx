@@ -1,13 +1,13 @@
 'use client'
 
 import { useUser } from '@clerk/nextjs'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { 
   ArrowLeft, DollarSign, BarChart3, MapPin, Wifi,
   Activity, Calculator, FileText, TrendingUp, Settings, 
-  Wallet, Bell, Target, Users, Cpu
+  Wallet, Bell, Target, Users, Cpu, X
 } from 'lucide-react'
 import CalculatorSection from '@/components/CalculatorSection'
 import {
@@ -35,6 +35,8 @@ interface Device {
 export default function LocationPartnerPortal() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isPreviewMode = searchParams.get('preview') === 'true'
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [loading, setLoading] = useState(true)
   const [partnerId, setPartnerId] = useState<string>('')
@@ -50,11 +52,21 @@ export default function LocationPartnerPortal() {
   useEffect(() => {
     if (!isLoaded) return
     if (!user) { router.push('/sign-in'); return }
+    
+    const role = (user.unsafeMetadata as any)?.role
     const status = (user.unsafeMetadata as any)?.status || 'pending'
+    
+    // Allow admins in preview mode, otherwise check approval
+    if (isPreviewMode && role === 'admin') {
+      setPartnerId('preview-admin')
+      loadPortalData()
+      return
+    }
+    
     if (status !== 'approved') { router.push('/pending-approval'); return }
     setPartnerId((user.unsafeMetadata as any)?.partnerId || user.id)
     loadPortalData()
-  }, [isLoaded, user, router])
+  }, [isLoaded, user, router, isPreviewMode])
 
   const loadPortalData = async () => {
     setLoading(true)
@@ -108,9 +120,24 @@ export default function LocationPartnerPortal() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20">
+      {/* Preview Mode Banner */}
+      {isPreviewMode && (
+        <div className="bg-gradient-to-r from-green-500 to-emerald-500 px-4 py-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 text-white">
+              <span className="font-medium">👁️ Preview Mode:</span>
+              <span>Viewing as Location Partner</span>
+            </div>
+            <Link href="/portals/admin" className="flex items-center gap-1 text-white hover:text-white/80 transition-colors">
+              <X className="w-4 h-4" />
+              Exit Preview
+            </Link>
+          </div>
+        </div>
+      )}
       <div className="px-4 pb-4 border-b border-[#2D3B5F]">
         <div className="max-w-7xl mx-auto">
-          <Link href="/" className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"><ArrowLeft className="w-4 h-4" />Back to Home</Link>
+          <Link href={isPreviewMode ? "/portals/admin" : "/"} className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"><ArrowLeft className="w-4 h-4" />{isPreviewMode ? "Back to Admin" : "Back to Home"}</Link>
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-white">Location <span className="text-green-400">Partner</span> Portal</h1>
