@@ -128,7 +128,8 @@ const USER_TYPES = [
   'Channel Partner', 'Relationship Partner', 'Contractor', 'Customer', 'Calculator Access'
 ]
 
-const PIPELINE_STAGES = [
+// Location Partner stages (full flow with site survey, trial, contract)
+const LP_PIPELINE_STAGES = [
   { id: 'application', name: 'Application', color: 'border-blue-500', bgColor: 'bg-blue-500', waitingFor: null },
   { id: 'initial_review', name: 'Initial Review', color: 'border-yellow-500', bgColor: 'bg-yellow-500', waitingFor: null },
   { id: 'discovery_scheduled', name: 'Discovery', color: 'border-purple-500', bgColor: 'bg-purple-500', waitingFor: 'calendly_discovery' },
@@ -144,11 +145,36 @@ const PIPELINE_STAGES = [
   { id: 'inactive', name: 'Inactive', color: 'border-gray-500', bgColor: 'bg-gray-500', waitingFor: null },
 ]
 
+// Simple partner stages (Referral, Relationship, Channel, Contractor) - agreement then invite
+const SIMPLE_PIPELINE_STAGES = [
+  { id: 'application', name: 'Application', color: 'border-blue-500', bgColor: 'bg-blue-500', waitingFor: null },
+  { id: 'initial_review', name: 'Initial Review', color: 'border-yellow-500', bgColor: 'bg-yellow-500', waitingFor: null },
+  { id: 'discovery_scheduled', name: 'Discovery', color: 'border-purple-500', bgColor: 'bg-purple-500', waitingFor: 'calendly_discovery' },
+  { id: 'discovery_complete', name: 'Post-Call', color: 'border-yellow-500', bgColor: 'bg-yellow-500', waitingFor: null },
+  { id: 'agreement_sent', name: 'Agreement Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'pandadoc_agreement' },
+  { id: 'agreement_signed', name: 'Agreement Signed', color: 'border-green-500', bgColor: 'bg-green-500', waitingFor: null },
+  { id: 'tipalti_setup', name: 'Payment Setup', color: 'border-pink-500', bgColor: 'bg-pink-500', waitingFor: 'tipalti_setup' },
+  { id: 'active', name: 'Active', color: 'border-green-500', bgColor: 'bg-green-500', waitingFor: null },
+  { id: 'inactive', name: 'Inactive', color: 'border-gray-500', bgColor: 'bg-gray-500', waitingFor: null },
+]
+
+// Default stages (for backward compat, same as LP)
+const PIPELINE_STAGES = LP_PIPELINE_STAGES
+
+// Helper to get stages based on partner type
+const getStagesForPartnerType = (partnerType: string) => {
+  if (partnerType === 'Location Partner' || !partnerType) {
+    return LP_PIPELINE_STAGES
+  }
+  return SIMPLE_PIPELINE_STAGES
+}
+
 const WAITING_TYPES = [
   { id: 'calendly_discovery', label: 'Waiting: Book Discovery Call', shortLabel: 'Discovery Call', icon: '📅', category: 'calendly', description: 'Partner needs to book their discovery call' },
   { id: 'calendly_install', label: 'Waiting: Book Install Appointment', shortLabel: 'Install Booking', icon: '🔧', category: 'calendly', description: 'Partner needs to schedule installation' },
   { id: 'calendly_review', label: 'Waiting: Book Review Call', shortLabel: 'Review Call', icon: '📊', category: 'calendly', description: 'Partner needs to book trial review call' },
   { id: 'pandadoc_loi', label: 'Waiting: Sign LOI', shortLabel: 'LOI Signature', icon: '📝', category: 'pandadoc', description: 'Partner needs to sign Letter of Intent' },
+  { id: 'pandadoc_agreement', label: 'Waiting: Sign Agreement', shortLabel: 'Agreement', icon: '📝', category: 'pandadoc', description: 'Partner needs to sign partner agreement' },
   { id: 'pandadoc_contract', label: 'Waiting: Sign Contract', shortLabel: 'Contract', icon: '📄', category: 'pandadoc', description: 'Partner needs to sign deployment contract' },
   { id: 'tipalti_setup', label: 'Waiting: Setup Payment', shortLabel: 'Tipalti Setup', icon: '💰', category: 'tipalti', description: 'Partner needs to complete Tipalti setup' },
   { id: 'portal_setup', label: 'Waiting: Activate Portal', shortLabel: 'Portal Setup', icon: '🔐', category: 'portal', description: 'Partner needs to activate their portal' },
@@ -162,7 +188,7 @@ const WAITING_TYPES = [
 const PARTNER_STATUSES = ['active', 'inactive', 'paused', 'pending']
 
 // Partner types for filtering
-const PARTNER_TYPES = ['Location Partner', 'Referral Partner', 'Channel Partner', 'Relationship Partner']
+const PARTNER_TYPES = ['Location Partner', 'Referral Partner', 'Channel Partner', 'Relationship Partner', 'Contractor']
 
 const REMINDER_THRESHOLDS = {
   first: 3,      // Days before first reminder
@@ -693,6 +719,7 @@ export default function AdminPortalPage() {
   const [partners, setPartners] = useState<LocationPartner[]>([])
   const [pipelineLoading, setPipelineLoading] = useState(false)
   const [pipelineStageFilter, setPipelineStageFilter] = useState<string | null>(null)
+  const [pipelinePartnerTypeFilter, setPipelinePartnerTypeFilter] = useState<string>('all')
 
   // Follow-ups state
   const [waitingItems, setWaitingItems] = useState<WaitingItem[]>([])
@@ -2991,13 +3018,27 @@ export default function AdminPortalPage() {
                 <p className="text-[#94A3B8] text-sm">Track partner onboarding progress - click a stage to filter</p>
               </div>
               <div className="flex items-center gap-2">
+                {/* Partner Type Filter */}
+                <select
+                  value={pipelinePartnerTypeFilter}
+                  onChange={(e) => {
+                    setPipelinePartnerTypeFilter(e.target.value)
+                    setPipelineStageFilter(null) // Reset stage filter when changing type
+                  }}
+                  className="px-3 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+                >
+                  <option value="all">All Partner Types</option>
+                  {PARTNER_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
                 {pipelineStageFilter && (
                   <button
                     onClick={() => setPipelineStageFilter(null)}
                     className="flex items-center gap-2 px-3 py-2 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/30 transition-colors text-sm"
                   >
                     <X className="w-4 h-4" />
-                    Clear Filter
+                    Clear Stage
                   </button>
                 )}
                 <button
@@ -3011,10 +3052,23 @@ export default function AdminPortalPage() {
               </div>
             </div>
 
+            {/* Partner Type Info Banner */}
+            {pipelinePartnerTypeFilter !== 'all' && pipelinePartnerTypeFilter !== 'Location Partner' && (
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-3">
+                <div className="flex items-center gap-2 text-purple-400">
+                  <span className="text-sm font-medium">Simplified Flow:</span>
+                  <span className="text-sm text-[#94A3B8]">Application → Review → Discovery → Agreement → Payment Setup → Active</span>
+                </div>
+              </div>
+            )}
+
             {/* Pipeline Stages Summary - Clickable */}
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {PIPELINE_STAGES.map(stage => {
-                const count = partners.filter(p => p.stage === stage.id).length
+              {(pipelinePartnerTypeFilter === 'all' || pipelinePartnerTypeFilter === 'Location Partner' ? LP_PIPELINE_STAGES : SIMPLE_PIPELINE_STAGES).map(stage => {
+                const filteredPartners = pipelinePartnerTypeFilter === 'all' 
+                  ? partners 
+                  : partners.filter(p => (p.partnerType || 'Location Partner') === pipelinePartnerTypeFilter)
+                const count = filteredPartners.filter(p => p.stage === stage.id).length
                 const isSelected = pipelineStageFilter === stage.id
                 const isFiltered = pipelineStageFilter !== null && !isSelected
                 return (
@@ -3036,17 +3090,23 @@ export default function AdminPortalPage() {
             </div>
 
             {/* Filter indicator */}
-            {pipelineStageFilter && (
+            {(pipelineStageFilter || pipelinePartnerTypeFilter !== 'all') && (
               <div className="bg-[#0EA5E9]/10 border border-[#0EA5E9]/30 rounded-lg px-4 py-2 flex items-center justify-between">
                 <span className="text-[#0EA5E9] text-sm">
-                  Showing partners in: <strong>{PIPELINE_STAGES.find(s => s.id === pipelineStageFilter)?.name}</strong>
-                  {' '}({partners.filter(p => p.stage === pipelineStageFilter).length} partners)
+                  Showing: 
+                  {pipelinePartnerTypeFilter !== 'all' && <strong> {pipelinePartnerTypeFilter}</strong>}
+                  {pipelineStageFilter && <> in <strong>{(pipelinePartnerTypeFilter === 'all' || pipelinePartnerTypeFilter === 'Location Partner' ? LP_PIPELINE_STAGES : SIMPLE_PIPELINE_STAGES).find(s => s.id === pipelineStageFilter)?.name}</strong></>}
+                  {' '}({partners.filter(p => {
+                    const typeMatch = pipelinePartnerTypeFilter === 'all' || (p.partnerType || 'Location Partner') === pipelinePartnerTypeFilter
+                    const stageMatch = !pipelineStageFilter || p.stage === pipelineStageFilter
+                    return typeMatch && stageMatch
+                  }).length} partners)
                 </span>
                 <button
-                  onClick={() => setPipelineStageFilter(null)}
+                  onClick={() => { setPipelineStageFilter(null); setPipelinePartnerTypeFilter('all') }}
                   className="text-[#0EA5E9] hover:text-white transition-colors"
                 >
-                  Show All
+                  Clear All Filters
                 </button>
               </div>
             )}
@@ -3058,17 +3118,22 @@ export default function AdminPortalPage() {
                   <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
                   Loading pipeline...
                 </div>
-              ) : partners.filter(p => !pipelineStageFilter || p.stage === pipelineStageFilter).length === 0 ? (
+              ) : partners.filter(p => {
+                const typeMatch = pipelinePartnerTypeFilter === 'all' || (p.partnerType || 'Location Partner') === pipelinePartnerTypeFilter
+                const stageMatch = !pipelineStageFilter || p.stage === pipelineStageFilter
+                return typeMatch && stageMatch
+              }).length === 0 ? (
                 <div className="p-12 text-center text-[#64748B]">
                   <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No partners {pipelineStageFilter ? 'in this stage' : 'in pipeline'}</p>
-                  <p className="text-sm mt-1">{pipelineStageFilter ? 'Try selecting a different stage' : 'Partners will appear here when they apply'}</p>
+                  <p>No partners {pipelineStageFilter || pipelinePartnerTypeFilter !== 'all' ? 'matching filters' : 'in pipeline'}</p>
+                  <p className="text-sm mt-1">{pipelineStageFilter || pipelinePartnerTypeFilter !== 'all' ? 'Try adjusting your filters' : 'Partners will appear here when they apply'}</p>
                 </div>
               ) : (
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-[#2D3B5F]">
                       <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Partner</th>
+                      <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Type</th>
                       <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Company</th>
                       <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Stage</th>
                       <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Location</th>
@@ -3077,21 +3142,38 @@ export default function AdminPortalPage() {
                   </thead>
                   <tbody>
                     {partners
-                      .filter(p => !pipelineStageFilter || p.stage === pipelineStageFilter)
-                      .map(partner => (
+                      .filter(p => {
+                        const typeMatch = pipelinePartnerTypeFilter === 'all' || (p.partnerType || 'Location Partner') === pipelinePartnerTypeFilter
+                        const stageMatch = !pipelineStageFilter || p.stage === pipelineStageFilter
+                        return typeMatch && stageMatch
+                      })
+                      .map(partner => {
+                        const currentStages = (partner.partnerType === 'Location Partner' || !partner.partnerType) ? LP_PIPELINE_STAGES : SIMPLE_PIPELINE_STAGES
+                        return (
                         <tr key={partner.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
                           <td className="px-6 py-4">
                             <div className="text-white font-medium">{partner.contactFullName}</div>
                             <div className="text-[#64748B] text-sm">{partner.contactEmail}</div>
                           </td>
                           <td className="px-6 py-4">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              partner.partnerType === 'Referral Partner' ? 'bg-cyan-500/20 text-cyan-400' :
+                              partner.partnerType === 'Channel Partner' ? 'bg-purple-500/20 text-purple-400' :
+                              partner.partnerType === 'Relationship Partner' ? 'bg-pink-500/20 text-pink-400' :
+                              partner.partnerType === 'Contractor' ? 'bg-orange-500/20 text-orange-400' :
+                              'bg-green-500/20 text-green-400'
+                            }`}>
+                              {(partner.partnerType || 'Location Partner').replace(' Partner', '')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
                             <div className="text-white">{partner.companyLegalName}</div>
                             {partner.companyDBA && <div className="text-[#64748B] text-sm">DBA: {partner.companyDBA}</div>}
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${PIPELINE_STAGES.find(s => s.id === partner.stage)?.bgColor || 'bg-gray-500'
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${currentStages.find(s => s.id === partner.stage)?.bgColor || 'bg-gray-500'
                               } bg-opacity-20 text-white`}>
-                              {PIPELINE_STAGES.find(s => s.id === partner.stage)?.name || partner.stage}
+                              {currentStages.find(s => s.id === partner.stage)?.name || partner.stage}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-[#94A3B8]">
@@ -3108,7 +3190,7 @@ export default function AdminPortalPage() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      )})}
                   </tbody>
                 </table>
               )}
