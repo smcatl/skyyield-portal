@@ -2918,7 +2918,7 @@ export default function AdminPortalPage() {
           <div className="space-y-6">
             {/* Header */}
             <div>
-              <h2 className="text-xl font-semibold text-white">Placer.ai Calculators</h2>
+              <h2 className="text-xl font-semibold text-white">Location Intelligence Calculators</h2>
               <p className="text-[#94A3B8] text-sm">Analyze venues and estimate potential earnings using foot traffic data</p>
             </div>
 

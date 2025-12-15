@@ -9,7 +9,7 @@ import {
   Activity, Calculator, FileText, TrendingUp, Settings, 
   Wallet, Target, Building2, Cpu, X
 } from 'lucide-react'
-import CalculatorSection from '@/components/CalculatorSection'
+import FullCalculator from '@/components/portal/FullCalculator'
 import {
   ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
   TrainingSection, VenuesSection, PartnerSettings, PartnerAnalytics, PartnerPayments,
@@ -318,7 +318,7 @@ function ChannelPartnerPortalContent() {
         )}
 
         {activeTab === 'materials' && <TrainingSection items={materials} loading={loading} title="Materials & Resources" showProgress={true} />}
-        {activeTab === 'calculator' && <CalculatorSection isSubscribed={hasCalculatorSubscription} showUpgradePrompt={true} />}
+        {activeTab === 'calculator' && <FullCalculator isSubscribed={hasCalculatorSubscription} />}
         {activeTab === 'payments' && <PartnerPayments partnerId={partnerId} partnerType="channel_partner" />}
         {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="channel_partner" showCompanyInfo={true} showPaymentSettings={true} showNotifications={true} />}
         {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="channel_partner" showReferrals={true} showDataUsage={true} />}
