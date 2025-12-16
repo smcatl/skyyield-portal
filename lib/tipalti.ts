@@ -442,15 +442,15 @@ export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]
   const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
   const signature = generateHmacSignature(dataToSign)
 
-  // Use GetPayeesListDetails to get all payees
+  // Use GetPayeeStatusList from Payer API
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
   <soap:Body>
-    <tip:GetPayeesListDetails>
+    <tip:GetPayeeStatusList>
       <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
       <tip:timestamp>${timestamp}</tip:timestamp>
       <tip:key>${signature}</tip:key>
-    </tip:GetPayeesListDetails>
+    </tip:GetPayeeStatusList>
   </soap:Body>
 </soap:Envelope>`
 
@@ -459,14 +459,14 @@ export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/GetPayeesListDetails',
+        'SOAPAction': 'http://Tipalti.org/GetPayeeStatusList',
       },
       body: soapEnvelope,
     })
 
     const responseText = await response.text()
     const payees = parsePayeeListResponse(responseText)
-    return { success: true, payees, rawXml: responseText.substring(0, 2000) }
+    return { success: true, payees, rawXml: responseText.substring(0, 3000) }
   } catch (error) {
     return { success: false, error: String(error) }
   }
