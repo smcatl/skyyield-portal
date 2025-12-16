@@ -98,6 +98,45 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(result)
       }
 
+      case 'debug_payee': {
+        // Debug: Get raw Tipalti response for a payee
+        if (!payeeId) return NextResponse.json({ error: 'payeeId required' }, { status: 400 })
+        
+        const timestamp = Math.floor(Date.now() / 1000)
+        const crypto = await import('crypto')
+        const apiKey = process.env.TIPALTI_API_KEY || ''
+        const payerName = process.env.TIPALTI_PAYER_NAME || 'SkyYield'
+        
+        const dataToSign = `${payerName}${payeeId}${timestamp}`
+        const hmac = crypto.createHmac('sha256', apiKey)
+        hmac.update(dataToSign)
+        const signature = hmac.digest('hex')
+
+        const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
+  <soap:Body>
+    <tip:GetPayeeDetails>
+      <tip:payerName>${payerName}</tip:payerName>
+      <tip:idap>${payeeId}</tip:idap>
+      <tip:timestamp>${timestamp}</tip:timestamp>
+      <tip:key>${signature}</tip:key>
+    </tip:GetPayeeDetails>
+  </soap:Body>
+</soap:Envelope>`
+
+        const response = await fetch('https://api.tipalti.com/v14/PayeeFunctions.asmx', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/xml; charset=utf-8',
+            'SOAPAction': 'http://Tipalti.org/GetPayeeDetails',
+          },
+          body: soapEnvelope,
+        })
+
+        const rawXml = await response.text()
+        return NextResponse.json({ success: true, rawXml })
+      }
+
       default:
         return NextResponse.json({ 
           error: 'Invalid action',
