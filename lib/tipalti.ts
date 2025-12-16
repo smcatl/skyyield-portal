@@ -335,24 +335,52 @@ function escapeXml(str: string): string {
 function parsePayeeDetailsResponse(xml: string): any {
   // Extract key fields from SOAP response
   const extractValue = (tag: string) => {
-    const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))
+    const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
     return match?.[1] || null
   }
 
+  // Parse the combined address
+  const addressRaw = extractValue('Address')
+  let street1 = null, city = null, state = null, zip = null, country = null
+  if (addressRaw) {
+    const addressParts = addressRaw.split(/\r?\n/)
+    street1 = addressParts[0] || null
+    city = addressParts[1] || null
+    // Parse "GA 30062" format
+    if (addressParts[2]) {
+      const stateZip = addressParts[2].match(/([A-Z]{2})\s*(\d{5}(-\d{4})?)/)
+      if (stateZip) {
+        state = stateZip[1]
+        zip = stateZip[2]
+      }
+    }
+    country = addressParts[3] || null
+  }
+
+  // Parse full name into first/last
+  const fullName = extractValue('Name')
+  let firstName = null, lastName = null
+  if (fullName) {
+    const nameParts = fullName.split(' ')
+    firstName = nameParts[0]
+    lastName = nameParts.slice(1).join(' ')
+  }
+
   return {
-    payeeId: extractValue('Idap'),
-    firstName: extractValue('FirstName'),
-    lastName: extractValue('LastName'),
+    payeeId: extractValue('Idap') || extractValue('idap'),
+    name: fullName,
+    firstName,
+    lastName,
     email: extractValue('Email'),
-    company: extractValue('Company'),
+    company: extractValue('Company') || extractValue('CompanyName'),
     paymentMethod: extractValue('PaymentMethod'),
-    payeeStatus: extractValue('PayeeStatus'),
-    isPayable: extractValue('IsPayable') === 'true',
-    street1: extractValue('Street1'),
-    city: extractValue('City'),
-    state: extractValue('State'),
-    zip: extractValue('Zip'),
-    country: extractValue('Country'),
+    payeeStatus: extractValue('PayeeStatus') || extractValue('Status'),
+    isPayable: extractValue('PaymentMethod') !== 'NoPM',
+    street1,
+    city,
+    state,
+    zip,
+    country,
   }
 }
 
@@ -409,19 +437,20 @@ function parseInvoicesResponse(xml: string): any[] {
 // GET ALL PAYEES FROM TIPALTI
 // ============================================
 
-export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]; error?: string }> {
+export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]; rawXml?: string; error?: string }> {
   const timestamp = generateTimestamp()
   const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
   const signature = generateHmacSignature(dataToSign)
 
+  // Use GetPayeesListDetails to get all payees
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
   <soap:Body>
-    <tip:GetExtendedPayeeStatusList>
+    <tip:GetPayeesListDetails>
       <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
       <tip:timestamp>${timestamp}</tip:timestamp>
       <tip:key>${signature}</tip:key>
-    </tip:GetExtendedPayeeStatusList>
+    </tip:GetPayeesListDetails>
   </soap:Body>
 </soap:Envelope>`
 
@@ -430,14 +459,14 @@ export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/GetExtendedPayeeStatusList',
+        'SOAPAction': 'http://Tipalti.org/GetPayeesListDetails',
       },
       body: soapEnvelope,
     })
 
     const responseText = await response.text()
     const payees = parsePayeeListResponse(responseText)
-    return { success: true, payees }
+    return { success: true, payees, rawXml: responseText.substring(0, 2000) }
   } catch (error) {
     return { success: false, error: String(error) }
   }
@@ -446,31 +475,45 @@ export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]
 function parsePayeeListResponse(xml: string): any[] {
   const payees: any[] = []
   
-  // Match each payee item in the response
-  const payeeMatches = xml.matchAll(/<ExtendedPayeeStatusItem>([\s\S]*?)<\/ExtendedPayeeStatusItem>/gi)
+  // Try multiple possible item tag names
+  const itemPatterns = [
+    /<PayeeDetails>([\s\S]*?)<\/PayeeDetails>/gi,
+    /<TipaltiPayeeDetails>([\s\S]*?)<\/TipaltiPayeeDetails>/gi,
+    /<PayeeItem>([\s\S]*?)<\/PayeeItem>/gi,
+    /<ExtendedPayeeStatusItem>([\s\S]*?)<\/ExtendedPayeeStatusItem>/gi,
+  ]
   
-  for (const match of payeeMatches) {
-    const payeeXml = match[1]
-    const extractValue = (tag: string) => {
-      const m = payeeXml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
-      return m?.[1] || null
-    }
+  for (const pattern of itemPatterns) {
+    const matches = xml.matchAll(pattern)
+    for (const match of matches) {
+      const payeeXml = match[1]
+      const extractValue = (tag: string) => {
+        const m = payeeXml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
+        return m?.[1] || null
+      }
 
-    payees.push({
-      payeeId: extractValue('Idap') || extractValue('idap'),
-      email: extractValue('Email') || extractValue('email'),
-      firstName: extractValue('FirstName') || extractValue('firstName'),
-      lastName: extractValue('LastName') || extractValue('lastName'),
-      company: extractValue('Company') || extractValue('company') || extractValue('CompanyName'),
-      paymentMethod: extractValue('PaymentMethod') || extractValue('paymentMethod'),
-      payeeStatus: extractValue('PayeeStatus') || extractValue('payeeStatus') || extractValue('Status'),
-      isPayable: (extractValue('IsPayable') || extractValue('isPayable'))?.toLowerCase() === 'true',
-      street1: extractValue('Street1') || extractValue('street1'),
-      city: extractValue('City') || extractValue('city'),
-      state: extractValue('State') || extractValue('state'),
-      zip: extractValue('Zip') || extractValue('zip'),
-      country: extractValue('Country') || extractValue('country'),
-    })
+      const fullName = extractValue('Name')
+      let firstName = null, lastName = null
+      if (fullName) {
+        const nameParts = fullName.split(' ')
+        firstName = nameParts[0]
+        lastName = nameParts.slice(1).join(' ')
+      }
+
+      payees.push({
+        payeeId: extractValue('Idap') || extractValue('idap') || extractValue('PayeeId'),
+        name: fullName,
+        firstName: firstName || extractValue('FirstName'),
+        lastName: lastName || extractValue('LastName'),
+        email: extractValue('Email'),
+        company: extractValue('Company') || extractValue('CompanyName'),
+        paymentMethod: extractValue('PaymentMethod'),
+        payeeStatus: extractValue('PayeeStatus') || extractValue('Status'),
+        isPayable: extractValue('PaymentMethod') !== 'NoPM' && extractValue('PaymentMethod') !== null,
+      })
+    }
+    
+    if (payees.length > 0) break
   }
 
   return payees
