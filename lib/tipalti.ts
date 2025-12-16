@@ -437,39 +437,35 @@ function parseInvoicesResponse(xml: string): any[] {
 // GET ALL PAYEES FROM TIPALTI
 // ============================================
 
-export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]; rawXml?: string; error?: string }> {
-  const timestamp = generateTimestamp()
-  const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
-  const signature = generateHmacSignature(dataToSign)
-
-  // Use GetPayeeStatusList from Payer API
-  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
-  <soap:Body>
-    <tip:GetPayeeStatusList>
-      <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
-      <tip:timestamp>${timestamp}</tip:timestamp>
-      <tip:key>${signature}</tip:key>
-    </tip:GetPayeeStatusList>
-  </soap:Body>
-</soap:Envelope>`
-
-  try {
-    const response = await fetch(TIPALTI_CONFIG.soapPayerUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/GetPayeeStatusList',
-      },
-      body: soapEnvelope,
-    })
-
-    const responseText = await response.text()
-    const payees = parsePayeeListResponse(responseText)
-    return { success: true, payees, rawXml: responseText.substring(0, 3000) }
-  } catch (error) {
-    return { success: false, error: String(error) }
+export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]; error?: string }> {
+  // Tipalti doesn't have a simple "list all payees" API
+  // We need to fetch each payee individually by ID
+  // This fetches IDs 1-20 and any alphanumeric IDs we know about
+  
+  const knownIds = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+    '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
+    't3f6072d3t530bt', 't09993d6dta684t', 'tb3538ab6t2139t', 
+    't94d1ed53tb2d1t', 't1a5e706bta715t'
+  ]
+  
+  const payees: any[] = []
+  
+  for (const id of knownIds) {
+    try {
+      const result = await getPayeeDetails(id)
+      if (result.success && result.data && result.data.email) {
+        payees.push({
+          ...result.data,
+          payeeId: id
+        })
+      }
+    } catch (e) {
+      // Skip failed lookups
+    }
   }
+  
+  return { success: true, payees }
 }
 
 function parsePayeeListResponse(xml: string): any[] {
