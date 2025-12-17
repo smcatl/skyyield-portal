@@ -1491,24 +1491,40 @@ export default function AdminPortalPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return 'bg-green-500/20 text-green-400 border-green-500/30'
-      case 'rejected': return 'bg-red-500/20 text-red-400 border-red-500/30'
-      default: return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+      case 'account_active':
+      case 'active':
+        return 'bg-green-500/20 text-green-400 border-green-500/30'
+      case 'pending_form':
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+      case 'pending_approval':
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+      case 'deactivated':
+      case 'inactive':
+        return 'bg-red-500/20 text-red-400 border-red-500/30'
+      default:
+        return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
     }
   }
 
   const getTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      'Administrator': 'bg-purple-500/20 text-purple-400',
-      'Employee': 'bg-blue-500/20 text-blue-400',
-      'Referral Partner': 'bg-cyan-500/20 text-cyan-400',
-      'Location Partner': 'bg-green-500/20 text-green-400',
-      'Channel Partner': 'bg-orange-500/20 text-orange-400',
-      'Contractor': 'bg-pink-500/20 text-pink-400',
-      'Customer': 'bg-indigo-500/20 text-indigo-400',
-      'Calculator Access': 'bg-teal-500/20 text-teal-400',
+    switch (type) {
+      case 'location_partner':
+      case 'referral_partner':
+      case 'channel_partner':
+      case 'relationship_partner':
+        return 'bg-green-500/20 text-green-400 border-green-500/30'
+      case 'contractor':
+      case 'employee':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'calculator_user':
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+      case 'customer':
+        return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+      case 'admin':
+        return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+      default:
+        return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
     }
-    return colors[type] || 'bg-gray-500/20 text-gray-400'
   }
 
   const getProductStatusColor = (status?: string) => {
