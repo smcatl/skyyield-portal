@@ -57,27 +57,22 @@ export async function GET(request: NextRequest) {
         const supabase = getSupabaseAdmin()
         const { data: locationPartners } = await supabase
           .from('location_partners')
-          .select('id, company_legal_name, contact_full_name, contact_email, tipalti_payee_id, tipalti_status')
+          .select('id, company_legal_name, contact_first_name, contact_last_name, contact_email, tipalti_payee_id, tipalti_status')
           .not('tipalti_payee_id', 'is', null)
         
         const { data: referralPartners } = await supabase
           .from('referral_partners')
-          .select('id, company_name, contact_full_name, contact_email, tipalti_payee_id, tipalti_status')
+          .select('id, company_name, contact_name, contact_email, tipalti_payee_id, tipalti_status')
           .not('tipalti_payee_id', 'is', null)
 
         const { data: channelPartners } = await supabase
           .from('channel_partners')
-          .select('id, company_name, contact_full_name, contact_email, tipalti_payee_id, tipalti_status')
+          .select('id, company_name, contact_name, contact_email, tipalti_payee_id, tipalti_status')
           .not('tipalti_payee_id', 'is', null)
 
         const { data: relationshipPartners } = await supabase
           .from('relationship_partners')
-          .select('id, company_name, contact_full_name, contact_email, tipalti_payee_id, tipalti_status')
-          .not('tipalti_payee_id', 'is', null)
-
-        const { data: contractors } = await supabase
-          .from('contractors')
-          .select('id, full_name, email, tipalti_payee_id, tipalti_status')
+          .select('id, company_name, contact_name, contact_email, tipalti_payee_id, tipalti_status')
           .not('tipalti_payee_id', 'is', null)
 
         return NextResponse.json({
@@ -87,7 +82,6 @@ export async function GET(request: NextRequest) {
             referral_partners: referralPartners || [],
             channel_partners: channelPartners || [],
             relationship_partners: relationshipPartners || [],
-            contractors: contractors || [],
           }
         })
       }
@@ -105,19 +99,19 @@ export async function GET(request: NextRequest) {
         
         const { data: locationPartners } = await supabase
           .from('location_partners')
-          .select('id, company_legal_name, contact_full_name, contact_email')
+          .select('id, company_legal_name, contact_first_name, contact_last_name, contact_email')
         
         const { data: referralPartners } = await supabase
           .from('referral_partners')
-          .select('id, company_name, contact_full_name, contact_email')
+          .select('id, company_name, contact_name, contact_email')
 
         const { data: channelPartners } = await supabase
           .from('channel_partners')
-          .select('id, company_name, contact_full_name, contact_email')
+          .select('id, company_name, contact_name, contact_email')
 
         const { data: relationshipPartners } = await supabase
           .from('relationship_partners')
-          .select('id, company_name, contact_full_name, contact_email')
+          .select('id, company_name, contact_name, contact_email')
 
         const { data: contractors } = await supabase
           .from('contractors')
@@ -125,7 +119,7 @@ export async function GET(request: NextRequest) {
 
         const { data: employees } = await supabase
           .from('employees')
-          .select('id, legal_name, preferred_name, email')
+          .select('id, first_name, last_name, email')
 
         const generateId = (prefix: string, uuid: string) => 
           `${prefix}-${uuid.replace(/-/g, '').substring(0, 8).toUpperCase()}`
@@ -134,28 +128,28 @@ export async function GET(request: NextRequest) {
           location_partners: (locationPartners || []).map(p => ({
             supabase_id: p.id,
             tipalti_id: generateId('LP', p.id),
-            name: p.contact_full_name,
+            name: `${p.contact_first_name} ${p.contact_last_name}`,
             company: p.company_legal_name,
             email: p.contact_email,
           })),
           referral_partners: (referralPartners || []).map(p => ({
             supabase_id: p.id,
             tipalti_id: generateId('RP', p.id),
-            name: p.contact_full_name,
+            name: p.contact_name,
             company: p.company_name,
             email: p.contact_email,
           })),
           channel_partners: (channelPartners || []).map(p => ({
             supabase_id: p.id,
             tipalti_id: generateId('CP', p.id),
-            name: p.contact_full_name,
+            name: p.contact_name,
             company: p.company_name,
             email: p.contact_email,
           })),
           relationship_partners: (relationshipPartners || []).map(p => ({
             supabase_id: p.id,
             tipalti_id: generateId('REL', p.id),
-            name: p.contact_full_name,
+            name: p.contact_name,
             company: p.company_name,
             email: p.contact_email,
           })),
@@ -169,8 +163,7 @@ export async function GET(request: NextRequest) {
           employees: (employees || []).map(p => ({
             supabase_id: p.id,
             entity_id: generateId('EMP', p.id),
-            name: p.legal_name,
-            preferred_name: p.preferred_name,
+            name: `${p.first_name} ${p.last_name}`,
             email: p.email,
             payment_system: 'quickbooks_payroll',
           })),
