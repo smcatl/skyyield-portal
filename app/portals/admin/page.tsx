@@ -509,6 +509,7 @@ interface User {
   email: string
   imageUrl: string
   userType: string
+  is_admin?: boolean
   status: string
   createdAt: number
 }
@@ -603,7 +604,7 @@ export default function AdminPortalPage() {
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   ]
-  
+
   const [tabs, setTabs] = useState(defaultTabs)
   const [draggedTab, setDraggedTab] = useState<string | null>(null)
   const [dragOverTab, setDragOverTab] = useState<string | null>(null)
@@ -659,10 +660,10 @@ export default function AdminPortalPage() {
     const newTabs = [...tabs]
     const draggedIndex = newTabs.findIndex(t => t.id === draggedTab)
     const targetIndex = newTabs.findIndex(t => t.id === targetTabId)
-    
+
     const [removed] = newTabs.splice(draggedIndex, 1)
     newTabs.splice(targetIndex, 0, removed)
-    
+
     setTabs(newTabs)
     saveTabOrder(newTabs)
     setDraggedTab(null)
@@ -1542,8 +1543,8 @@ export default function AdminPortalPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-            <PreviewPortalDropdown />
-            <button
+              <PreviewPortalDropdown />
+              <button
                 onClick={() => setShowInviteModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
               >
@@ -1565,15 +1566,12 @@ export default function AdminPortalPage() {
                 onDrop={(e) => handleDrop(e, tab.id)}
                 onDragEnd={handleDragEnd}
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all cursor-grab active:cursor-grabbing ${
-                  activeTab === tab.id
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all cursor-grab active:cursor-grabbing ${activeTab === tab.id
                     ? 'bg-[#0EA5E9] text-white'
                     : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
-                } ${
-                  draggedTab === tab.id ? 'opacity-50 scale-95' : ''
-                } ${
-                  dragOverTab === tab.id ? 'ring-2 ring-[#0EA5E9] ring-offset-2 ring-offset-[#0A0F2C]' : ''
-                }`}
+                  } ${draggedTab === tab.id ? 'opacity-50 scale-95' : ''
+                  } ${dragOverTab === tab.id ? 'ring-2 ring-[#0EA5E9] ring-offset-2 ring-offset-[#0A0F2C]' : ''
+                  }`}
               >
                 <GripVertical className="w-3 h-3 opacity-40" />
                 <tab.icon className="w-4 h-4" />
@@ -1780,7 +1778,14 @@ export default function AdminPortalPage() {
                               className="w-10 h-10 rounded-full"
                             />
                             <div>
-                              <div className="text-white font-medium">{u.firstName} {u.lastName}</div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-white font-medium">{u.firstName} {u.lastName}</span>
+                                {u.is_admin && (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-purple-500/20 text-purple-400 rounded border border-purple-500/30">
+                                    Admin
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-[#64748B] text-sm">{u.email}</div>
                             </div>
                           </div>
@@ -2581,11 +2586,10 @@ export default function AdminPortalPage() {
                 <button
                   key={type}
                   onClick={() => setMaterialFilter(type)}
-                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
-                    materialFilter === type
+                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${materialFilter === type
                       ? 'bg-[#0EA5E9] text-white'
                       : 'bg-[#1A1F3A] text-[#94A3B8] hover:text-white'
-                  }`}
+                    }`}
                 >
                   {type === 'all' ? 'All Partners' : type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                 </button>
@@ -2609,81 +2613,79 @@ export default function AdminPortalPage() {
                   {materials
                     .filter(m => materialFilter === 'all' || m.partnerTypes.includes('all') || m.partnerTypes.includes(materialFilter))
                     .map(material => (
-                    <tr key={material.id} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            material.type === 'video' ? 'bg-red-500/20' :
-                            material.type === 'document' ? 'bg-blue-500/20' :
-                            material.type === 'article' ? 'bg-green-500/20' :
-                            'bg-purple-500/20'
-                          }`}>
-                            {material.type === 'video' ? <Video className="w-5 h-5 text-red-400" /> :
-                             material.type === 'document' ? <FileText className="w-5 h-5 text-blue-400" /> :
-                             material.type === 'article' ? <BookOpen className="w-5 h-5 text-green-400" /> :
-                             <CheckCircle className="w-5 h-5 text-purple-400" />}
+                      <tr key={material.id} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${material.type === 'video' ? 'bg-red-500/20' :
+                                material.type === 'document' ? 'bg-blue-500/20' :
+                                  material.type === 'article' ? 'bg-green-500/20' :
+                                    'bg-purple-500/20'
+                              }`}>
+                              {material.type === 'video' ? <Video className="w-5 h-5 text-red-400" /> :
+                                material.type === 'document' ? <FileText className="w-5 h-5 text-blue-400" /> :
+                                  material.type === 'article' ? <BookOpen className="w-5 h-5 text-green-400" /> :
+                                    <CheckCircle className="w-5 h-5 text-purple-400" />}
+                            </div>
+                            <div>
+                              <div className="text-white font-medium">{material.title}</div>
+                              <div className="text-[#64748B] text-sm">{material.description}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="text-white font-medium">{material.title}</div>
-                            <div className="text-[#64748B] text-sm">{material.description}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${material.type === 'video' ? 'bg-red-500/20 text-red-400' :
+                              material.type === 'document' ? 'bg-blue-500/20 text-blue-400' :
+                                material.type === 'article' ? 'bg-green-500/20 text-green-400' :
+                                  'bg-purple-500/20 text-purple-400'
+                            }`}>
+                            {material.type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-[#94A3B8]">{material.category}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {material.partnerTypes.includes('all') ? (
+                              <span className="px-2 py-0.5 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded text-xs">All</span>
+                            ) : material.partnerTypes.map(pt => (
+                              <span key={pt} className="px-2 py-0.5 bg-[#2D3B5F] text-[#94A3B8] rounded text-xs">
+                                {pt.replace('_partner', '').replace('_', ' ')}
+                              </span>
+                            ))}
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          material.type === 'video' ? 'bg-red-500/20 text-red-400' :
-                          material.type === 'document' ? 'bg-blue-500/20 text-blue-400' :
-                          material.type === 'article' ? 'bg-green-500/20 text-green-400' :
-                          'bg-purple-500/20 text-purple-400'
-                        }`}>
-                          {material.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-[#94A3B8]">{material.category}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1">
-                          {material.partnerTypes.includes('all') ? (
-                            <span className="px-2 py-0.5 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded text-xs">All</span>
-                          ) : material.partnerTypes.map(pt => (
-                            <span key={pt} className="px-2 py-0.5 bg-[#2D3B5F] text-[#94A3B8] rounded text-xs">
-                              {pt.replace('_partner', '').replace('_', ' ')}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {material.required ? (
-                          <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">Required</span>
-                        ) : (
-                          <span className="text-[#64748B]">Optional</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <a
-                            href={material.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                          <button
-                            onClick={() => { setEditingMaterial(material); setShowMaterialModal(true) }}
-                            className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteMaterial(material.id)}
-                            className="p-2 text-[#64748B] hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-6 py-4">
+                          {material.required ? (
+                            <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs">Required</span>
+                          ) : (
+                            <span className="text-[#64748B]">Optional</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <a
+                              href={material.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                            <button
+                              onClick={() => { setEditingMaterial(material); setShowMaterialModal(true) }}
+                              className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteMaterial(material.id)}
+                              className="p-2 text-[#64748B] hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
               {materials.filter(m => materialFilter === 'all' || m.partnerTypes.includes('all') || m.partnerTypes.includes(materialFilter)).length === 0 && (
@@ -3423,8 +3425,8 @@ export default function AdminPortalPage() {
             {/* Pipeline Stages Summary - Clickable */}
             <div className="flex gap-2 overflow-x-auto pb-2">
               {(pipelinePartnerTypeFilter === 'all' || pipelinePartnerTypeFilter === 'Location Partner' ? LP_PIPELINE_STAGES : SIMPLE_PIPELINE_STAGES).map(stage => {
-                const filteredPartners = pipelinePartnerTypeFilter === 'all' 
-                  ? partners 
+                const filteredPartners = pipelinePartnerTypeFilter === 'all'
+                  ? partners
                   : partners.filter(p => (p.partnerType || 'Location Partner') === pipelinePartnerTypeFilter)
                 const count = filteredPartners.filter(p => p.stage === stage.id).length
                 const isSelected = pipelineStageFilter === stage.id
@@ -3451,7 +3453,7 @@ export default function AdminPortalPage() {
             {(pipelineStageFilter || pipelinePartnerTypeFilter !== 'all') && (
               <div className="bg-[#0EA5E9]/10 border border-[#0EA5E9]/30 rounded-lg px-4 py-2 flex items-center justify-between">
                 <span className="text-[#0EA5E9] text-sm">
-                  Showing: 
+                  Showing:
                   {pipelinePartnerTypeFilter !== 'all' && <strong> {pipelinePartnerTypeFilter}</strong>}
                   {pipelineStageFilter && <> in <strong>{(pipelinePartnerTypeFilter === 'all' || pipelinePartnerTypeFilter === 'Location Partner' ? LP_PIPELINE_STAGES : SIMPLE_PIPELINE_STAGES).find(s => s.id === pipelineStageFilter)?.name}</strong></>}
                   {' '}({partners.filter(p => {
@@ -3508,47 +3510,47 @@ export default function AdminPortalPage() {
                       .map(partner => {
                         const currentStages = (partner.partnerType === 'Location Partner' || !partner.partnerType) ? LP_PIPELINE_STAGES : SIMPLE_PIPELINE_STAGES
                         return (
-                        <tr key={partner.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
-                          <td className="px-6 py-4">
-                            <div className="text-white font-medium">{partner.contactFullName}</div>
-                            <div className="text-[#64748B] text-sm">{partner.contactEmail}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              partner.partnerType === 'Referral Partner' ? 'bg-cyan-500/20 text-cyan-400' :
-                              partner.partnerType === 'Channel Partner' ? 'bg-purple-500/20 text-purple-400' :
-                              partner.partnerType === 'Relationship Partner' ? 'bg-pink-500/20 text-pink-400' :
-                              partner.partnerType === 'Contractor' ? 'bg-orange-500/20 text-orange-400' :
-                              'bg-green-500/20 text-green-400'
-                            }`}>
-                              {(partner.partnerType || 'Location Partner').replace(' Partner', '')}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-white">{partner.companyLegalName}</div>
-                            {partner.companyDBA && <div className="text-[#64748B] text-sm">DBA: {partner.companyDBA}</div>}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${currentStages.find(s => s.id === partner.stage)?.bgColor || 'bg-gray-500'
-                              } bg-opacity-20 text-white`}>
-                              {currentStages.find(s => s.id === partner.stage)?.name || partner.stage}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-[#94A3B8]">
-                            {partner.companyCity}, {partner.companyState}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end gap-2">
-                              <Link
-                                href={`/admin/pipeline/partners/${partner.id}`}
-                                className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Link>
-                            </div>
-                          </td>
-                        </tr>
-                      )})}
+                          <tr key={partner.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
+                            <td className="px-6 py-4">
+                              <div className="text-white font-medium">{partner.contactFullName}</div>
+                              <div className="text-[#64748B] text-sm">{partner.contactEmail}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${partner.partnerType === 'Referral Partner' ? 'bg-cyan-500/20 text-cyan-400' :
+                                  partner.partnerType === 'Channel Partner' ? 'bg-purple-500/20 text-purple-400' :
+                                    partner.partnerType === 'Relationship Partner' ? 'bg-pink-500/20 text-pink-400' :
+                                      partner.partnerType === 'Contractor' ? 'bg-orange-500/20 text-orange-400' :
+                                        'bg-green-500/20 text-green-400'
+                                }`}>
+                                {(partner.partnerType || 'Location Partner').replace(' Partner', '')}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-white">{partner.companyLegalName}</div>
+                              {partner.companyDBA && <div className="text-[#64748B] text-sm">DBA: {partner.companyDBA}</div>}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${currentStages.find(s => s.id === partner.stage)?.bgColor || 'bg-gray-500'
+                                } bg-opacity-20 text-white`}>
+                                {currentStages.find(s => s.id === partner.stage)?.name || partner.stage}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-[#94A3B8]">
+                              {partner.companyCity}, {partner.companyState}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center justify-end gap-2">
+                                <Link
+                                  href={`/admin/pipeline/partners/${partner.id}`}
+                                  className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Link>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
                   </tbody>
                 </table>
               )}
