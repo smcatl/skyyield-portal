@@ -2,13 +2,17 @@
 // app/api/webhooks/clerk/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseAdmin } from '@/lib/supabase/client'
+import { createClient } from '@supabase/supabase-js'
 import { Webhook } from 'svix'
+
+// Initialize Supabase Admin Client directly
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
-
     // Get webhook secret from environment
     const webhookSecret = process.env.CLERK_WEBHOOK_SECRET
     if (!webhookSecret) {
@@ -49,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     switch (type) {
       case 'user.created': {
-        const { id, email_addresses, first_name, last_name, image_url, public_metadata } = data
+        const { id, email_addresses, first_name, last_name, image_url, public_metadata, unsafe_metadata } = data
 
         const primaryEmail = email_addresses?.find((e: any) => e.id === data.primary_email_address_id)
         const email = primaryEmail?.email_address
@@ -60,8 +64,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Determine user type from metadata or default
-        const userType = public_metadata?.user_type || 'customer'
-        const isAdmin = public_metadata?.is_admin === true
+        const userType = public_metadata?.user_type || unsafe_metadata?.userType || 'Unknown'
+        const isAdmin = public_metadata?.is_admin === true || unsafe_metadata?.is_admin === true
 
         // Check if user already exists (by email or clerk_id)
         const { data: existingUser } = await supabase
@@ -71,19 +75,19 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (existingUser) {
-          // Update existing user
+          // Update existing user with Clerk ID
           await supabase
             .from('users')
             .update({
               clerk_id: id,
-              first_name,
-              last_name,
-              avatar_url: image_url,
+              first_name: first_name || undefined,
+              last_name: last_name || undefined,
+              image_url: image_url || undefined,
               updated_at: new Date().toISOString(),
             })
             .eq('id', existingUser.id)
 
-          console.log(`✅ Updated existing user ${existingUser.id}`)
+          console.log(`✅ Updated existing user ${existingUser.id} with Clerk ID`)
         } else {
           // Create new user
           const { data: newUser, error } = await supabase
@@ -91,9 +95,9 @@ export async function POST(request: NextRequest) {
             .insert({
               clerk_id: id,
               email,
-              first_name,
-              last_name,
-              avatar_url: image_url,
+              first_name: first_name || '',
+              last_name: last_name || '',
+              image_url: image_url || '',
               user_type: userType,
               is_admin: isAdmin,
               portal_status: userType === 'calculator_user' || userType === 'customer' 
@@ -112,32 +116,44 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Created new user ${newUser.id}`)
 
           // Try to match with existing partner record
-          await matchUserToPartner(supabase, newUser.id, email, userType)
+          await matchUserToPartner(newUser.id, email, userType)
         }
 
         break
       }
 
       case 'user.updated': {
-        const { id, email_addresses, first_name, last_name, image_url, public_metadata } = data
+        const { id, email_addresses, first_name, last_name, image_url, public_metadata, unsafe_metadata } = data
 
         const primaryEmail = email_addresses?.find((e: any) => e.id === data.primary_email_address_id)
         const email = primaryEmail?.email_address
 
-        await supabase
+        // Build update object - only include fields that have values
+        const updateData: any = {
+          updated_at: new Date().toISOString(),
+        }
+
+        if (email) updateData.email = email
+        if (first_name) updateData.first_name = first_name
+        if (last_name) updateData.last_name = last_name
+        if (image_url) updateData.image_url = image_url
+        if (public_metadata?.user_type || unsafe_metadata?.userType) {
+          updateData.user_type = public_metadata?.user_type || unsafe_metadata?.userType
+        }
+        if (public_metadata?.is_admin !== undefined || unsafe_metadata?.is_admin !== undefined) {
+          updateData.is_admin = public_metadata?.is_admin === true || unsafe_metadata?.is_admin === true
+        }
+
+        const { error } = await supabase
           .from('users')
-          .update({
-            email,
-            first_name,
-            last_name,
-            avatar_url: image_url,
-            user_type: public_metadata?.user_type,
-            is_admin: public_metadata?.is_admin === true,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('clerk_id', id)
 
-        console.log(`✅ Updated user ${id}`)
+        if (error) {
+          console.error('Error updating user:', error)
+        } else {
+          console.log(`✅ Updated user ${id}`)
+        }
         break
       }
 
@@ -149,6 +165,7 @@ export async function POST(request: NextRequest) {
           .from('users')
           .update({
             portal_status: 'deactivated',
+            is_active: false,
             updated_at: new Date().toISOString(),
           })
           .eq('clerk_id', id)
@@ -170,7 +187,6 @@ export async function POST(request: NextRequest) {
 
 // Helper: Match user to existing partner record
 async function matchUserToPartner(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
   userId: string,
   email: string,
   userType: string
@@ -221,6 +237,98 @@ async function matchUserToPartner(
       .eq('id', userId)
 
     console.log(`✅ Linked user to referral partner ${rp.id}`)
+    return
+  }
+
+  // Check channel_partners
+  const { data: cp } = await supabase
+    .from('channel_partners')
+    .select('id, pipeline_stage')
+    .eq('contact_email', email)
+    .single()
+
+  if (cp) {
+    await supabase.from('channel_partners').update({ user_id: userId }).eq('id', cp.id)
+
+    await supabase
+      .from('users')
+      .update({
+        partner_record_id: cp.id,
+        user_type: 'channel_partner',
+        portal_status: cp.pipeline_stage === 'active' ? 'account_active' : 'pending_approval',
+      })
+      .eq('id', userId)
+
+    console.log(`✅ Linked user to channel partner ${cp.id}`)
+    return
+  }
+
+  // Check relationship_partners
+  const { data: relp } = await supabase
+    .from('relationship_partners')
+    .select('id, pipeline_stage')
+    .eq('contact_email', email)
+    .single()
+
+  if (relp) {
+    await supabase.from('relationship_partners').update({ user_id: userId }).eq('id', relp.id)
+
+    await supabase
+      .from('users')
+      .update({
+        partner_record_id: relp.id,
+        user_type: 'relationship_partner',
+        portal_status: relp.pipeline_stage === 'active' ? 'account_active' : 'pending_approval',
+      })
+      .eq('id', userId)
+
+    console.log(`✅ Linked user to relationship partner ${relp.id}`)
+    return
+  }
+
+  // Check contractors
+  const { data: con } = await supabase
+    .from('contractors')
+    .select('id, pipeline_stage')
+    .eq('email', email)
+    .single()
+
+  if (con) {
+    await supabase.from('contractors').update({ user_id: userId }).eq('id', con.id)
+
+    await supabase
+      .from('users')
+      .update({
+        partner_record_id: con.id,
+        user_type: 'contractor',
+        portal_status: con.pipeline_stage === 'active' ? 'account_active' : 'pending_approval',
+      })
+      .eq('id', userId)
+
+    console.log(`✅ Linked user to contractor ${con.id}`)
+    return
+  }
+
+  // Check employees
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('id, status')
+    .eq('email', email)
+    .single()
+
+  if (emp) {
+    await supabase.from('employees').update({ user_id: userId }).eq('id', emp.id)
+
+    await supabase
+      .from('users')
+      .update({
+        partner_record_id: emp.id,
+        user_type: 'employee',
+        portal_status: emp.status === 'active' ? 'account_active' : 'pending_approval',
+      })
+      .eq('id', userId)
+
+    console.log(`✅ Linked user to employee ${emp.id}`)
     return
   }
 

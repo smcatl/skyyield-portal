@@ -14,6 +14,7 @@ interface UserRecord {
   last_name: string
   user_type: string
   is_approved: boolean
+  is_admin?: boolean
 }
 
 interface UsersByType {
@@ -104,9 +105,9 @@ export function PreviewPortalDropdown() {
   const getFilteredUsers = (type: string) => {
     const typeUsers = users?.[type as keyof UsersByType] || []
     if (!searchQuery) return typeUsers
-    
+
     const query = searchQuery.toLowerCase()
-    return typeUsers.filter(user => 
+    return typeUsers.filter(user =>
       user.email.toLowerCase().includes(query) ||
       user.first_name?.toLowerCase().includes(query) ||
       user.last_name?.toLowerCase().includes(query) ||
@@ -227,9 +228,16 @@ export function PreviewPortalDropdown() {
                                       )}
                                     </div>
                                     <div className="flex-1 text-left min-w-0">
-                                      <p className="text-sm font-medium truncate">
-                                        {user.first_name} {user.last_name}
-                                      </p>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-medium truncate">
+                                          {user.first_name} {user.last_name}
+                                        </p>
+                                        {user.is_admin && (
+                                          <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-purple-500/20 text-purple-400 rounded border border-purple-500/30">
+                                            Admin
+                                          </span>
+                                        )}
+                                      </div>
                                       <p className="text-xs text-gray-500 truncate">
                                         {user.email}
                                       </p>
