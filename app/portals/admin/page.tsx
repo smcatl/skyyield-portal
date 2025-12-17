@@ -6,6 +6,7 @@ import CryptoPriceHeader from '@/components/CryptoPriceHeader'
 import CRMTab from '@/components/admin/crm/CRMTab'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { PreviewPortalDropdown } from '@/components/admin/PreviewPortalDropdown'
 import {
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
   CheckCircle, Clock, Package, TrendingUp,
@@ -1541,56 +1542,8 @@ export default function AdminPortalPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {/* Portal Preview Dropdown */}
-              <div className="relative group">
-                <button className="flex items-center gap-2 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F] transition-colors">
-                  <Eye className="w-4 h-4" />
-                  Preview Portal
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-                <div className="absolute right-0 mt-2 w-56 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <div className="p-2">
-                    <div className="text-[#64748B] text-xs uppercase px-3 py-2">Preview as Partner</div>
-                    <Link href="/portals/location?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-green-400" />
-                      Location Partner
-                    </Link>
-                    <Link href="/portals/referral?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-[#0EA5E9]" />
-                      Referral Partner
-                    </Link>
-                    <Link href="/portals/channel?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-purple-400" />
-                      Channel Partner
-                    </Link>
-                    <Link href="/portals/relationship?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-pink-400" />
-                      Relationship Partner
-                    </Link>
-                    <div className="border-t border-[#2D3B5F] my-2" />
-                    <div className="text-[#64748B] text-xs uppercase px-3 py-2">Other Portals</div>
-                    <Link href="/portals/contractor?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-orange-400" />
-                      Contractor
-                    </Link>
-                    <Link href="/portals/employee?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-blue-400" />
-                      Employee
-                    </Link>
-                    <div className="border-t border-[#2D3B5F] my-2" />
-                    <div className="text-[#64748B] text-xs uppercase px-3 py-2">Tools & Apps</div>
-                    <Link href="/calculator?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                      Location Calculator
-                    </Link>
-                    <Link href="/portals/customer?preview=true" className="flex items-center gap-3 px-3 py-2 text-white hover:bg-[#2D3B5F] rounded-lg transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-teal-400" />
-                      Customer Portal
-                    </Link>
-                  </div>
-                </div>
-              </div>
-              <button
+            <PreviewPortalDropdown />
+            <button
                 onClick={() => setShowInviteModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
               >
