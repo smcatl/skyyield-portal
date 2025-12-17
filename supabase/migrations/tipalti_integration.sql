@@ -63,19 +63,16 @@ ALTER TABLE relationship_partners
 CREATE INDEX IF NOT EXISTS idx_relationship_partners_tipalti_payee_id ON relationship_partners(tipalti_payee_id);
 
 -- ============================================
--- 5. ADD TIPALTI FIELDS TO CONTRACTORS
+-- 5. ADD QUICKBOOKS FIELDS TO CONTRACTORS (Bill Pay, not Tipalti)
 -- ============================================
 ALTER TABLE contractors
-  ADD COLUMN IF NOT EXISTS tipalti_payee_id TEXT UNIQUE,
-  ADD COLUMN IF NOT EXISTS tipalti_status TEXT DEFAULT 'not_created',
-  ADD COLUMN IF NOT EXISTS tipalti_payment_method TEXT,
-  ADD COLUMN IF NOT EXISTS tipalti_created_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS tipalti_onboarded_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS tipalti_last_synced TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS qb_vendor_id TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS qb_sync_status TEXT DEFAULT 'not_synced',
+  ADD COLUMN IF NOT EXISTS qb_last_synced TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS last_payment_date TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS last_payment_amount DECIMAL(10,2);
 
-CREATE INDEX IF NOT EXISTS idx_contractors_tipalti_payee_id ON contractors(tipalti_payee_id);
+CREATE INDEX IF NOT EXISTS idx_contractors_qb_vendor_id ON contractors(qb_vendor_id);
 
 -- ============================================
 -- 6. CREATE COMMISSION_PAYMENTS TABLE

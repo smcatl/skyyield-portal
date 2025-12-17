@@ -98,6 +98,173 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(result)
       }
 
+      case 'generate_partner_ids': {
+        // Generate the Tipalti IDs that each partner SHOULD have
+        // Use this to manually update existing Tipalti payees
+        const supabase = getSupabaseAdmin()
+        
+        const { data: locationPartners } = await supabase
+          .from('location_partners')
+          .select('id, company_legal_name, contact_full_name, contact_email')
+        
+        const { data: referralPartners } = await supabase
+          .from('referral_partners')
+          .select('id, company_name, contact_full_name, contact_email')
+
+        const { data: channelPartners } = await supabase
+          .from('channel_partners')
+          .select('id, company_name, contact_full_name, contact_email')
+
+        const { data: relationshipPartners } = await supabase
+          .from('relationship_partners')
+          .select('id, company_name, contact_full_name, contact_email')
+
+        const { data: contractors } = await supabase
+          .from('contractors')
+          .select('id, legal_name, dba_name, contact_email')
+
+        const { data: employees } = await supabase
+          .from('employees')
+          .select('id, legal_name, preferred_name, email')
+
+        const generateId = (prefix: string, uuid: string) => 
+          `${prefix}-${uuid.replace(/-/g, '').substring(0, 8).toUpperCase()}`
+
+        const mappings = {
+          location_partners: (locationPartners || []).map(p => ({
+            supabase_id: p.id,
+            tipalti_id: generateId('LP', p.id),
+            name: p.contact_full_name,
+            company: p.company_legal_name,
+            email: p.contact_email,
+          })),
+          referral_partners: (referralPartners || []).map(p => ({
+            supabase_id: p.id,
+            tipalti_id: generateId('RP', p.id),
+            name: p.contact_full_name,
+            company: p.company_name,
+            email: p.contact_email,
+          })),
+          channel_partners: (channelPartners || []).map(p => ({
+            supabase_id: p.id,
+            tipalti_id: generateId('CP', p.id),
+            name: p.contact_full_name,
+            company: p.company_name,
+            email: p.contact_email,
+          })),
+          relationship_partners: (relationshipPartners || []).map(p => ({
+            supabase_id: p.id,
+            tipalti_id: generateId('REL', p.id),
+            name: p.contact_full_name,
+            company: p.company_name,
+            email: p.contact_email,
+          })),
+          contractors: (contractors || []).map(p => ({
+            supabase_id: p.id,
+            entity_id: generateId('CON', p.id),
+            name: p.legal_name || p.dba_name,
+            email: p.contact_email,
+            payment_system: 'quickbooks_billpay',
+          })),
+          employees: (employees || []).map(p => ({
+            supabase_id: p.id,
+            entity_id: generateId('EMP', p.id),
+            name: p.legal_name,
+            preferred_name: p.preferred_name,
+            email: p.email,
+            payment_system: 'quickbooks_payroll',
+          })),
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Update Tipalti payee IDs to match these values for PARTNERS ONLY. Contractors/Employees use QuickBooks.',
+          id_format: {
+            'LP-XXXXXXXX': 'Location Partner → Tipalti',
+            'RP-XXXXXXXX': 'Referral Partner → Tipalti', 
+            'CP-XXXXXXXX': 'Channel Partner → Tipalti',
+            'REL-XXXXXXXX': 'Relationship Partner → Tipalti',
+            'CON-XXXXXXXX': 'Contractor → QuickBooks Bill Pay',
+            'EMP-XXXXXXXX': 'Employee → QuickBooks Payroll',
+            'CALC-XXXXXXXX': 'Calculator User → No payments',
+            'CUST-XXXXXXXX': 'Customer → No payments',
+          },
+          tipalti_payable: ['location_partners', 'referral_partners', 'channel_partners', 'relationship_partners'],
+          quickbooks_payable: ['contractors', 'employees'],
+          mappings
+        })
+      }
+
+      case 'sync_from_tipalti': {
+        // Pull payees from Tipalti and update Supabase records
+        const supabase = getSupabaseAdmin()
+        const tipaltiResult = await getAllPayees()
+        
+        if (!tipaltiResult.success || !tipaltiResult.payees) {
+          return NextResponse.json({ error: 'Failed to fetch from Tipalti' }, { status: 500 })
+        }
+
+        const results: any[] = []
+
+        for (const payee of tipaltiResult.payees) {
+          const { payeeId, name, email, company, paymentMethod, isPayable } = payee
+          
+          // Determine partner type from ID prefix (only Tipalti-payable types)
+          let tableName: string | null = null
+          if (payeeId.startsWith('LP-')) tableName = 'location_partners'
+          else if (payeeId.startsWith('RP-')) tableName = 'referral_partners'
+          else if (payeeId.startsWith('CP-')) tableName = 'channel_partners'
+          else if (payeeId.startsWith('REL-')) tableName = 'relationship_partners'
+          // CON- and EMP- are paid via QuickBooks, not Tipalti
+          
+          if (!tableName) {
+            results.push({ payeeId, status: 'skipped', reason: 'Unknown ID format' })
+            continue
+          }
+
+          // Find partner with this tipalti_payee_id
+          const { data: existing } = await supabase
+            .from(tableName)
+            .select('id')
+            .eq('tipalti_payee_id', payeeId)
+            .single()
+
+          if (existing) {
+            // Update existing record
+            const { error } = await supabase
+              .from(tableName)
+              .update({
+                tipalti_status: isPayable ? 'active' : 'pending_onboarding',
+                tipalti_payment_method: paymentMethod,
+                tipalti_last_synced: new Date().toISOString(),
+              })
+              .eq('tipalti_payee_id', payeeId)
+
+            results.push({ 
+              payeeId, 
+              status: error ? 'error' : 'updated', 
+              table: tableName,
+              error: error?.message 
+            })
+          } else {
+            results.push({ 
+              payeeId, 
+              status: 'not_found', 
+              reason: 'No partner with this tipalti_payee_id',
+              table: tableName
+            })
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          synced: results.filter(r => r.status === 'updated').length,
+          notFound: results.filter(r => r.status === 'not_found').length,
+          skipped: results.filter(r => r.status === 'skipped').length,
+          results
+        })
+      }
+
       case 'debug_payee': {
         // Debug: Get raw Tipalti response for a payee
         if (!payeeId) return NextResponse.json({ error: 'payeeId required' }, { status: 400 })
@@ -184,11 +351,13 @@ export async function POST(request: NextRequest) {
             payeeIdPrefix = 'REL'
             break
           case 'contractor':
-            tableName = 'contractors'
-            payeeIdPrefix = 'CON'
-            break
+          case 'employee':
+            return NextResponse.json({ 
+              error: `${partnerType}s are paid via QuickBooks, not Tipalti`,
+              hint: 'Use QuickBooks Bill Pay for contractors, QuickBooks Payroll for employees'
+            }, { status: 400 })
           default:
-            return NextResponse.json({ error: 'Invalid partnerType' }, { status: 400 })
+            return NextResponse.json({ error: 'Invalid partnerType. Use: location, referral, channel, relationship' }, { status: 400 })
         }
 
         const { data, error: fetchError } = await supabase
@@ -202,28 +371,37 @@ export async function POST(request: NextRequest) {
         }
         partner = data
 
-        // Generate unique payee ID
-        const payeeId = `${payeeIdPrefix}-${partnerId.slice(0, 8).toUpperCase()}`
+        // Generate standardized payee ID: PREFIX-FIRST8CHARS
+        // e.g., LP-ABC12345, RP-DEF67890
+        const payeeId = `${payeeIdPrefix}-${partnerId.replace(/-/g, '').substring(0, 8).toUpperCase()}`
 
-        // Parse name
-        const fullName = partner.contact_full_name || partner.full_name || ''
+        // Parse name based on partner type
+        let fullName = ''
+        if (partnerType === 'contractor') {
+          fullName = partner.legal_name || partner.dba_name || ''
+        } else {
+          fullName = partner.contact_full_name || ''
+        }
         const nameParts = fullName.split(' ')
         const firstName = nameParts[0] || 'Partner'
         const lastName = nameParts.slice(1).join(' ') || payeeIdPrefix
+
+        // Get email
+        const email = partner.contact_email || partner.email
 
         // Create in Tipalti
         const result = await createOrUpdatePayee({
           payeeId,
           firstName,
           lastName,
-          email: partner.contact_email || partner.email,
-          companyName: partner.company_legal_name || partner.company_name,
+          email,
+          companyName: partner.company_legal_name || partner.company_name || partner.dba_name,
           street1: partner.company_address_street || partner.address,
           city: partner.company_address_city || partner.city,
           state: partner.company_address_state || partner.state,
           zip: partner.company_address_zip || partner.zip,
           country: 'US',
-          payeeType: partner.company_legal_name ? 'company' : 'individual',
+          payeeType: (partner.company_legal_name || partner.company_name) ? 'company' : 'individual',
         })
 
         if (result.success) {
@@ -244,7 +422,7 @@ export async function POST(request: NextRequest) {
             success: true,
             payeeId,
             onboardingUrl,
-            message: 'Payee created in Tipalti. Send them the onboarding URL to complete setup.'
+            message: `Payee created with ID ${payeeId}. Send them the onboarding URL to complete setup.`
           })
         } else {
           return NextResponse.json({ success: false, error: result.error }, { status: 400 })
