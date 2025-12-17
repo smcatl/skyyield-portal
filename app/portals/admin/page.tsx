@@ -874,12 +874,23 @@ export default function AdminPortalPage() {
     try {
       const res = await fetch('/api/admin/users')
       const data = await res.json()
-      setUsers(data.users || [])
+      // Transform snake_case to camelCase
+      const transformedUsers = (data.users || []).map((u: any) => ({
+        id: u.id,
+        firstName: u.first_name,
+        lastName: u.last_name,
+        email: u.email,
+        imageUrl: u.image_url,
+        userType: u.user_type,
+        is_admin: u.is_admin,
+        status: u.portal_status,
+        createdAt: u.created_at ? new Date(u.created_at).getTime() : null,
+      }))
+      setUsers(transformedUsers)
     } catch (err) {
       console.error('Error fetching users:', err)
-    } finally {
-      setUsersLoading(false)
     }
+    setUsersLoading(false)
   }
 
   // Fetch products from /api/admin/products
@@ -1567,8 +1578,8 @@ export default function AdminPortalPage() {
                 onDragEnd={handleDragEnd}
                 onClick={() => setActiveTab(tab.id as TabType)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all cursor-grab active:cursor-grabbing ${activeTab === tab.id
-                    ? 'bg-[#0EA5E9] text-white'
-                    : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
+                  ? 'bg-[#0EA5E9] text-white'
+                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
                   } ${draggedTab === tab.id ? 'opacity-50 scale-95' : ''
                   } ${dragOverTab === tab.id ? 'ring-2 ring-[#0EA5E9] ring-offset-2 ring-offset-[#0A0F2C]' : ''
                   }`}
@@ -2587,8 +2598,8 @@ export default function AdminPortalPage() {
                   key={type}
                   onClick={() => setMaterialFilter(type)}
                   className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${materialFilter === type
-                      ? 'bg-[#0EA5E9] text-white'
-                      : 'bg-[#1A1F3A] text-[#94A3B8] hover:text-white'
+                    ? 'bg-[#0EA5E9] text-white'
+                    : 'bg-[#1A1F3A] text-[#94A3B8] hover:text-white'
                     }`}
                 >
                   {type === 'all' ? 'All Partners' : type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -2617,9 +2628,9 @@ export default function AdminPortalPage() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${material.type === 'video' ? 'bg-red-500/20' :
-                                material.type === 'document' ? 'bg-blue-500/20' :
-                                  material.type === 'article' ? 'bg-green-500/20' :
-                                    'bg-purple-500/20'
+                              material.type === 'document' ? 'bg-blue-500/20' :
+                                material.type === 'article' ? 'bg-green-500/20' :
+                                  'bg-purple-500/20'
                               }`}>
                               {material.type === 'video' ? <Video className="w-5 h-5 text-red-400" /> :
                                 material.type === 'document' ? <FileText className="w-5 h-5 text-blue-400" /> :
@@ -2634,9 +2645,9 @@ export default function AdminPortalPage() {
                         </td>
                         <td className="px-6 py-4">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${material.type === 'video' ? 'bg-red-500/20 text-red-400' :
-                              material.type === 'document' ? 'bg-blue-500/20 text-blue-400' :
-                                material.type === 'article' ? 'bg-green-500/20 text-green-400' :
-                                  'bg-purple-500/20 text-purple-400'
+                            material.type === 'document' ? 'bg-blue-500/20 text-blue-400' :
+                              material.type === 'article' ? 'bg-green-500/20 text-green-400' :
+                                'bg-purple-500/20 text-purple-400'
                             }`}>
                             {material.type}
                           </span>
@@ -3517,10 +3528,10 @@ export default function AdminPortalPage() {
                             </td>
                             <td className="px-6 py-4">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${partner.partnerType === 'Referral Partner' ? 'bg-cyan-500/20 text-cyan-400' :
-                                  partner.partnerType === 'Channel Partner' ? 'bg-purple-500/20 text-purple-400' :
-                                    partner.partnerType === 'Relationship Partner' ? 'bg-pink-500/20 text-pink-400' :
-                                      partner.partnerType === 'Contractor' ? 'bg-orange-500/20 text-orange-400' :
-                                        'bg-green-500/20 text-green-400'
+                                partner.partnerType === 'Channel Partner' ? 'bg-purple-500/20 text-purple-400' :
+                                  partner.partnerType === 'Relationship Partner' ? 'bg-pink-500/20 text-pink-400' :
+                                    partner.partnerType === 'Contractor' ? 'bg-orange-500/20 text-orange-400' :
+                                      'bg-green-500/20 text-green-400'
                                 }`}>
                                 {(partner.partnerType || 'Location Partner').replace(' Partner', '')}
                               </span>
