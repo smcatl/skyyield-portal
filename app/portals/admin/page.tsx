@@ -7,6 +7,7 @@ import CRMTab from '@/components/admin/crm/CRMTab'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PreviewPortalDropdown } from '@/components/admin/PreviewPortalDropdown'
+import { AddRoleModal } from '@/components/admin/AddRoleModal'
 import {
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
   CheckCircle, Clock, Package, TrendingUp,
@@ -509,6 +510,8 @@ interface User {
   email: string
   imageUrl: string
   userType: string
+  userRoles?: string[]
+  referralPartnerId?: string | null
   is_admin?: boolean
   status: string
   createdAt: number
@@ -837,8 +840,10 @@ export default function AdminPortalPage() {
   const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
 
   // User modal states
+  // User modal states
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showUserModal, setShowUserModal] = useState(false)
+  const [showAddRoleModal, setShowAddRoleModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteUserType, setInviteUserType] = useState('Location Partner')
@@ -882,6 +887,8 @@ export default function AdminPortalPage() {
         email: u.email,
         imageUrl: u.image_url,
         userType: u.user_type,
+        userRoles: u.user_roles || [],
+        referralPartnerId: u.referral_partner_id,
         is_admin: u.is_admin,
         status: u.portal_status,
         createdAt: u.created_at ? new Date(u.created_at).getTime() : null,
@@ -4569,6 +4576,13 @@ export default function AdminPortalPage() {
                       ✗ Reject
                     </button>
                   )}
+                  <button
+                    onClick={() => setShowAddRoleModal(true)}
+                    className="px-4 py-2 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/30 transition-colors font-medium text-sm flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Role
+                  </button>
                 </div>
               </div>
 
@@ -4794,6 +4808,27 @@ export default function AdminPortalPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Add Role Modal */}
+      {selectedUser && (
+        <AddRoleModal
+          user={{
+            id: selectedUser.id,
+            email: selectedUser.email,
+            firstName: selectedUser.firstName,
+            lastName: selectedUser.lastName,
+            userType: selectedUser.userType,
+            userRoles: selectedUser.userRoles || [selectedUser.userType],
+            referralPartnerId: selectedUser.referralPartnerId
+          }}
+          isOpen={showAddRoleModal}
+          onClose={() => setShowAddRoleModal(false)}
+          onSuccess={() => {
+            fetchUsers()
+            setShowAddRoleModal(false)
+          }}
+        />
       )}
 
       {/* Invite User Modal */}
