@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Users, FileText, Settings, BarChart3, Bell, Calendar } from 'lucide-react'
+import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 
 export default function EmployeePortalPage() {
   const { user, isLoaded } = useUser()
@@ -48,13 +49,16 @@ export default function EmployeePortalPage() {
           Back to Home
         </Link>
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Employee <span className="text-[#0EA5E9]">Portal</span>
-          </h1>
-          <p className="text-[#94A3B8] mt-2">
-            Welcome back, {user?.firstName}! Access your tools and resources.
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              Employee <span className="text-[#0EA5E9]">Portal</span>
+            </h1>
+            <p className="text-[#94A3B8] mt-2">
+              Welcome back, {user?.firstName}! Access your tools and resources.
+            </p>
+          </div>
+          <PortalSwitcher currentPortal="employee" />
         </div>
 
         {/* Quick Actions */}

@@ -14,6 +14,7 @@ import {
   ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
   TrainingSection, VenuesSection, PartnerSettings, PartnerAnalytics, PartnerPayments,
 } from '@/components/portal'
+import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import CRMTab from '@/components/admin/crm/CRMTab'
 
 type TabType = 'overview' | 'introductions' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
@@ -63,7 +64,6 @@ function RelationshipPartnerPortalContent() {
     
     const status = (user.unsafeMetadata as any)?.status || 'pending'
     
-    // Allow preview mode for any authenticated user (only admins can access the preview links anyway)
     if (isPreviewMode) {
       setPartnerId('preview-admin')
       loadPortalData()
@@ -78,11 +78,9 @@ function RelationshipPartnerPortalContent() {
   const loadPortalData = async () => {
     setLoading(true)
     try {
-      // Fetch real data from API
       const res = await fetch(`/api/portal/partner-data?partnerType=relationship_partner${partnerId ? `&partnerId=${partnerId}` : ''}`)
       const data = await res.json()
       
-      // Transform referrals to introductions format
       if (data.referrals) {
         setIntroductions(data.referrals.map((r: any) => ({
           id: r.id,
@@ -139,7 +137,6 @@ function RelationshipPartnerPortalContent() {
         { id: '2', name: 'NDA - Confidentiality Agreement', type: 'agreement', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
       ])
       
-      // Fetch materials from API
       try {
         const materialsRes = await fetch('/api/materials?partnerType=relationship_partner')
         const materialsData = await materialsRes.json()
@@ -228,9 +225,12 @@ function RelationshipPartnerPortalContent() {
       <div className="px-4 pb-4 border-b border-[#2D3B5F]">
         <div className="max-w-7xl mx-auto">
           <Link href={isPreviewMode ? "/portals/admin" : "/"} className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"><ArrowLeft className="w-4 h-4" />{isPreviewMode ? "Back to Admin" : "Back to Home"}</Link>
-          <div className="mb-4">
-            <h1 className="text-3xl font-bold text-white">Relationship <span className="text-pink-400">Partner</span> Portal</h1>
-            <p className="text-[#94A3B8] mt-1">Welcome back, {user?.firstName}!</p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-white">Relationship <span className="text-pink-400">Partner</span> Portal</h1>
+              <p className="text-[#94A3B8] mt-1">Welcome back, {user?.firstName}!</p>
+            </div>
+            <PortalSwitcher currentPortal="relationship_partner" />
           </div>
           <div className="flex gap-1 overflow-x-auto pb-2">
             {tabs.map(tab => (

@@ -14,6 +14,7 @@ import {
   ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
   TrainingSection, VenuesSection, PartnerSettings, PartnerAnalytics, PartnerPayments,
 } from '@/components/portal'
+import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import CRMTab from '@/components/admin/crm/CRMTab'
 
 type TabType = 'overview' | 'referrals' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
@@ -134,9 +135,9 @@ function ReferralPartnerPortalContent() {
       } catch (err) {
         // Fallback to default materials
         setMaterials([
-          { id: '1', title: 'Referral Partner Onboarding', description: 'How to effectively refer partners.', type: 'video', category: 'Onboarding', duration: '12:30', url: '#', completed: true, required: true },
-          { id: '2', title: 'Understanding Commission Structure', description: 'How commissions are calculated.', type: 'document', category: 'Compensation', duration: '10 min', url: '#', completed: true, required: true },
-          { id: '3', title: 'Sales Best Practices', description: 'Tips for pitching SkyYield.', type: 'video', category: 'Sales', duration: '18:45', url: '#', completed: false, required: false },
+          { id: '1', title: 'Getting Started with Referrals', description: 'Learn how to effectively refer new partners.', type: 'video', category: 'Onboarding', duration: '5:30', url: '#', completed: true, required: true },
+          { id: '2', title: 'Commission Structure Explained', description: 'Understand how you earn.', type: 'document', category: 'Payments', duration: '10 min', url: '#', completed: true, required: true },
+          { id: '3', title: 'Marketing Materials', description: 'Download brochures and flyers.', type: 'download', category: 'Marketing', duration: '5 min', url: '#', completed: false, required: false },
         ])
       }
     } catch (error) { 
@@ -168,6 +169,7 @@ function ReferralPartnerPortalContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20">
+      {/* Preview Mode Banner */}
       {isPreviewMode && (
         <div className="bg-gradient-to-r from-[#0EA5E9] to-cyan-500 px-4 py-2">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -185,9 +187,12 @@ function ReferralPartnerPortalContent() {
       <div className="px-4 pb-4 border-b border-[#2D3B5F]">
         <div className="max-w-7xl mx-auto">
           <Link href={isPreviewMode ? "/portals/admin" : "/"} className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"><ArrowLeft className="w-4 h-4" />{isPreviewMode ? "Back to Admin" : "Back to Home"}</Link>
-          <div className="mb-4">
-            <h1 className="text-3xl font-bold text-white">Referral <span className="text-[#0EA5E9]">Partner</span> Portal</h1>
-            <p className="text-[#94A3B8] mt-1">Welcome back, {user?.firstName}!</p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-white">Referral <span className="text-[#0EA5E9]">Partner</span> Portal</h1>
+              <p className="text-[#94A3B8] mt-1">Welcome back, {user?.firstName}!</p>
+            </div>
+            <PortalSwitcher currentPortal="referral_partner" />
           </div>
           <div className="flex gap-1 overflow-x-auto pb-2">
             {tabs.map(tab => (

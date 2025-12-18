@@ -14,6 +14,7 @@ import {
   ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
   TrainingSection, VenuesSection, PartnerSettings, PartnerAnalytics, PartnerPayments,
 } from '@/components/portal'
+import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import CRMTab from '@/components/admin/crm/CRMTab'
 
 type TabType = 'overview' | 'referrals' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
@@ -197,11 +198,14 @@ function LocationPartnerPortalContent() {
               <h1 className="text-3xl font-bold text-white">Location <span className="text-green-400">Partner</span> Portal</h1>
               <p className="text-[#94A3B8] mt-1">Welcome back, {user?.firstName}!</p>
             </div>
-            {pendingDocs.length > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
-                <Bell className="w-4 h-4 text-yellow-400" /><span className="text-yellow-400 text-sm font-medium">{pendingDocs.length} doc(s) need signature</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {pendingDocs.length > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
+                  <Bell className="w-4 h-4 text-yellow-400" /><span className="text-yellow-400 text-sm font-medium">{pendingDocs.length} doc(s) need signature</span>
+                </div>
+              )}
+              <PortalSwitcher currentPortal="location_partner" />
+            </div>
           </div>
           <div className="flex gap-1 overflow-x-auto pb-2">
             {tabs.map(tab => (

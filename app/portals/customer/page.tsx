@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, ShoppingBag, Package, CreditCard, Heart, Truck } from 'lucide-react'
+import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 
 export default function CustomerPortalPage() {
   const { user, isLoaded } = useUser()
@@ -48,13 +49,16 @@ export default function CustomerPortalPage() {
           Back to Home
         </Link>
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            My <span className="text-[#0EA5E9]">Account</span>
-          </h1>
-          <p className="text-[#94A3B8] mt-2">
-            Welcome back, {user?.firstName}! Manage your orders and account.
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              My <span className="text-[#0EA5E9]">Account</span>
+            </h1>
+            <p className="text-[#94A3B8] mt-2">
+              Welcome back, {user?.firstName}! Manage your orders and account.
+            </p>
+          </div>
+          <PortalSwitcher currentPortal="customer" />
         </div>
 
         {/* Quick Actions */}

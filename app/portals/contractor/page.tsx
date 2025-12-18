@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Wrench, DollarSign, CheckCircle, Clock, Calendar } from 'lucide-react'
+import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 
 export default function ContractorPortalPage() {
   const { user, isLoaded } = useUser()
@@ -62,13 +63,16 @@ export default function ContractorPortalPage() {
         </Link>
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Contractor <span className="text-[#0EA5E9]">Portal</span>
-          </h1>
-          <p className="text-[#94A3B8] mt-2">
-            Welcome back, {user?.firstName}! Manage your jobs and earnings.
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              Contractor <span className="text-[#0EA5E9]">Portal</span>
+            </h1>
+            <p className="text-[#94A3B8] mt-2">
+              Welcome back, {user?.firstName}! Manage your jobs and earnings.
+            </p>
+          </div>
+          <PortalSwitcher currentPortal="contractor" />
         </div>
 
         {/* Stats Grid */}
