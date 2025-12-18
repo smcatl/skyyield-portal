@@ -1,5 +1,5 @@
 // app/api/admin/payments/sync/route.ts
-// Sync historical payments from Tipalti to Supabase
+// Comprehensive Tipalti payment sync using multiple SOAP endpoints
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
@@ -13,22 +13,34 @@ const supabase = createClient(
 const TIPALTI_CONFIG = {
   payerName: process.env.TIPALTI_PAYER_NAME || 'SkyYield',
   apiKey: process.env.TIPALTI_API_KEY || '',
-  soapPayeeUrl: 'https://api.tipalti.com/v6/PayeeFunctions.asmx',
-  soapPayerUrl: 'https://api.tipalti.com/v6/PayerFunctions.asmx',
+  // Use sandbox for testing, production for live
+  baseUrl: process.env.TIPALTI_ENVIRONMENT === 'production'
+    ? 'https://api.tipalti.com'
+    : 'https://api.sandbox.tipalti.com',
 }
 
-function generateHmacSignature(dataToSign: string): string {
+// REST API config (if available)
+const TIPALTI_REST_CONFIG = {
+  clientId: process.env.TIPALTI_REST_CLIENT_ID,
+  clientSecret: process.env.TIPALTI_REST_CLIENT_SECRET,
+  baseUrl: process.env.TIPALTI_ENVIRONMENT === 'production'
+    ? 'https://api.tipalti.com'
+    : 'https://api.sandbox.tipalti.com',
+}
+
+// Generate HMAC signature for SOAP calls
+function generateHmac(data: string): string {
   const hmac = crypto.createHmac('sha256', TIPALTI_CONFIG.apiKey)
-  hmac.update(dataToSign)
+  hmac.update(data)
   return hmac.digest('hex')
 }
 
-function generateTimestamp(): number {
+function getTimestamp(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-// Known payee IDs
-const PAYEE_IDS = [
+// Known payee IDs from your Tipalti account
+const KNOWN_PAYEES = [
   'RP-STOSH001',
   'RP-APRIL001',
   'LP-PHENIX-EV',
@@ -38,76 +50,12 @@ const PAYEE_IDS = [
   'LP-PHENIX-TC',
 ]
 
-export async function POST(request: NextRequest) {
-  try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if user is admin
-    const { data: user } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('clerk_id', userId)
-      .single()
-
-    if (!user?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
-
-    const results: any[] = []
-
-    // For each payee, get their last payment details
-    for (const payeeId of PAYEE_IDS) {
-      try {
-        // Get last payment for this payee
-        const lastPayment = await getLastPaymentDetails(payeeId)
-        if (lastPayment) {
-          results.push({
-            payeeId,
-            ...lastPayment,
-            source: 'GetLastPaymentDetailsByIdap'
-          })
-
-          // If we got a refCode, get extended details
-          if (lastPayment.refCode) {
-            const extendedDetails = await getExtendedPODetails(lastPayment.refCode)
-            if (extendedDetails) {
-              // Save to Supabase
-              await savePaymentToSupabase(payeeId, { ...lastPayment, ...extendedDetails })
-            }
-          }
-        }
-      } catch (err) {
-        console.error(`Error fetching payment for ${payeeId}:`, err)
-      }
-    }
-
-    // Also try PaymentsBetweenDates for aggregate data
-    const startDate = new Date('2025-01-01')
-    const endDate = new Date()
-    const aggregateData = await getPaymentsBetweenDates(startDate, endDate)
-
-    return NextResponse.json({
-      success: true,
-      synced: results.length,
-      results,
-      aggregate: aggregateData
-    })
-
-  } catch (error) {
-    console.error('Sync error:', error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
-  }
-}
-
-// Get last payment details for a payee
-async function getLastPaymentDetails(payeeId: string): Promise<any | null> {
-  const timestamp = generateTimestamp()
+// SOAP: Get last payment details for a payee
+async function getLastPaymentDetails(payeeId: string): Promise<any> {
+  const timestamp = getTimestamp()
   const dataToSign = `${TIPALTI_CONFIG.payerName}${payeeId}${timestamp}`
-  const signature = generateHmacSignature(dataToSign)
-
+  const key = generateHmac(dataToSign)
+  
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
   <soap:Body>
@@ -115,194 +63,485 @@ async function getLastPaymentDetails(payeeId: string): Promise<any | null> {
       <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
       <tip:idap>${payeeId}</tip:idap>
       <tip:timestamp>${timestamp}</tip:timestamp>
-      <tip:key>${signature}</tip:key>
+      <tip:key>${key}</tip:key>
     </tip:GetLastPaymentDetailsByIdap>
   </soap:Body>
 </soap:Envelope>`
 
   try {
-    const response = await fetch(TIPALTI_CONFIG.soapPayeeUrl, {
+    const response = await fetch(`${TIPALTI_CONFIG.baseUrl}/v11/PayeeFunctions.asmx`, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/GetLastPaymentDetailsByIdap',
+        'SOAPAction': '"http://Tipalti.org/GetLastPaymentDetailsByIdap"',
       },
       body: soapEnvelope,
     })
+    
+    const text = await response.text()
+    
+    // Parse the SOAP response
+    const refCodeMatch = text.match(/<RefCode>([^<]+)<\/RefCode>/i)
+    const statusMatch = text.match(/<PaymentStatus>([^<]+)<\/PaymentStatus>/i)
+    const amountMatch = text.match(/<PaymentAmountInWithdrawCurrency>([^<]+)<\/PaymentAmountInWithdrawCurrency>/i)
+    const dateMatch = text.match(/<LastSubmissionDate>([^<]+)<\/LastSubmissionDate>/i)
+    const valueDateMatch = text.match(/<ValueDate>([^<]+)<\/ValueDate>/i)
+    const paymentMethodMatch = text.match(/<PaymentMethod>([^<]+)<\/PaymentMethod>/i)
+    
+    return {
+      payeeId,
+      refCode: refCodeMatch?.[1] || null,
+      status: statusMatch?.[1] || null,
+      amount: amountMatch?.[1] ? parseFloat(amountMatch[1]) : null,
+      submittedDate: dateMatch?.[1] || null,
+      valueDate: valueDateMatch?.[1] || null,
+      paymentMethod: paymentMethodMatch?.[1] || null,
+      rawResponse: text.substring(0, 500), // For debugging
+    }
+  } catch (error) {
+    console.error(`Error getting payment for ${payeeId}:`, error)
+    return { payeeId, error: String(error) }
+  }
+}
 
-    const responseText = await response.text()
-    console.log(`GetLastPaymentDetailsByIdap ${payeeId}:`, responseText.substring(0, 500))
+// SOAP: Get payee details (works!)
+async function getPayeeDetails(payeeId: string): Promise<any> {
+  const timestamp = getTimestamp()
+  const dataToSign = `${TIPALTI_CONFIG.payerName}${payeeId}${timestamp}`
+  const key = generateHmac(dataToSign)
+  
+  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
+  <soap:Body>
+    <tip:GetPayeeDetails>
+      <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
+      <tip:idap>${payeeId}</tip:idap>
+      <tip:timestamp>${timestamp}</tip:timestamp>
+      <tip:key>${key}</tip:key>
+    </tip:GetPayeeDetails>
+  </soap:Body>
+</soap:Envelope>`
 
+  try {
+    const response = await fetch(`${TIPALTI_CONFIG.baseUrl}/v11/PayeeFunctions.asmx`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': '"http://Tipalti.org/GetPayeeDetails"',
+      },
+      body: soapEnvelope,
+    })
+    
+    const text = await response.text()
+    
     // Parse response
-    const extractValue = (tag: string) => {
-      const match = responseText.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
-      return match?.[1] || null
-    }
-
-    const refCode = extractValue('RefCode')
-    if (!refCode) return null
-
+    const nameMatch = text.match(/<Name>([^<]+)<\/Name>/i)
+    const companyMatch = text.match(/<CompanyName>([^<]+)<\/CompanyName>/i)
+    const emailMatch = text.match(/<Email>([^<]+)<\/Email>/i)
+    const statusMatch = text.match(/<PayeeStatus>([^<]+)<\/PayeeStatus>/i)
+    const isPayableMatch = text.match(/<IsPayable>([^<]+)<\/IsPayable>/i)
+    const paymentMethodMatch = text.match(/<PreferredPayerPaymentMethod>([^<]+)<\/PreferredPayerPaymentMethod>/i)
+    
     return {
-      refCode,
-      lastSubmissionDate: extractValue('LastSubmissionDate'),
-      status: extractValue('Status'),
-      alerts: extractValue('Alerts'),
-      valueDate: extractValue('ValueDate'),
-      paymentAmount: parseFloat(extractValue('PaymentAmountInWithdrawCurrency') || '0'),
+      payeeId,
+      name: nameMatch?.[1] || null,
+      company: companyMatch?.[1] || null,
+      email: emailMatch?.[1] || null,
+      payeeStatus: statusMatch?.[1] || null,
+      isPayable: isPayableMatch?.[1]?.toLowerCase() === 'true',
+      paymentMethod: paymentMethodMatch?.[1] || null,
     }
   } catch (error) {
-    console.error(`Error getting last payment for ${payeeId}:`, error)
-    return null
+    console.error(`Error getting payee ${payeeId}:`, error)
+    return { payeeId, error: String(error) }
   }
 }
 
-// Get extended payment order details by refCode
-async function getExtendedPODetails(refCode: string): Promise<any | null> {
-  const timestamp = generateTimestamp()
-  const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}${refCode}`
-  const signature = generateHmacSignature(dataToSign)
-
+// SOAP: Get updated payments (ref codes of POs updated since timestamp)
+async function getUpdatedPayments(sinceTimestamp?: string): Promise<any> {
+  const timestamp = getTimestamp()
+  const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
+  const key = generateHmac(dataToSign)
+  
+  // Default to 30 days ago if no timestamp provided
+  const since = sinceTimestamp || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
   <soap:Body>
-    <tip:GetExtendedPODetails>
+    <tip:GetUpdatedPayments>
       <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
       <tip:timestamp>${timestamp}</tip:timestamp>
-      <tip:key>${signature}</tip:key>
-      <tip:poRefCode>${refCode}</tip:poRefCode>
-    </tip:GetExtendedPODetails>
+      <tip:key>${key}</tip:key>
+      <tip:changedSince>${since}</tip:changedSince>
+    </tip:GetUpdatedPayments>
   </soap:Body>
 </soap:Envelope>`
 
   try {
-    const response = await fetch(TIPALTI_CONFIG.soapPayeeUrl, {
+    const response = await fetch(`${TIPALTI_CONFIG.baseUrl}/v11/PayerFunctions.asmx`, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/GetExtendedPODetails',
+        'SOAPAction': '"http://Tipalti.org/GetUpdatedPayments"',
       },
       body: soapEnvelope,
     })
-
-    const responseText = await response.text()
-    console.log(`GetExtendedPODetails ${refCode}:`, responseText.substring(0, 500))
-
-    const extractValue = (tag: string) => {
-      const match = responseText.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
-      return match?.[1] || null
+    
+    const text = await response.text()
+    
+    // Parse ref codes from response
+    const refCodes: string[] = []
+    const refCodeMatches = text.matchAll(/<string>([^<]+)<\/string>/gi)
+    for (const match of refCodeMatches) {
+      refCodes.push(match[1])
     }
-
+    
     return {
-      submissionDate: extractValue('SubmittionDate') || extractValue('SubmissionDate'),
-      amountSubmitted: parseFloat(extractValue('AmountSubmitted') || '0'),
-      amountSubmittedCurrency: extractValue('AmountSubmittedCurrency'),
-      paymentMethod: extractValue('PaymentMethod'),
-      status: extractValue('Status'),
-      payerFees: parseFloat(extractValue('PayerFees') || '0'),
-      payeeFees: parseFloat(extractValue('PayeeFees') || '0'),
-      withdrawCurrency: extractValue('WithdrawCurrency'),
-      withdrawAmount: parseFloat(extractValue('WithdrawAmount') || '0'),
-      valueDate: extractValue('ValueDate'),
-      txnReference: extractValue('TxnReference'),
-      paymentAmount: parseFloat(extractValue('PaymentAmount') || '0'),
-      paymentCurrency: extractValue('PaymentCurrency'),
+      success: !text.includes('Error'),
+      refCodes,
+      rawResponse: text.substring(0, 1000),
     }
   } catch (error) {
-    console.error(`Error getting PO details for ${refCode}:`, error)
-    return null
+    console.error('Error getting updated payments:', error)
+    return { success: false, error: String(error) }
   }
 }
 
-// Get aggregate payment data between dates
-async function getPaymentsBetweenDates(startDate: Date, endDate: Date): Promise<any | null> {
-  const timestamp = generateTimestamp()
-  const fromDateStr = startDate.toISOString().split('T')[0]
-  const toDateStr = endDate.toISOString().split('T')[0]
-  const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}${fromDateStr}`
-  const signature = generateHmacSignature(dataToSign)
-
+// SOAP: Get balances (payer funds)
+async function getBalances(): Promise<any> {
+  const timestamp = getTimestamp()
+  const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
+  const key = generateHmac(dataToSign)
+  
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
   <soap:Body>
-    <tip:PaymentsBetweenDates>
+    <tip:GetBalances>
       <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
       <tip:timestamp>${timestamp}</tip:timestamp>
-      <tip:key>${signature}</tip:key>
-      <tip:from>${fromDateStr}</tip:from>
-      <tip:to>${toDateStr}</tip:to>
-    </tip:PaymentsBetweenDates>
+      <tip:key>${key}</tip:key>
+    </tip:GetBalances>
   </soap:Body>
 </soap:Envelope>`
 
   try {
-    const response = await fetch(TIPALTI_CONFIG.soapPayeeUrl, {
+    const response = await fetch(`${TIPALTI_CONFIG.baseUrl}/v11/PayerFunctions.asmx`, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/PaymentsBetweenDates',
+        'SOAPAction': '"http://Tipalti.org/GetBalances"',
       },
       body: soapEnvelope,
     })
-
-    const responseText = await response.text()
-    console.log('PaymentsBetweenDates:', responseText.substring(0, 1000))
-
-    const extractValue = (tag: string) => {
-      const match = responseText.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
-      return match?.[1] || null
+    
+    const text = await response.text()
+    
+    // Parse balance info
+    const balances: any[] = []
+    const amountMatches = text.matchAll(/<Amount>([^<]+)<\/Amount>/gi)
+    const currencyMatches = text.matchAll(/<Currency>([^<]+)<\/Currency>/gi)
+    
+    const amounts = [...amountMatches].map(m => m[1])
+    const currencies = [...currencyMatches].map(m => m[1])
+    
+    for (let i = 0; i < amounts.length; i++) {
+      balances.push({
+        amount: parseFloat(amounts[i]),
+        currency: currencies[i] || 'USD',
+      })
     }
-
-    return {
-      submitted: parseFloat(extractValue('Submitted') || extractValue('submitted') || '0'),
-      pending: parseFloat(extractValue('Pending') || extractValue('pending') || '0'),
-      rejected: parseFloat(extractValue('Rejected') || extractValue('rejected') || '0'),
-      rawResponse: responseText.substring(0, 500)
-    }
+    
+    return { success: true, balances }
   } catch (error) {
-    console.error('Error getting payments between dates:', error)
+    return { success: false, error: String(error) }
+  }
+}
+
+// REST API: Get OAuth token
+async function getRestAccessToken(): Promise<string | null> {
+  if (!TIPALTI_REST_CONFIG.clientId || !TIPALTI_REST_CONFIG.clientSecret) {
+    return null
+  }
+  
+  try {
+    const credentials = Buffer.from(
+      `${TIPALTI_REST_CONFIG.clientId}:${TIPALTI_REST_CONFIG.clientSecret}`
+    ).toString('base64')
+    
+    const response = await fetch(`${TIPALTI_REST_CONFIG.baseUrl}/api/v1/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=client_credentials',
+    })
+    
+    const data = await response.json()
+    return data.access_token || null
+  } catch (error) {
+    console.error('Error getting REST token:', error)
     return null
   }
 }
 
-// Save payment to Supabase
-async function savePaymentToSupabase(payeeId: string, payment: any) {
-  const { error } = await supabase
-    .from('tipalti_payments')
-    .upsert({
-      payee_id: payeeId,
-      amount: payment.amountSubmitted || payment.paymentAmount,
-      currency: payment.paymentCurrency || payment.amountSubmittedCurrency || 'USD',
-      status: payment.status === 'Paid' ? 'Paid' : payment.status,
-      paid_at: payment.valueDate,
-      submitted_at: payment.submissionDate || payment.lastSubmissionDate,
-      tipalti_payment_id: payment.refCode,
-      metadata: {
-        ref_code: payment.refCode,
-        payment_method: payment.paymentMethod,
-        net_to_payee: payment.withdrawAmount,
-        payer_fees: payment.payerFees,
-        payee_fees: payment.payeeFees,
-        txn_reference: payment.txnReference,
+// REST API: Get payments list
+async function getRestPayments(accessToken: string): Promise<any[]> {
+  try {
+    const response = await fetch(`${TIPALTI_REST_CONFIG.baseUrl}/api/v1/payments?limit=100`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    if (!response.ok) {
+      const error = await response.text()
+      console.error('REST payments error:', error)
+      return []
+    }
+    
+    const data = await response.json()
+    return data.data || data.payments || data || []
+  } catch (error) {
+    console.error('Error getting REST payments:', error)
+    return []
+  }
+}
+
+// REST API: Get payment batches
+async function getRestBatches(accessToken: string): Promise<any[]> {
+  try {
+    const response = await fetch(`${TIPALTI_REST_CONFIG.baseUrl}/api/v1/payment-batches?limit=100`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    if (!response.ok) {
+      return []
+    }
+    
+    const data = await response.json()
+    return data.data || data.batches || data || []
+  } catch (error) {
+    console.error('Error getting REST batches:', error)
+    return []
+  }
+}
+
+// REST API: Get payees list  
+async function getRestPayees(accessToken: string): Promise<any[]> {
+  try {
+    const response = await fetch(`${TIPALTI_REST_CONFIG.baseUrl}/api/v1/payees?limit=100`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    if (!response.ok) {
+      return []
+    }
+    
+    const data = await response.json()
+    return data.data || data.payees || data || []
+  } catch (error) {
+    console.error('Error getting REST payees:', error)
+    return []
+  }
+}
+
+// Main sync function
+export async function POST(request: NextRequest) {
+  const { userId } = await auth()
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const results: any = {
+    timestamp: new Date().toISOString(),
+    soap: {
+      payees: [],
+      payments: [],
+      updatedPayments: null,
+      balances: null,
+    },
+    rest: {
+      tokenObtained: false,
+      payments: [],
+      batches: [],
+      payees: [],
+    },
+    saved: [],
+    errors: [],
+  }
+
+  try {
+    // 1. SOAP: Get payee details and last payments for all known payees
+    console.log('Fetching SOAP data for known payees...')
+    
+    for (const payeeId of KNOWN_PAYEES) {
+      // Get payee details (this works!)
+      const payeeDetails = await getPayeeDetails(payeeId)
+      results.soap.payees.push(payeeDetails)
+      
+      // Get last payment details
+      const paymentDetails = await getLastPaymentDetails(payeeId)
+      results.soap.payments.push(paymentDetails)
+      
+      // Save to Supabase if we have payment data
+      if (paymentDetails.refCode && !paymentDetails.error) {
+        try {
+          const { error: saveError } = await supabase
+            .from('tipalti_payments')
+            .upsert({
+              payee_id: payeeId,
+              amount: paymentDetails.amount || 0,
+              currency: 'USD',
+              status: paymentDetails.status || 'Unknown',
+              paid_at: paymentDetails.valueDate ? new Date(paymentDetails.valueDate).toISOString() : null,
+              submitted_at: paymentDetails.submittedDate ? new Date(paymentDetails.submittedDate).toISOString() : null,
+              tipalti_payment_id: paymentDetails.refCode,
+              metadata: {
+                source: 'soap_sync',
+                payee_name: payeeDetails.name,
+                company: payeeDetails.company,
+                payment_method: paymentDetails.paymentMethod || payeeDetails.paymentMethod,
+                synced_at: new Date().toISOString(),
+              },
+            }, {
+              onConflict: 'tipalti_payment_id',
+            })
+          
+          if (saveError) {
+            results.errors.push(`Save ${payeeId}: ${saveError.message}`)
+          } else {
+            results.saved.push(payeeId)
+          }
+        } catch (err) {
+          results.errors.push(`Save error ${payeeId}: ${String(err)}`)
+        }
       }
-    }, {
-      onConflict: 'tipalti_payment_id'
+    }
+
+    // 2. SOAP: Get updated payments (ref codes)
+    console.log('Fetching updated payments...')
+    results.soap.updatedPayments = await getUpdatedPayments()
+
+    // 3. SOAP: Get balances
+    console.log('Fetching balances...')
+    results.soap.balances = await getBalances()
+
+    // 4. REST API: Try to get additional data
+    console.log('Attempting REST API...')
+    const accessToken = await getRestAccessToken()
+    
+    if (accessToken) {
+      results.rest.tokenObtained = true
+      
+      // Get REST data in parallel
+      const [payments, batches, payees] = await Promise.all([
+        getRestPayments(accessToken),
+        getRestBatches(accessToken),
+        getRestPayees(accessToken),
+      ])
+      
+      results.rest.payments = payments
+      results.rest.batches = batches
+      results.rest.payees = payees
+      
+      // Save REST payments to Supabase
+      for (const payment of payments) {
+        try {
+          const payeeId = payment.payeeId || payment.payee_id || payment.idap
+          const amount = payment.amount?.amount || payment.amountSubmitted?.amount || payment.amount || 0
+          const refCode = payment.refCode || payment.id || payment.paymentId
+          
+          if (payeeId && refCode) {
+            const { error: saveError } = await supabase
+              .from('tipalti_payments')
+              .upsert({
+                payee_id: payeeId,
+                amount: typeof amount === 'number' ? amount : parseFloat(amount) || 0,
+                currency: payment.amount?.currency || payment.currency || 'USD',
+                status: payment.status || 'Unknown',
+                paid_at: payment.paidDate || payment.valueDate || null,
+                submitted_at: payment.submittedDate || payment.createdDate || null,
+                tipalti_payment_id: refCode,
+                metadata: {
+                  source: 'rest_api_sync',
+                  raw: payment,
+                  synced_at: new Date().toISOString(),
+                },
+              }, {
+                onConflict: 'tipalti_payment_id',
+              })
+            
+            if (!saveError) {
+              results.saved.push(`REST:${payeeId}`)
+            }
+          }
+        } catch (err) {
+          results.errors.push(`REST save error: ${String(err)}`)
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      synced: results.saved.length,
+      ...results,
     })
 
-  if (error) {
-    console.error('Error saving payment:', error)
+  } catch (error) {
+    console.error('Sync error:', error)
+    return NextResponse.json({
+      success: false,
+      error: String(error),
+      ...results,
+    }, { status: 500 })
   }
 }
 
-// GET endpoint to check status
+// GET endpoint to check sync status
 export async function GET(request: NextRequest) {
   const { userId } = await auth()
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const soapConfigured = !!TIPALTI_CONFIG.apiKey
+  const restConfigured = !!(TIPALTI_REST_CONFIG.clientId && TIPALTI_REST_CONFIG.clientSecret)
+
+  // Get last sync info from Supabase
+  const { data: recentPayments } = await supabase
+    .from('tipalti_payments')
+    .select('payee_id, amount, status, paid_at, metadata')
+    .order('created_at', { ascending: false })
+    .limit(10)
+
   return NextResponse.json({
-    status: 'Tipalti sync endpoint ready',
-    payeeIds: PAYEE_IDS,
-    instructions: 'POST to this endpoint to sync payments from Tipalti'
+    status: 'Tipalti Comprehensive Sync Endpoint',
+    configuration: {
+      soap: {
+        configured: soapConfigured,
+        payerName: TIPALTI_CONFIG.payerName,
+        environment: process.env.TIPALTI_ENVIRONMENT || 'sandbox',
+      },
+      rest: {
+        configured: restConfigured,
+        clientIdSet: !!TIPALTI_REST_CONFIG.clientId,
+        clientSecretSet: !!TIPALTI_REST_CONFIG.clientSecret,
+      },
+    },
+    knownPayees: KNOWN_PAYEES,
+    recentPayments,
+    instructions: {
+      sync: 'POST to this endpoint to sync all payment data',
+      debug: 'GET /api/admin/payments/debug?payeeId=LP-PHENIX-EV to debug specific payee',
+    },
   })
 }

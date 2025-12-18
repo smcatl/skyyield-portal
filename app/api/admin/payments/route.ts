@@ -2,39 +2,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
-import { getPayeeDetails } from '@/lib/tipalti'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Known Tipalti payee IDs 
-const TIPALTI_PAYEE_IDS = [
-  'RP-STOSH001',
-  'RP-APRIL001', 
-  'LP-PHENIX-EV',
-  'LP-PHENIX-SBV',
-  'LP-PHENIX-WH',
-  'LP-PHENIX-CE',
-  'LP-PHENIX-TC',
-]
-
-interface PayeeData {
-  payeeId: string
+interface PartnerPayment {
+  id: string
   name: string
   email: string
-  company: string | null
-  paymentMethod: string | null
-  payeeStatus: string | null
-  isPayable: boolean
-  totalPaid: number
-  pendingAmount: number
-  lastPaymentDate: string | null
-  lastPaymentAmount: number | null
-  payments: any[]
-  invoices: any[]
-  partnerType: string | null
+  type: 'location_partner' | 'referral_partner' | 'channel_partner' | 'relationship_partner'
+  tipalti_payee_id: string | null
+  tipalti_status: string | null
+  company_name: string | null
+  total_earned: number
+  last_payment_date: string | null
+  last_payment_amount: number | null
 }
 
 export async function GET(request: NextRequest) {
@@ -55,128 +39,140 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const startDate = searchParams.get('startDate')
-    const endDate = searchParams.get('endDate')
-    const filterType = searchParams.get('type')
+    const partners: PartnerPayment[] = []
 
-    const payees: PayeeData[] = []
+    // Get Location Partners with Tipalti IDs
+    const { data: locationPartners } = await supabase
+      .from('location_partners')
+      .select(`
+        id,
+        company_legal_name,
+        dba_name,
+        contact_first_name,
+        contact_last_name,
+        contact_email,
+        tipalti_payee_id,
+        tipalti_status,
+        last_payment_date,
+        last_payment_amount
+      `)
+      .not('tipalti_payee_id', 'is', null)
+      .order('company_legal_name')
 
-    // Process each known payee
-    for (const payeeId of TIPALTI_PAYEE_IDS) {
-      try {
-        // Get payee details from Tipalti
-        const detailsResult = await getPayeeDetails(payeeId)
-        
-        if (!detailsResult.success || !detailsResult.data?.email) {
-          continue
-        }
-
-        const details = detailsResult.data
-
-        // Get payment history from Supabase using correct column names
-        let paymentsQuery = supabase
-          .from('tipalti_payments')
-          .select('*')
-          .eq('payee_id', payeeId)
-          .order('paid_at', { ascending: false, nullsFirst: false })
-
-        if (startDate) {
-          paymentsQuery = paymentsQuery.gte('submitted_at', startDate)
-        }
-        if (endDate) {
-          paymentsQuery = paymentsQuery.lte('submitted_at', endDate + 'T23:59:59')
-        }
-
-        const { data: payments, error: paymentsError } = await paymentsQuery
-
-        if (paymentsError) {
-          console.error(`Error fetching payments for ${payeeId}:`, paymentsError)
-        }
-
-        const paymentsList = payments || []
-
-        // Calculate totals - only count Paid status
-        const paidPayments = paymentsList.filter(p => 
-          p.status?.toLowerCase() === 'paid'
-        )
-        const totalPaid = paidPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
-
-        // Get pending/deferred payments
-        const pendingPayments = paymentsList.filter(p => 
-          p.status?.toLowerCase() === 'deferred' ||
-          p.status?.toLowerCase() === 'pending' ||
-          p.status?.toLowerCase() === 'submitted'
-        )
-        const pendingAmount = pendingPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
-
-        // Get last paid payment
-        const lastPaidPayment = paidPayments[0]
-
-        // Determine partner type from payee ID
-        let partnerType = null
-        if (payeeId.startsWith('LP-')) {
-          partnerType = 'Location Partner'
-        } else if (payeeId.startsWith('RP-')) {
-          partnerType = 'Referral Partner'
-        } else if (payeeId.startsWith('CP-')) {
-          partnerType = 'Channel Partner'
-        }
-
-        // Apply type filter if specified
-        if (filterType && filterType !== 'all') {
-          if (filterType === 'location' && !payeeId.startsWith('LP-')) continue
-          if (filterType === 'referral' && !payeeId.startsWith('RP-')) continue
-          if (filterType === 'channel' && !payeeId.startsWith('CP-')) continue
-        }
-
-        payees.push({
-          payeeId,
-          name: details.name || `${details.firstName || ''} ${details.lastName || ''}`.trim() || 'Unknown',
-          email: details.email || '',
-          company: details.company || null,
-          paymentMethod: details.paymentMethod || null,
-          payeeStatus: details.payeeStatus || null,
-          isPayable: details.isPayable || details.paymentMethod !== 'NoPM',
-          totalPaid,
-          pendingAmount,
-          lastPaymentDate: lastPaidPayment?.paid_at || null,
-          lastPaymentAmount: lastPaidPayment?.amount || null,
-          payments: paymentsList.map(p => ({
-            refCode: p.metadata?.ref_code || p.payment_id,
-            amount: p.amount,
-            netAmount: p.metadata?.net_to_payee,
-            fee: p.metadata?.fee,
-            currency: p.currency || 'USD',
-            paymentDate: p.paid_at || p.submitted_at,
-            status: p.status,
-            paymentMethod: p.metadata?.payment_method,
-            invoiceNumber: p.metadata?.invoice_number,
-          })),
-          invoices: [],
-          partnerType
+    if (locationPartners) {
+      for (const lp of locationPartners) {
+        partners.push({
+          id: lp.id,
+          name: `${lp.contact_first_name || ''} ${lp.contact_last_name || ''}`.trim() || 'Unknown',
+          email: lp.contact_email || '',
+          type: 'location_partner',
+          tipalti_payee_id: lp.tipalti_payee_id,
+          tipalti_status: lp.tipalti_status,
+          company_name: lp.company_legal_name || lp.dba_name,
+          total_earned: 0, // Will be calculated from Tipalti or commission_payments table
+          last_payment_date: lp.last_payment_date,
+          last_payment_amount: lp.last_payment_amount
         })
-
-      } catch (err) {
-        console.error(`Error processing payee ${payeeId}:`, err)
       }
     }
 
-    // Sort by name
-    payees.sort((a, b) => a.name.localeCompare(b.name))
+    // Get Referral Partners with Tipalti IDs
+    const { data: referralPartners } = await supabase
+      .from('referral_partners')
+      .select(`
+        id,
+        company_name,
+        contact_name,
+        email,
+        tipalti_payee_id,
+        tipalti_status
+      `)
+      .not('tipalti_payee_id', 'is', null)
+      .order('contact_name')
 
-    // Calculate summary stats
-    const summary = {
-      totalPayees: payees.length,
-      totalPaid: payees.reduce((sum, p) => sum + p.totalPaid, 0),
-      totalPending: payees.reduce((sum, p) => sum + p.pendingAmount, 0),
-      payableCount: payees.filter(p => p.isPayable).length,
+    if (referralPartners) {
+      for (const rp of referralPartners) {
+        partners.push({
+          id: rp.id,
+          name: rp.contact_name || 'Unknown',
+          email: rp.email || '',
+          type: 'referral_partner',
+          tipalti_payee_id: rp.tipalti_payee_id,
+          tipalti_status: rp.tipalti_status,
+          company_name: rp.company_name,
+          total_earned: 0,
+          last_payment_date: null,
+          last_payment_amount: null
+        })
+      }
+    }
+
+    // Get Channel Partners with Tipalti IDs
+    const { data: channelPartners } = await supabase
+      .from('channel_partners')
+      .select(`
+        id,
+        company_name,
+        contact_name,
+        email,
+        tipalti_payee_id,
+        tipalti_status
+      `)
+      .not('tipalti_payee_id', 'is', null)
+      .order('contact_name')
+
+    if (channelPartners) {
+      for (const cp of channelPartners) {
+        partners.push({
+          id: cp.id,
+          name: cp.contact_name || 'Unknown',
+          email: cp.email || '',
+          type: 'channel_partner',
+          tipalti_payee_id: cp.tipalti_payee_id,
+          tipalti_status: cp.tipalti_status,
+          company_name: cp.company_name,
+          total_earned: 0,
+          last_payment_date: null,
+          last_payment_amount: null
+        })
+      }
+    }
+
+    // Get Relationship Partners with Tipalti IDs
+    const { data: relationshipPartners } = await supabase
+      .from('relationship_partners')
+      .select(`
+        id,
+        company_name,
+        contact_name,
+        email,
+        tipalti_payee_id,
+        tipalti_status
+      `)
+      .not('tipalti_payee_id', 'is', null)
+      .order('contact_name')
+
+    if (relationshipPartners) {
+      for (const relp of relationshipPartners) {
+        partners.push({
+          id: relp.id,
+          name: relp.contact_name || 'Unknown',
+          email: relp.email || '',
+          type: 'relationship_partner',
+          tipalti_payee_id: relp.tipalti_payee_id,
+          tipalti_status: relp.tipalti_status,
+          company_name: relp.company_name,
+          total_earned: 0,
+          last_payment_date: null,
+          last_payment_amount: null
+        })
+      }
     }
 
     return NextResponse.json({
       success: true,
-      payees,
-      summary,
+      partners,
+      count: partners.length
     })
 
   } catch (error) {
