@@ -9,9 +9,9 @@ const TIPALTI_CONFIG = {
   payerName: process.env.TIPALTI_PAYER_NAME || 'SkyYield',
   apiKey: process.env.TIPALTI_API_KEY || '',
   webhookSecret: process.env.TIPALTI_WEBHOOK_SECRET || '',
-  // Production URLs
-  soapPayeeUrl: 'https://api.tipalti.com/v14/PayeeFunctions.asmx',
-  soapPayerUrl: 'https://api.tipalti.com/v14/PayerFunctions.asmx',
+  // Production URLs - using v11 which has better documentation
+  soapPayeeUrl: 'https://api.tipalti.com/v11/PayeeFunctions.asmx',
+  soapPayerUrl: 'https://api.tipalti.com/v11/PayerFunctions.asmx',
   portalUrl: 'https://suppliers.tipalti.com',
 }
 
@@ -40,7 +40,7 @@ export function verifyWebhookSignature(payload: string, signature: string): bool
 // ============================================
 
 interface CreatePayeeParams {
-  payeeId: string           // Unique ID (use partner ID like "LP-2025-001")
+  payeeId: string
   firstName: string
   lastName: string
   email: string
@@ -49,7 +49,7 @@ interface CreatePayeeParams {
   city?: string
   state?: string
   zip?: string
-  country?: string          // ISO 2-letter code, default "US"
+  country?: string
   payeeType?: 'individual' | 'company'
 }
 
@@ -91,15 +91,14 @@ export async function createOrUpdatePayee(params: CreatePayeeParams): Promise<{ 
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/UpdateOrCreatePayeeInfo',
+        'SOAPAction': '"http://Tipalti.org/UpdateOrCreatePayeeInfo"',
       },
       body: soapEnvelope,
     })
 
     const responseText = await response.text()
     
-    // Parse SOAP response for success/error
-    if (responseText.includes('<b>OK</b>') || responseText.includes('errorCode>0<')) {
+    if (responseText.includes('errorCode>0<') || responseText.includes('<b>OK</b>')) {
       return { success: true }
     } else {
       const errorMatch = responseText.match(/<errorMessage>([^<]+)<\/errorMessage>/)
@@ -133,13 +132,17 @@ export async function getPayeeDetails(payeeId: string): Promise<{ success: boole
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/GetPayeeDetails',
+        'SOAPAction': '"http://Tipalti.org/GetPayeeDetails"',
       },
       body: soapEnvelope,
     })
 
     const responseText = await response.text()
-    // Parse the XML response into a usable object
+    
+    if (responseText.includes('PayeeUnknown') || responseText.includes('errorCode>1<')) {
+      return { success: false, error: 'Payee not found' }
+    }
+
     const data = parsePayeeDetailsResponse(responseText)
     return { success: true, data }
   } catch (error) {
@@ -147,55 +150,83 @@ export async function getPayeeDetails(payeeId: string): Promise<{ success: boole
   }
 }
 
-// Generate Supplier Hub Onboarding URL
-// This gives the partner a link to enter their banking details
+// Get Extended Payee Details (includes payment status)
+export async function getExtendedPayeeDetails(payeeId: string): Promise<{ success: boolean; data?: any; error?: string; rawXml?: string }> {
+  const timestamp = generateTimestamp()
+  const dataToSign = `${TIPALTI_CONFIG.payerName}${payeeId}${timestamp}`
+  const signature = generateHmacSignature(dataToSign)
+
+  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
+  <soap:Body>
+    <tip:GetExtendedPayeeDetails>
+      <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
+      <tip:idap>${payeeId}</tip:idap>
+      <tip:timestamp>${timestamp}</tip:timestamp>
+      <tip:key>${signature}</tip:key>
+    </tip:GetExtendedPayeeDetails>
+  </soap:Body>
+</soap:Envelope>`
+
+  try {
+    const response = await fetch(TIPALTI_CONFIG.soapPayeeUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': '"http://Tipalti.org/GetExtendedPayeeDetails"',
+      },
+      body: soapEnvelope,
+    })
+
+    const responseText = await response.text()
+    
+    if (responseText.includes('PayeeUnknown') || responseText.includes('errorCode>1<')) {
+      return { success: false, error: 'Payee not found' }
+    }
+
+    const data = parseExtendedPayeeDetailsResponse(responseText)
+    return { success: true, data, rawXml: responseText }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+}
+
+// Generate Tipalti iFrame URL for payee onboarding/management
 export function generateOnboardingUrl(payeeId: string): string {
   const timestamp = generateTimestamp()
   const dataToSign = `${TIPALTI_CONFIG.payerName}${payeeId}${timestamp}`
   const signature = generateHmacSignature(dataToSign)
-
-  return `${TIPALTI_CONFIG.portalUrl}/Payees/PayeeDashboard/Home?` +
-    `payer=${encodeURIComponent(TIPALTI_CONFIG.payerName)}` +
-    `&idap=${encodeURIComponent(payeeId)}` +
-    `&ts=${timestamp}` +
-    `&hashkey=${signature}`
+  
+  return `${TIPALTI_CONFIG.portalUrl}/PayeeDashboard/Home?idap=${encodeURIComponent(payeeId)}&payer=${encodeURIComponent(TIPALTI_CONFIG.payerName)}&ts=${timestamp}&hashkey=${signature}`
 }
 
-// Generate Payment History URL for payee
+// Generate Tipalti payment history URL
 export function generatePaymentHistoryUrl(payeeId: string): string {
   const timestamp = generateTimestamp()
   const dataToSign = `${TIPALTI_CONFIG.payerName}${payeeId}${timestamp}`
   const signature = generateHmacSignature(dataToSign)
-
-  return `${TIPALTI_CONFIG.portalUrl}/PaymentsHistory?` +
-    `payer=${encodeURIComponent(TIPALTI_CONFIG.payerName)}` +
-    `&idap=${encodeURIComponent(payeeId)}` +
-    `&ts=${timestamp}` +
-    `&hashkey=${signature}`
+  
+  return `${TIPALTI_CONFIG.portalUrl}/payeePaymentHistory.aspx?idap=${encodeURIComponent(payeeId)}&payer=${encodeURIComponent(TIPALTI_CONFIG.payerName)}&ts=${timestamp}&hashkey=${signature}`
 }
 
-// ============================================
-// PAYMENT / BILL MANAGEMENT
-// ============================================
-
+// Create Bill/Invoice in Tipalti
 interface CreateBillParams {
   payeeId: string
-  invoiceNumber: string     // Unique invoice/bill number
-  invoiceDate: Date
+  invoiceNumber: string
   amount: number
-  currency?: string         // Default USD
   description?: string
+  invoiceDate?: Date
   dueDate?: Date
+  currency?: string
 }
 
-// Create Invoice/Bill for payment
 export async function createBill(params: CreateBillParams): Promise<{ success: boolean; error?: string }> {
   const timestamp = generateTimestamp()
+  const invoiceDate = (params.invoiceDate || new Date()).toISOString().split('T')[0]
+  const dueDate = (params.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+  
   const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
   const signature = generateHmacSignature(dataToSign)
-
-  const invoiceDate = params.invoiceDate.toISOString().split('T')[0]
-  const dueDate = params.dueDate?.toISOString().split('T')[0] || invoiceDate
 
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
@@ -229,7 +260,7 @@ export async function createBill(params: CreateBillParams): Promise<{ success: b
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/CreateOrUpdateInvoices',
+        'SOAPAction': '"http://Tipalti.org/CreateOrUpdateInvoices"',
       },
       body: soapEnvelope,
     })
@@ -248,7 +279,7 @@ export async function createBill(params: CreateBillParams): Promise<{ success: b
 }
 
 // Get payment history for a payee
-export async function getPaymentHistory(payeeId: string): Promise<{ success: boolean; payments?: any[]; error?: string }> {
+export async function getPaymentHistory(payeeId: string): Promise<{ success: boolean; payments?: any[]; error?: string; rawXml?: string }> {
   const timestamp = generateTimestamp()
   const dataToSign = `${TIPALTI_CONFIG.payerName}${payeeId}${timestamp}`
   const signature = generateHmacSignature(dataToSign)
@@ -256,12 +287,12 @@ export async function getPaymentHistory(payeeId: string): Promise<{ success: boo
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
   <soap:Body>
-    <tip:GetPayeePaymentsHistory>
+    <tip:GetPaymentsHistoryReport>
       <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
       <tip:idap>${payeeId}</tip:idap>
       <tip:timestamp>${timestamp}</tip:timestamp>
       <tip:key>${signature}</tip:key>
-    </tip:GetPayeePaymentsHistory>
+    </tip:GetPaymentsHistoryReport>
   </soap:Body>
 </soap:Envelope>`
 
@@ -270,21 +301,21 @@ export async function getPaymentHistory(payeeId: string): Promise<{ success: boo
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/GetPayeePaymentsHistory',
+        'SOAPAction': '"http://Tipalti.org/GetPaymentsHistoryReport"',
       },
       body: soapEnvelope,
     })
 
     const responseText = await response.text()
     const payments = parsePaymentsResponse(responseText)
-    return { success: true, payments }
+    return { success: true, payments, rawXml: responseText }
   } catch (error) {
     return { success: false, error: String(error) }
   }
 }
 
 // Get payee's invoices/bills
-export async function getPayeeInvoices(payeeId: string): Promise<{ success: boolean; invoices?: any[]; error?: string }> {
+export async function getPayeeInvoices(payeeId: string): Promise<{ success: boolean; invoices?: any[]; error?: string; rawXml?: string }> {
   const timestamp = generateTimestamp()
   const dataToSign = `${TIPALTI_CONFIG.payerName}${payeeId}${timestamp}`
   const signature = generateHmacSignature(dataToSign)
@@ -292,12 +323,12 @@ export async function getPayeeInvoices(payeeId: string): Promise<{ success: bool
   const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
   <soap:Body>
-    <tip:GetPayeeInvoicesList>
+    <tip:GetPayeeInvoiceList>
       <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
       <tip:idap>${payeeId}</tip:idap>
       <tip:timestamp>${timestamp}</tip:timestamp>
       <tip:key>${signature}</tip:key>
-    </tip:GetPayeeInvoicesList>
+    </tip:GetPayeeInvoiceList>
   </soap:Body>
 </soap:Envelope>`
 
@@ -306,14 +337,84 @@ export async function getPayeeInvoices(payeeId: string): Promise<{ success: bool
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://Tipalti.org/GetPayeeInvoicesList',
+        'SOAPAction': '"http://Tipalti.org/GetPayeeInvoiceList"',
       },
       body: soapEnvelope,
     })
 
     const responseText = await response.text()
     const invoices = parseInvoicesResponse(responseText)
-    return { success: true, invoices }
+    return { success: true, invoices, rawXml: responseText }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+}
+
+// Get all payees with extended status
+export async function getAllPayeesExtended(): Promise<{ success: boolean; payees?: any[]; error?: string; rawXml?: string }> {
+  const timestamp = generateTimestamp()
+  const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
+  const signature = generateHmacSignature(dataToSign)
+
+  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
+  <soap:Body>
+    <tip:GetExtendedPayeeStatusList>
+      <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
+      <tip:timestamp>${timestamp}</tip:timestamp>
+      <tip:key>${signature}</tip:key>
+    </tip:GetExtendedPayeeStatusList>
+  </soap:Body>
+</soap:Envelope>`
+
+  try {
+    const response = await fetch(TIPALTI_CONFIG.soapPayerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': '"http://Tipalti.org/GetExtendedPayeeStatusList"',
+      },
+      body: soapEnvelope,
+    })
+
+    const responseText = await response.text()
+    const payees = parsePayeeListResponse(responseText)
+    return { success: true, payees, rawXml: responseText }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+}
+
+// Get all payments for payer (batch)
+export async function getAllPaymentsBatch(pageIndex: number = 0, pageSize: number = 100): Promise<{ success: boolean; payments?: any[]; error?: string; rawXml?: string }> {
+  const timestamp = generateTimestamp()
+  const dataToSign = `${TIPALTI_CONFIG.payerName}${timestamp}`
+  const signature = generateHmacSignature(dataToSign)
+
+  const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tip="http://Tipalti.org/">
+  <soap:Body>
+    <tip:GetPaymentsReport>
+      <tip:payerName>${TIPALTI_CONFIG.payerName}</tip:payerName>
+      <tip:timestamp>${timestamp}</tip:timestamp>
+      <tip:key>${signature}</tip:key>
+    </tip:GetPaymentsReport>
+  </soap:Body>
+</soap:Envelope>`
+
+  try {
+    const response = await fetch(TIPALTI_CONFIG.soapPayerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': '"http://Tipalti.org/GetPaymentsReport"',
+      },
+      body: soapEnvelope,
+    })
+
+    const responseText = await response.text()
+    const payments = parsePaymentsBatchResponse(responseText)
+    return { success: true, payments, rawXml: responseText }
   } catch (error) {
     return { success: false, error: String(error) }
   }
@@ -333,49 +434,34 @@ function escapeXml(str: string): string {
 }
 
 function parsePayeeDetailsResponse(xml: string): any {
-  // Extract key fields from SOAP response
   const extractValue = (tag: string) => {
     const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
     return match?.[1] || null
   }
 
-  // Parse the combined address
   const addressRaw = extractValue('Address')
   let street1 = null, city = null, state = null, zip = null, country = null
   if (addressRaw) {
     const addressParts = addressRaw.split(/\r?\n/)
     street1 = addressParts[0] || null
     city = addressParts[1] || null
-    // Parse "GA 30062" format
     if (addressParts[2]) {
-      const stateZip = addressParts[2].match(/([A-Z]{2})\s*(\d{5}(-\d{4})?)/)
-      if (stateZip) {
-        state = stateZip[1]
-        zip = stateZip[2]
-      }
+      const stateZip = addressParts[2].split(' ')
+      state = stateZip[0]
+      zip = stateZip[1]
     }
     country = addressParts[3] || null
   }
 
-  // Parse full name into first/last
-  const fullName = extractValue('Name')
-  let firstName = null, lastName = null
-  if (fullName) {
-    const nameParts = fullName.split(' ')
-    firstName = nameParts[0]
-    lastName = nameParts.slice(1).join(' ')
-  }
-
   return {
-    payeeId: extractValue('Idap') || extractValue('idap'),
-    name: fullName,
-    firstName,
-    lastName,
+    name: extractValue('Name'),
+    firstName: extractValue('FirstName'),
+    lastName: extractValue('LastName'),
+    company: extractValue('CompanyName') || extractValue('Company'),
     email: extractValue('Email'),
-    company: extractValue('Company') || extractValue('CompanyName'),
     paymentMethod: extractValue('PaymentMethod'),
-    payeeStatus: extractValue('PayeeStatus') || extractValue('Status'),
-    isPayable: extractValue('PaymentMethod') !== 'NoPM',
+    payeeStatus: extractValue('PayeeStatus'),
+    isPayable: extractValue('PaymentMethod') !== 'NoPM' && extractValue('PaymentMethod') !== null,
     street1,
     city,
     state,
@@ -384,25 +470,57 @@ function parsePayeeDetailsResponse(xml: string): any {
   }
 }
 
+function parseExtendedPayeeDetailsResponse(xml: string): any {
+  const extractValue = (tag: string) => {
+    const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
+    return match?.[1] || null
+  }
+
+  return {
+    name: extractValue('Name'),
+    firstName: extractValue('FirstName'),
+    lastName: extractValue('LastName'),
+    company: extractValue('CompanyName') || extractValue('Company'),
+    email: extractValue('Email'),
+    paymentMethod: extractValue('PaymentMethod'),
+    payeeStatus: extractValue('PayeeStatus'),
+    isPayable: extractValue('IsPayable') === 'true' || (extractValue('PaymentMethod') !== 'NoPM' && extractValue('PaymentMethod') !== null),
+    balance: parseFloat(extractValue('Balance') || '0'),
+    totalPaid: parseFloat(extractValue('TotalPaid') || extractValue('PaidAmount') || '0'),
+    pendingAmount: parseFloat(extractValue('PendingAmount') || '0'),
+  }
+}
+
 function parsePaymentsResponse(xml: string): any[] {
   const payments: any[] = []
-  const paymentMatches = xml.matchAll(/<TipaltiPaymentHistoryItem>([\s\S]*?)<\/TipaltiPaymentHistoryItem>/g)
   
-  for (const match of paymentMatches) {
-    const paymentXml = match[1]
-    const extractValue = (tag: string) => {
-      const m = paymentXml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))
-      return m?.[1] || null
-    }
+  // Try multiple possible item patterns
+  const patterns = [
+    /<TipaltiPaymentHistoryItem>([\s\S]*?)<\/TipaltiPaymentHistoryItem>/gi,
+    /<PaymentHistoryItem>([\s\S]*?)<\/PaymentHistoryItem>/gi,
+    /<Payment>([\s\S]*?)<\/Payment>/gi,
+    /<PaymentItem>([\s\S]*?)<\/PaymentItem>/gi,
+  ]
+  
+  for (const pattern of patterns) {
+    const matches = xml.matchAll(pattern)
+    for (const match of matches) {
+      const paymentXml = match[1]
+      const extractValue = (tag: string) => {
+        const m = paymentXml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
+        return m?.[1] || null
+      }
 
-    payments.push({
-      refCode: extractValue('RefCode'),
-      amount: parseFloat(extractValue('Amount') || '0'),
-      currency: extractValue('Currency'),
-      paymentDate: extractValue('PaymentDate'),
-      status: extractValue('Status'),
-      paymentMethod: extractValue('PaymentMethod'),
-    })
+      payments.push({
+        refCode: extractValue('RefCode') || extractValue('PaymentRefCode') || extractValue('InvoiceRefCode'),
+        amount: parseFloat(extractValue('Amount') || extractValue('PaymentAmount') || '0'),
+        currency: extractValue('Currency'),
+        paymentDate: extractValue('PaymentDate') || extractValue('SubmitDate'),
+        status: extractValue('Status') || extractValue('PaymentStatus'),
+        paymentMethod: extractValue('PaymentMethod'),
+      })
+    }
+    if (payments.length > 0) break
   }
 
   return payments
@@ -410,76 +528,49 @@ function parsePaymentsResponse(xml: string): any[] {
 
 function parseInvoicesResponse(xml: string): any[] {
   const invoices: any[] = []
-  const invoiceMatches = xml.matchAll(/<TipaltiInvoiceItem>([\s\S]*?)<\/TipaltiInvoiceItem>/g)
   
-  for (const match of invoiceMatches) {
-    const invoiceXml = match[1]
-    const extractValue = (tag: string) => {
-      const m = invoiceXml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))
-      return m?.[1] || null
-    }
+  const patterns = [
+    /<TipaltiInvoiceItem>([\s\S]*?)<\/TipaltiInvoiceItem>/gi,
+    /<InvoiceItem>([\s\S]*?)<\/InvoiceItem>/gi,
+    /<Invoice>([\s\S]*?)<\/Invoice>/gi,
+  ]
+  
+  for (const pattern of patterns) {
+    const matches = xml.matchAll(pattern)
+    for (const match of matches) {
+      const invoiceXml = match[1]
+      const extractValue = (tag: string) => {
+        const m = invoiceXml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
+        return m?.[1] || null
+      }
 
-    invoices.push({
-      refCode: extractValue('InvoiceRefCode'),
-      amount: parseFloat(extractValue('TotalAmount') || '0'),
-      currency: extractValue('Currency'),
-      invoiceDate: extractValue('InvoiceDate'),
-      dueDate: extractValue('InvoiceDueDate'),
-      status: extractValue('Status'),
-      description: extractValue('Description'),
-    })
+      invoices.push({
+        refCode: extractValue('InvoiceRefCode') || extractValue('RefCode'),
+        amount: parseFloat(extractValue('TotalAmount') || extractValue('Amount') || '0'),
+        currency: extractValue('Currency'),
+        invoiceDate: extractValue('InvoiceDate'),
+        dueDate: extractValue('InvoiceDueDate') || extractValue('DueDate'),
+        status: extractValue('Status') || extractValue('InvoiceStatus'),
+        description: extractValue('Description'),
+      })
+    }
+    if (invoices.length > 0) break
   }
 
   return invoices
 }
 
-// ============================================
-// GET ALL PAYEES FROM TIPALTI
-// ============================================
-
-export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]; error?: string }> {
-  // Tipalti doesn't have a simple "list all payees" API
-  // We need to fetch each payee individually by ID
-  // This fetches IDs 1-20 and any alphanumeric IDs we know about
-  
-  const knownIds = [
-    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
-    '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
-    't3f6072d3t530bt', 't09993d6dta684t', 'tb3538ab6t2139t', 
-    't94d1ed53tb2d1t', 't1a5e706bta715t'
-  ]
-  
-  const payees: any[] = []
-  
-  for (const id of knownIds) {
-    try {
-      const result = await getPayeeDetails(id)
-      if (result.success && result.data && result.data.email) {
-        payees.push({
-          ...result.data,
-          payeeId: id
-        })
-      }
-    } catch (e) {
-      // Skip failed lookups
-    }
-  }
-  
-  return { success: true, payees }
-}
-
 function parsePayeeListResponse(xml: string): any[] {
   const payees: any[] = []
   
-  // Try multiple possible item tag names
-  const itemPatterns = [
+  const patterns = [
+    /<ExtendedPayeeStatusItem>([\s\S]*?)<\/ExtendedPayeeStatusItem>/gi,
     /<PayeeDetails>([\s\S]*?)<\/PayeeDetails>/gi,
     /<TipaltiPayeeDetails>([\s\S]*?)<\/TipaltiPayeeDetails>/gi,
     /<PayeeItem>([\s\S]*?)<\/PayeeItem>/gi,
-    /<ExtendedPayeeStatusItem>([\s\S]*?)<\/ExtendedPayeeStatusItem>/gi,
   ]
   
-  for (const pattern of itemPatterns) {
+  for (const pattern of patterns) {
     const matches = xml.matchAll(pattern)
     for (const match of matches) {
       const payeeXml = match[1]
@@ -505,7 +596,8 @@ function parsePayeeListResponse(xml: string): any[] {
         company: extractValue('Company') || extractValue('CompanyName'),
         paymentMethod: extractValue('PaymentMethod'),
         payeeStatus: extractValue('PayeeStatus') || extractValue('Status'),
-        isPayable: extractValue('PaymentMethod') !== 'NoPM' && extractValue('PaymentMethod') !== null,
+        isPayable: extractValue('IsPayable') === 'true' || (extractValue('PaymentMethod') !== 'NoPM' && extractValue('PaymentMethod') !== null),
+        balance: parseFloat(extractValue('Balance') || '0'),
       })
     }
     
@@ -515,15 +607,85 @@ function parsePayeeListResponse(xml: string): any[] {
   return payees
 }
 
+function parsePaymentsBatchResponse(xml: string): any[] {
+  const payments: any[] = []
+  
+  const patterns = [
+    /<PaymentReportItem>([\s\S]*?)<\/PaymentReportItem>/gi,
+    /<TipaltiPaymentItem>([\s\S]*?)<\/TipaltiPaymentItem>/gi,
+    /<Payment>([\s\S]*?)<\/Payment>/gi,
+  ]
+  
+  for (const pattern of patterns) {
+    const matches = xml.matchAll(pattern)
+    for (const match of matches) {
+      const paymentXml = match[1]
+      const extractValue = (tag: string) => {
+        const m = paymentXml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))
+        return m?.[1] || null
+      }
+
+      payments.push({
+        payeeId: extractValue('Idap') || extractValue('PayeeId'),
+        refCode: extractValue('RefCode') || extractValue('PaymentRefCode'),
+        amount: parseFloat(extractValue('Amount') || extractValue('PaymentAmount') || '0'),
+        currency: extractValue('Currency'),
+        paymentDate: extractValue('PaymentDate') || extractValue('SubmitDate'),
+        status: extractValue('Status') || extractValue('PaymentStatus'),
+        paymentMethod: extractValue('PaymentMethod'),
+      })
+    }
+    if (payments.length > 0) break
+  }
+
+  return payments
+}
+
+// Get all payees (combines multiple methods)
+export async function getAllPayees(): Promise<{ success: boolean; payees?: any[]; error?: string }> {
+  // First try to get the extended payee list
+  const listResult = await getAllPayeesExtended()
+  if (listResult.success && listResult.payees && listResult.payees.length > 0) {
+    return listResult
+  }
+
+  // Fallback: fetch known IDs individually
+  const knownIds = [
+    'LP-PHENIX-EV', 'LP-PHENIX-SBV', 'LP-PHENIX-WH', 'LP-PHENIX-CE', 'LP-PHENIX-TC',
+    'RP-STOSH001', 'RP-APRIL001',
+  ]
+  
+  const payees: any[] = []
+  
+  for (const id of knownIds) {
+    try {
+      const result = await getExtendedPayeeDetails(id)
+      if (result.success && result.data && result.data.email) {
+        payees.push({
+          ...result.data,
+          payeeId: id
+        })
+      }
+    } catch (e) {
+      // Skip failed lookups
+    }
+  }
+  
+  return { success: true, payees }
+}
+
 // Export all functions
 export const Tipalti = {
   createOrUpdatePayee,
   getPayeeDetails,
+  getExtendedPayeeDetails,
   generateOnboardingUrl,
   generatePaymentHistoryUrl,
   createBill,
   getPaymentHistory,
   getPayeeInvoices,
   getAllPayees,
+  getAllPayeesExtended,
+  getAllPaymentsBatch,
   verifyWebhookSignature,
 }
