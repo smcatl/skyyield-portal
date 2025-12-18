@@ -2,146 +2,120 @@
 
 import { useState, useEffect } from 'react'
 import { 
-  RefreshCw, Building, Users, Handshake, Network,
-  CheckCircle, AlertCircle, DollarSign, Eye, X,
-  FileText, Settings, Calendar, Filter, ExternalLink
+  RefreshCw, ExternalLink, Building, Users, Handshake, Network,
+  CheckCircle, Clock, AlertCircle, DollarSign, Eye, X,
+  CreditCard, FileText, Settings, Calendar, Filter
 } from 'lucide-react'
 import TipaltiIFrame from '@/components/TipaltiIFrame'
 
-interface Partner {
-  id: string
+interface PayeeData {
+  payeeId: string
   name: string
   email: string
   company: string | null
-  tipaltiPayeeId: string
-  tipaltiStatus: string | null
-  partnerType: 'location' | 'referral' | 'channel' | 'relationship'
+  paymentMethod: string | null
+  payeeStatus: string | null
+  isPayable: boolean
+  totalPaid: number
+  pendingAmount: number
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
+  payments: any[]
+  invoices: any[]
+  partnerType: string | null
+}
+
+interface Summary {
+  totalPayees: number
+  totalPaid: number
+  totalPending: number
+  payableCount: number
 }
 
 export default function AdminPayments() {
   const [loading, setLoading] = useState(true)
-  const [partners, setPartners] = useState<Partner[]>([])
+  const [payees, setPayees] = useState<PayeeData[]>([])
+  const [summary, setSummary] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null)
+  const [selectedPayee, setSelectedPayee] = useState<PayeeData | null>(null)
   const [activeTab, setActiveTab] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
   const [showIframe, setShowIframe] = useState(false)
+  
+  // Date filters
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
   const [filterType, setFilterType] = useState<string>('all')
 
   useEffect(() => {
-    loadPartners()
+    loadPayees()
   }, [])
 
-  const loadPartners = async () => {
+  const loadPayees = async () => {
     setLoading(true)
     setError(null)
     try {
-      // Fetch from Supabase - all partners with Tipalti IDs
-      const [lpRes, rpRes] = await Promise.all([
-        fetch('/api/partners/location'),
-        fetch('/api/partners/referral'),
-      ])
+      let url = '/api/admin/payments'
+      const params = new URLSearchParams()
+      if (startDate) params.set('startDate', startDate)
+      if (endDate) params.set('endDate', endDate)
+      if (params.toString()) url += '?' + params.toString()
 
-      const partners: Partner[] = []
-
-      // Location Partners
-      if (lpRes.ok) {
-        const lpData = await lpRes.json()
-        if (lpData.data) {
-          lpData.data.forEach((lp: any) => {
-            if (lp.tipalti_payee_id) {
-              partners.push({
-                id: lp.id,
-                name: `${lp.contact_first_name || ''} ${lp.contact_last_name || ''}`.trim() || 'Unknown',
-                email: lp.contact_email || '',
-                company: lp.company_legal_name || lp.dba_name || null,
-                tipaltiPayeeId: lp.tipalti_payee_id,
-                tipaltiStatus: lp.tipalti_status,
-                partnerType: 'location',
-                lastPaymentDate: lp.last_payment_date,
-                lastPaymentAmount: lp.last_payment_amount
-              })
-            }
-          })
-        }
+      const res = await fetch(url)
+      const data = await res.json()
+      
+      if (data.success) {
+        setPayees(data.payees)
+        setSummary(data.summary)
+      } else {
+        setError(data.error || 'Failed to load payees')
       }
-
-      // Referral Partners  
-      if (rpRes.ok) {
-        const rpData = await rpRes.json()
-        if (rpData.data) {
-          rpData.data.forEach((rp: any) => {
-            if (rp.tipalti_payee_id) {
-              partners.push({
-                id: rp.id,
-                name: rp.contact_name || 'Unknown',
-                email: rp.email || '',
-                company: rp.company_name || null,
-                tipaltiPayeeId: rp.tipalti_payee_id,
-                tipaltiStatus: rp.tipalti_status,
-                partnerType: 'referral',
-                lastPaymentDate: null,
-                lastPaymentAmount: null
-              })
-            }
-          })
-        }
-      }
-
-      setPartners(partners)
     } catch (err) {
-      console.error('Error loading partners:', err)
-      setError('Failed to load partners')
+      setError('Failed to load payment data')
+      console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
-  const getStatusBadge = (status: string | null) => {
+  const applyDateFilter = () => {
+    loadPayees()
+  }
+
+  const clearFilters = () => {
+    setStartDate('')
+    setEndDate('')
+    setFilterType('all')
+    loadPayees()
+  }
+
+  const getStatusBadge = (status: string | null, isPayable: boolean) => {
+    if (isPayable) {
+      return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Payable</span>
+    }
+    
     const statusMap: Record<string, { color: string, label: string }> = {
+      'Active': { color: 'bg-green-500/20 text-green-400', label: 'Active' },
+      'Pending': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Pending' },
+      'Invited': { color: 'bg-purple-500/20 text-purple-400', label: 'Invited' },
+      'Suspended': { color: 'bg-red-500/20 text-red-400', label: 'Suspended' },
       'payable': { color: 'bg-green-500/20 text-green-400', label: 'Payable' },
       'completed_pending': { color: 'bg-blue-500/20 text-blue-400', label: 'Setup Complete' },
       'signup_in_progress': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Signing Up' },
       'invite_sent': { color: 'bg-purple-500/20 text-purple-400', label: 'Invited' },
       'not_invited': { color: 'bg-gray-500/20 text-gray-400', label: 'Not Invited' },
-      'suspended': { color: 'bg-red-500/20 text-red-400', label: 'Suspended' },
-      'inactive': { color: 'bg-gray-500/20 text-gray-400', label: 'Inactive' },
     }
     
     const config = statusMap[status || ''] || { color: 'bg-gray-500/20 text-gray-400', label: status || 'Unknown' }
+    
     return <span className={`px-2 py-1 rounded text-xs ${config.color}`}>{config.label}</span>
   }
 
-  const getPartnerTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      location: 'Location Partner',
-      referral: 'Referral Partner',
-      channel: 'Channel Partner',
-      relationship: 'Relationship Partner'
-    }
-    return labels[type] || type
-  }
-
-  const getPartnerTypeIcon = (type: string) => {
-    const icons: Record<string, any> = {
-      location: Building,
-      referral: Users,
-      channel: Network,
-      relationship: Handshake
-    }
-    const Icon = icons[type] || Building
-    return <Icon className="w-4 h-4 text-[#0EA5E9]" />
-  }
-
-  const openPayeeView = (partner: Partner, tab: typeof activeTab) => {
-    setSelectedPartner(partner)
-    setActiveTab(tab)
+  const openPayeeView = (payee: PayeeData) => {
+    setSelectedPayee(payee)
     setShowIframe(true)
   }
 
-  const formatCurrency = (amount: number | null) => {
-    if (!amount) return '-'
+  const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -153,10 +127,16 @@ export default function AdminPayments() {
     return new Date(dateStr).toLocaleDateString()
   }
 
-  // Filter partners
-  const filteredPartners = filterType === 'all' 
-    ? partners 
-    : partners.filter(p => p.partnerType === filterType)
+  // Filter payees by type
+  const filteredPayees = filterType === 'all' 
+    ? payees 
+    : payees.filter(p => {
+        if (filterType === 'location') return p.partnerType === 'Location Partner' || p.payeeId.startsWith('LP-')
+        if (filterType === 'referral') return p.partnerType === 'Referral Partner' || p.payeeId.startsWith('RP-')
+        if (filterType === 'channel') return p.partnerType === 'Channel Partner' || p.payeeId.startsWith('CP-')
+        if (filterType === 'relationship') return p.partnerType === 'Relationship Partner' || p.payeeId.startsWith('REL-')
+        return true
+      })
 
   if (loading) {
     return (
@@ -168,7 +148,32 @@ export default function AdminPayments() {
         <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 flex items-center justify-center min-h-[300px]">
           <div className="text-center">
             <RefreshCw className="w-8 h-8 animate-spin text-[#0EA5E9] mx-auto mb-3" />
-            <p className="text-[#94A3B8]">Loading partners...</p>
+            <p className="text-[#94A3B8]">Loading Tipalti data...</p>
+            <p className="text-[#64748B] text-sm mt-1">This may take a moment</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold text-white">Payments & Invoices</h2>
+          <p className="text-[#94A3B8] text-sm">Manage partner payments through Tipalti</p>
+        </div>
+        <div className="bg-[#1A1F3A] border border-red-500/30 rounded-xl p-8">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-white font-medium mb-2">Error Loading Data</h3>
+            <p className="text-[#94A3B8] text-sm mb-4">{error}</p>
+            <button
+              onClick={loadPayees}
+              className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+            >
+              Try Again
+            </button>
           </div>
         </div>
       </div>
@@ -183,193 +188,369 @@ export default function AdminPayments() {
           <h2 className="text-xl font-semibold text-white">Payments & Invoices</h2>
           <p className="text-[#94A3B8] text-sm">Manage partner payments through Tipalti</p>
         </div>
-        <div className="flex items-center gap-3">
-          <a 
-            href="https://hub.tipalti.com" 
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
-          >
-            <ExternalLink className="w-4 h-4" />
-            Tipalti Hub
-          </a>
-          <button
-            onClick={loadPartners}
-            className="flex items-center gap-2 px-3 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
-        </div>
+        <button
+          onClick={loadPayees}
+          className="flex items-center gap-2 px-3 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="text-[#94A3B8] text-sm">Total Payees</div>
-          <div className="text-2xl font-bold text-white">{partners.length}</div>
-          <div className="text-[#64748B] text-xs mt-1">In Tipalti</div>
-        </div>
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="text-[#94A3B8] text-sm">Location Partners</div>
-          <div className="text-2xl font-bold text-[#0EA5E9]">{partners.filter(p => p.partnerType === 'location').length}</div>
-        </div>
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="text-[#94A3B8] text-sm">Referral Partners</div>
-          <div className="text-2xl font-bold text-[#10F981]">{partners.filter(p => p.partnerType === 'referral').length}</div>
-        </div>
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="text-[#94A3B8] text-sm">Payable</div>
-          <div className="text-2xl font-bold text-green-400">{partners.filter(p => p.tipaltiStatus === 'payable').length}</div>
-        </div>
-      </div>
-
-      {/* Filter */}
-      <div className="flex items-center gap-4">
-        <Filter className="w-4 h-4 text-[#64748B]" />
-        <span className="text-[#94A3B8] text-sm">Filter:</span>
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-        >
-          <option value="all">All Types ({partners.length})</option>
-          <option value="location">Location Partners ({partners.filter(p => p.partnerType === 'location').length})</option>
-          <option value="referral">Referral Partners ({partners.filter(p => p.partnerType === 'referral').length})</option>
-        </select>
-      </div>
-
-      {/* Partners Table */}
-      <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-        {filteredPartners.length === 0 ? (
-          <div className="p-8 text-center">
-            <DollarSign className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
-            <h3 className="text-white font-medium mb-2">No Partners Found</h3>
-            <p className="text-[#94A3B8] text-sm">No partners with Tipalti IDs match your filter.</p>
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+            <div className="text-[#94A3B8] text-sm">Total Payees</div>
+            <div className="text-2xl font-bold text-white">{summary.totalPayees}</div>
+            <div className="text-[#64748B] text-xs mt-1">{summary.payableCount} payable</div>
           </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#2D3B5F]">
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Partner</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Tipalti ID</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Status</th>
-                <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPartners.map(partner => (
-                <tr key={`${partner.partnerType}-${partner.id}`} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="text-white font-medium">{partner.name}</p>
-                      <p className="text-[#94A3B8] text-sm">{partner.email}</p>
-                      {partner.company && <p className="text-[#64748B] text-xs">{partner.company}</p>}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {getPartnerTypeIcon(partner.partnerType)}
-                      <span className="text-[#94A3B8] text-sm">{getPartnerTypeLabel(partner.partnerType)}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <code className="text-[#0EA5E9] text-sm bg-[#0EA5E9]/10 px-2 py-1 rounded">
-                      {partner.tipaltiPayeeId}
-                    </code>
-                  </td>
-                  <td className="px-6 py-4">
-                    {getStatusBadge(partner.tipaltiStatus)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-end gap-2">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+            <div className="text-[#94A3B8] text-sm">Total Paid</div>
+            <div className="text-2xl font-bold text-green-400">{formatCurrency(summary.totalPaid)}</div>
+            <div className="text-[#64748B] text-xs mt-1">All time</div>
+          </div>
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+            <div className="text-[#94A3B8] text-sm">Pending</div>
+            <div className="text-2xl font-bold text-yellow-400">{formatCurrency(summary.totalPending)}</div>
+            <div className="text-[#64748B] text-xs mt-1">Awaiting payment</div>
+          </div>
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+            <div className="text-[#94A3B8] text-sm">Avg per Payee</div>
+            <div className="text-2xl font-bold text-[#0EA5E9]">
+              {summary.totalPayees > 0 ? formatCurrency(summary.totalPaid / summary.totalPayees) : '$0'}
+            </div>
+            <div className="text-[#64748B] text-xs mt-1">Average earnings</div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-[#64748B]" />
+            <span className="text-[#94A3B8] text-sm">Filters:</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-[#64748B] text-sm">Type:</label>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+            >
+              <option value="all">All Types</option>
+              <option value="location">Location Partners</option>
+              <option value="referral">Referral Partners</option>
+              <option value="channel">Channel Partners</option>
+              <option value="relationship">Relationship Partners</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-[#64748B]" />
+            <label className="text-[#64748B] text-sm">From:</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-[#64748B] text-sm">To:</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+            />
+          </div>
+
+          <button
+            onClick={applyDateFilter}
+            className="px-3 py-1.5 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 text-sm"
+          >
+            Apply
+          </button>
+
+          {(startDate || endDate || filterType !== 'all') && (
+            <button
+              onClick={clearFilters}
+              className="px-3 py-1.5 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] text-sm"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-[#2D3B5F]">
+        {[
+          { id: 'paymentHistory', label: 'Payment History', icon: DollarSign },
+          { id: 'invoiceHistory', label: 'Invoice History', icon: FileText },
+          { id: 'paymentDetails', label: 'Payment Details', icon: Settings },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${activeTab === tab.id
+              ? 'border-[#0EA5E9] text-white'
+              : 'border-transparent text-[#94A3B8] hover:text-white'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Payment History Tab */}
+      {activeTab === 'paymentHistory' && (
+        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+          {filteredPayees.length === 0 ? (
+            <div className="p-8 text-center">
+              <DollarSign className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
+              <h3 className="text-white font-medium mb-2">No Payees Found</h3>
+              <p className="text-[#94A3B8] text-sm">No Tipalti payees match your filters.</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#2D3B5F]">
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payee</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Tipalti ID</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Total Paid</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Last Payment</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Status</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPayees.map(payee => (
+                  <tr key={payee.payeeId} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="text-white font-medium">{payee.name}</p>
+                        <p className="text-[#94A3B8] text-sm">{payee.email}</p>
+                        {payee.company && <p className="text-[#64748B] text-xs">{payee.company}</p>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[#94A3B8] text-sm">{payee.partnerType || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <code className="text-[#0EA5E9] text-sm bg-[#0EA5E9]/10 px-2 py-1 rounded">
+                        {payee.payeeId}
+                      </code>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="text-green-400 font-medium">{formatCurrency(payee.totalPaid)}</span>
+                      {payee.payments.length > 0 && (
+                        <p className="text-[#64748B] text-xs">{payee.payments.length} payments</p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="text-white">{formatDate(payee.lastPaymentDate)}</p>
+                        {payee.lastPaymentAmount && (
+                          <p className="text-[#64748B] text-sm">{formatCurrency(payee.lastPaymentAmount)}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {getStatusBadge(payee.payeeStatus, payee.isPayable)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => openPayeeView(partner, 'paymentHistory')}
-                        className="flex items-center gap-1 px-2 py-1 text-[#0EA5E9] hover:bg-[#0EA5E9]/10 rounded text-sm"
-                        title="Payment History"
+                        onClick={() => openPayeeView(payee)}
+                        className="flex items-center gap-1 text-[#0EA5E9] hover:underline text-sm ml-auto"
                       >
-                        <DollarSign className="w-4 h-4" />
+                        <Eye className="w-4 h-4" />
+                        View
                       </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Invoice History Tab */}
+      {activeTab === 'invoiceHistory' && (
+        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+          {filteredPayees.length === 0 ? (
+            <div className="p-8 text-center">
+              <FileText className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
+              <h3 className="text-white font-medium mb-2">No Invoices Found</h3>
+              <p className="text-[#94A3B8] text-sm">No invoices match your filters.</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#2D3B5F]">
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payee</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Tipalti ID</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Pending</th>
+                  <th className="text-center px-6 py-4 text-sm font-medium text-[#94A3B8]">Invoices</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Status</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPayees.map(payee => (
+                  <tr key={payee.payeeId} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="text-white font-medium">{payee.name}</p>
+                        <p className="text-[#94A3B8] text-sm">{payee.email}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[#94A3B8] text-sm">{payee.partnerType || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <code className="text-[#0EA5E9] text-sm bg-[#0EA5E9]/10 px-2 py-1 rounded">
+                        {payee.payeeId}
+                      </code>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className={payee.pendingAmount > 0 ? 'text-yellow-400 font-medium' : 'text-[#64748B]'}>
+                        {formatCurrency(payee.pendingAmount)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-white">{payee.invoices.length}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {getStatusBadge(payee.payeeStatus, payee.isPayable)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => openPayeeView(partner, 'invoiceHistory')}
-                        className="flex items-center gap-1 px-2 py-1 text-[#0EA5E9] hover:bg-[#0EA5E9]/10 rounded text-sm"
-                        title="Invoices"
+                        onClick={() => openPayeeView(payee)}
+                        className="flex items-center gap-1 text-[#0EA5E9] hover:underline text-sm ml-auto"
                       >
-                        <FileText className="w-4 h-4" />
+                        <Eye className="w-4 h-4" />
+                        View
                       </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Payment Details Tab */}
+      {activeTab === 'paymentDetails' && (
+        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+          {filteredPayees.length === 0 ? (
+            <div className="p-8 text-center">
+              <Settings className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
+              <h3 className="text-white font-medium mb-2">No Payees Found</h3>
+              <p className="text-[#94A3B8] text-sm">No Tipalti payees match your filters.</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#2D3B5F]">
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payee</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Tipalti ID</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payment Method</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Status</th>
+                  <th className="text-center px-6 py-4 text-sm font-medium text-[#94A3B8]">Payable</th>
+                  <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPayees.map(payee => (
+                  <tr key={payee.payeeId} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="text-white font-medium">{payee.name}</p>
+                        <p className="text-[#94A3B8] text-sm">{payee.email}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[#94A3B8] text-sm">{payee.partnerType || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <code className="text-[#0EA5E9] text-sm bg-[#0EA5E9]/10 px-2 py-1 rounded">
+                        {payee.payeeId}
+                      </code>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-white">{payee.paymentMethod || 'Not Set'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[#94A3B8]">{payee.payeeStatus || 'Unknown'}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {payee.isPayable ? (
+                        <CheckCircle className="w-5 h-5 text-green-400 mx-auto" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-yellow-400 mx-auto" />
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => openPayeeView(partner, 'paymentDetails')}
-                        className="flex items-center gap-1 px-2 py-1 text-[#0EA5E9] hover:bg-[#0EA5E9]/10 rounded text-sm"
-                        title="Payment Settings"
+                        onClick={() => openPayeeView(payee)}
+                        className="flex items-center gap-1 text-[#0EA5E9] hover:underline text-sm ml-auto"
                       >
                         <Settings className="w-4 h-4" />
+                        Manage
                       </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Info Note */}
       <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
         <p className="text-[#94A3B8] text-sm">
-          <strong className="text-white">Tip:</strong> Click the icons to view payment history, invoices, or payment settings directly from Tipalti. 
-          For full access to all features, click "Tipalti Hub" above.
+          <strong className="text-white">Note:</strong> Payment data is pulled directly from Tipalti. 
+          If totals show $0, payments may not have been processed yet. Click "View" to see the Tipalti portal for detailed information.
         </p>
       </div>
 
       {/* Tipalti iFrame Modal */}
-      {showIframe && selectedPartner && (
+      {showIframe && selectedPayee && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-[#2D3B5F] flex items-center justify-between shrink-0">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b border-[#2D3B5F] flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-white">
                   {activeTab === 'paymentHistory' && 'Payment History'}
                   {activeTab === 'invoiceHistory' && 'Invoices'}
-                  {activeTab === 'paymentDetails' && 'Payment Settings'}
+                  {activeTab === 'paymentDetails' && 'Payment Details'}
                 </h3>
                 <p className="text-[#64748B] text-sm">
-                  {selectedPartner.name} • {selectedPartner.tipaltiPayeeId}
+                  {selectedPayee.name} • {selectedPayee.payeeId}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                {/* Tab switcher in modal */}
-                <div className="flex bg-[#0A0F2C] rounded-lg p-1">
-                  <button
-                    onClick={() => setActiveTab('paymentHistory')}
-                    className={`px-3 py-1 rounded text-sm transition-colors ${activeTab === 'paymentHistory' ? 'bg-[#0EA5E9] text-white' : 'text-[#94A3B8] hover:text-white'}`}
-                  >
-                    History
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('invoiceHistory')}
-                    className={`px-3 py-1 rounded text-sm transition-colors ${activeTab === 'invoiceHistory' ? 'bg-[#0EA5E9] text-white' : 'text-[#94A3B8] hover:text-white'}`}
-                  >
-                    Invoices
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('paymentDetails')}
-                    className={`px-3 py-1 rounded text-sm transition-colors ${activeTab === 'paymentDetails' ? 'bg-[#0EA5E9] text-white' : 'text-[#94A3B8] hover:text-white'}`}
-                  >
-                    Settings
-                  </button>
-                </div>
-                <button
-                  onClick={() => setShowIframe(false)}
-                  className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowIframe(false)}
+                className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div className="flex-1 overflow-auto p-4">
+            <div className="p-4">
               <TipaltiIFrame
-                payeeId={selectedPartner.tipaltiPayeeId}
+                payeeId={selectedPayee.payeeId}
                 viewType={activeTab}
                 environment="production"
               />
