@@ -9,14 +9,36 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Known Tipalti payee IDs
-const KNOWN_TIPALTI_IDS = [
-  'LP-PHENIX-EV', 'LP-PHENIX-SBV', 'LP-PHENIX-WH', 'LP-PHENIX-CE', 'LP-PHENIX-TC',
-  'RP-STOSH001', 'RP-APRIL001',
-  '1', '2', '3', '4', '5', '6', '7',
-  't3f6072d3t530bt', 't09993d6dta684t', 'tb3538ab6t2139t',
-  't94d1ed53tb2d1t', 't1a5e706bta715t', 'tf6080a90tc8cft'
+// Current Tipalti payee IDs (from hub.tipalti.com)
+const TIPALTI_PAYEES = [
+  // New format IDs
+  { id: 'RP-STOSH001', name: 'Stosh Cohen', type: 'Referral Partner' },
+  { id: 'RP-APRIL001', name: 'April Economides', type: 'Referral Partner' },
+  { id: 'LP-PHENIX-EV', name: 'Frank Lopez', company: 'Phenix-East Village', type: 'Location Partner' },
+  { id: 'LP-PHENIX-SBV', name: 'Frank Lopez', company: 'Phenix Seal Beach Village, LP', type: 'Location Partner' },
+  { id: 'LP-PHENIX-WH', name: 'Frank Lopez', company: 'Phenix Whittier, LP', type: 'Location Partner' },
+  { id: 'LP-PHENIX-CE', name: 'Frank Lopez', company: 'Phenix Cypress East. LP', type: 'Location Partner' },
+  { id: 'LP-PHENIX-TC', name: 'Frank Lopez', company: 'Phenix Torrance Crossroads, LP', type: 'Location Partner' },
+  // Legacy IDs that have payment history
+  { id: '1', name: 'Stosh Cohen', type: 'Referral Partner', legacy: true },
+  { id: '2', name: 'Frank Lopez', company: 'Phenix-East Village', type: 'Location Partner', legacy: true },
+  { id: '3', name: 'Frank Lopez', company: 'Phenix Seal Beach Village, LP', type: 'Location Partner', legacy: true },
+  { id: '4', name: 'Frank Lopez', company: 'Phenix Whittier, LP', type: 'Location Partner', legacy: true },
+  { id: '5', name: 'Frank Lopez', company: 'Phenix Cypress East. LP', type: 'Location Partner', legacy: true },
+  { id: '6', name: 'Frank Lopez', company: 'Phenix Torrance Crossroads, LP', type: 'Location Partner', legacy: true },
+  { id: '7', name: 'April Economides', type: 'Referral Partner', legacy: true },
 ]
+
+// Map legacy IDs to new IDs for consolidation
+const LEGACY_TO_NEW_MAP: Record<string, string> = {
+  '1': 'RP-STOSH001',
+  '2': 'LP-PHENIX-EV',
+  '3': 'LP-PHENIX-SBV',
+  '4': 'LP-PHENIX-WH',
+  '5': 'LP-PHENIX-CE',
+  '6': 'LP-PHENIX-TC',
+  '7': 'RP-APRIL001',
+}
 
 interface PayeeData {
   payeeId: string
@@ -57,149 +79,50 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    // Get all partners from Supabase that have Tipalti IDs
-    const { data: locationPartners } = await supabase
-      .from('location_partners')
-      .select('id, company_legal_name, dba_name, contact_first_name, contact_last_name, contact_email, tipalti_payee_id, tipalti_status, last_payment_date, last_payment_amount')
-      .not('tipalti_payee_id', 'is', null)
+    // Consolidated payees map (new ID -> data)
+    const payeesMap = new Map<string, PayeeData>()
 
-    const { data: referralPartners } = await supabase
-      .from('referral_partners')
-      .select('id, company_name, contact_name, email, tipalti_payee_id, tipalti_status')
-      .not('tipalti_payee_id', 'is', null)
-
-    const { data: channelPartners } = await supabase
-      .from('channel_partners')
-      .select('id, company_name, contact_name, email, tipalti_payee_id, tipalti_status')
-      .not('tipalti_payee_id', 'is', null)
-
-    const { data: relationshipPartners } = await supabase
-      .from('relationship_partners')
-      .select('id, company_name, contact_name, email, tipalti_payee_id, tipalti_status')
-      .not('tipalti_payee_id', 'is', null)
-
-    // Build a map of known payee IDs from Supabase
-    const supabasePayees = new Map<string, any>()
-    
-    locationPartners?.forEach(lp => {
-      if (lp.tipalti_payee_id) {
-        supabasePayees.set(lp.tipalti_payee_id, {
-          name: `${lp.contact_first_name || ''} ${lp.contact_last_name || ''}`.trim() || 'Unknown',
-          email: lp.contact_email,
-          company: lp.company_legal_name || lp.dba_name,
-          tipaltiStatus: lp.tipalti_status,
-          lastPaymentDate: lp.last_payment_date,
-          lastPaymentAmount: lp.last_payment_amount,
-          partnerType: 'Location Partner'
-        })
-      }
-    })
-
-    referralPartners?.forEach(rp => {
-      if (rp.tipalti_payee_id) {
-        supabasePayees.set(rp.tipalti_payee_id, {
-          name: rp.contact_name || 'Unknown',
-          email: rp.email,
-          company: rp.company_name,
-          tipaltiStatus: rp.tipalti_status,
-          partnerType: 'Referral Partner'
-        })
-      }
-    })
-
-    channelPartners?.forEach(cp => {
-      if (cp.tipalti_payee_id) {
-        supabasePayees.set(cp.tipalti_payee_id, {
-          name: cp.contact_name || 'Unknown',
-          email: cp.email,
-          company: cp.company_name,
-          tipaltiStatus: cp.tipalti_status,
-          partnerType: 'Channel Partner'
-        })
-      }
-    })
-
-    relationshipPartners?.forEach(relp => {
-      if (relp.tipalti_payee_id) {
-        supabasePayees.set(relp.tipalti_payee_id, {
-          name: relp.contact_name || 'Unknown',
-          email: relp.email,
-          company: relp.company_name,
-          tipaltiStatus: relp.tipalti_status,
-          partnerType: 'Relationship Partner'
-        })
-      }
-    })
-
-    // Combine Supabase IDs with known Tipalti IDs
-    const allPayeeIds = new Set([...KNOWN_TIPALTI_IDS, ...supabasePayees.keys()])
-
-    const payees: PayeeData[] = []
-
-    // Fetch data for all payee IDs
-    for (const payeeId of allPayeeIds) {
+    // Process each known payee
+    for (const payeeInfo of TIPALTI_PAYEES) {
       try {
         // Get payee details from Tipalti
-        const detailsResult = await getPayeeDetails(payeeId)
+        const detailsResult = await getPayeeDetails(payeeInfo.id)
         
         if (!detailsResult.success || !detailsResult.data?.email) {
-          // If not in Tipalti but in Supabase, still show them
-          const sbData = supabasePayees.get(payeeId)
-          if (sbData) {
-            payees.push({
-              payeeId,
-              name: sbData.name,
-              email: sbData.email || '',
-              company: sbData.company,
-              paymentMethod: null,
-              payeeStatus: sbData.tipaltiStatus || 'Not in Tipalti',
-              isPayable: false,
-              totalPaid: 0,
-              pendingAmount: 0,
-              lastPaymentDate: sbData.lastPaymentDate || null,
-              lastPaymentAmount: sbData.lastPaymentAmount || null,
-              payments: [],
-              invoices: [],
-              partnerType: sbData.partnerType
-            })
-          }
-          continue
+          continue // Skip if payee doesn't exist in Tipalti
         }
 
         const details = detailsResult.data
-        const sbData = supabasePayees.get(payeeId)
 
-        // Get payment history from Tipalti
-        const paymentsResult = await getPaymentHistory(payeeId)
+        // Get payment history
+        const paymentsResult = await getPaymentHistory(payeeInfo.id)
         let payments = paymentsResult.success ? (paymentsResult.payments || []) : []
-        
-        // Log for debugging
-        console.log(`Payee ${payeeId} payments:`, payments.length, payments)
 
-        // Get invoices from Tipalti
-        const invoicesResult = await getPayeeInvoices(payeeId)
+        // Get invoices
+        const invoicesResult = await getPayeeInvoices(payeeInfo.id)
         let invoices = invoicesResult.success ? (invoicesResult.invoices || []) : []
 
         // Filter by date if provided
         if (startDate) {
           const start = new Date(startDate)
-          payments = payments.filter((p: any) => new Date(p.paymentDate) >= start)
-          invoices = invoices.filter((i: any) => new Date(i.invoiceDate) >= start)
+          payments = payments.filter((p: any) => p.paymentDate && new Date(p.paymentDate) >= start)
+          invoices = invoices.filter((i: any) => i.invoiceDate && new Date(i.invoiceDate) >= start)
         }
         if (endDate) {
           const end = new Date(endDate)
-          payments = payments.filter((p: any) => new Date(p.paymentDate) <= end)
-          invoices = invoices.filter((i: any) => new Date(i.invoiceDate) <= end)
+          end.setHours(23, 59, 59, 999)
+          payments = payments.filter((p: any) => p.paymentDate && new Date(p.paymentDate) <= end)
+          invoices = invoices.filter((i: any) => i.invoiceDate && new Date(i.invoiceDate) <= end)
         }
 
-        // Calculate totals
+        // Calculate totals from payments
         const paidPayments = payments.filter((p: any) => 
           p.status?.toLowerCase() === 'paid' || 
-          p.status?.toLowerCase() === 'completed' ||
-          p.status?.toLowerCase() === 'submitted'
+          p.status?.toLowerCase() === 'completed'
         )
         const totalPaid = paidPayments.reduce((sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0)
 
+        // Calculate pending from invoices
         const pendingInvoices = invoices.filter((i: any) => 
           i.status?.toLowerCase() === 'pending' || 
           i.status?.toLowerCase() === 'approved' ||
@@ -213,34 +136,53 @@ export async function GET(request: NextRequest) {
         )
         const lastPayment = sortedPayments[0]
 
-        // Use Supabase data as fallback for last payment
-        const lastPaymentDate = lastPayment?.paymentDate || sbData?.lastPaymentDate || null
-        const lastPaymentAmount = lastPayment?.amount || sbData?.lastPaymentAmount || null
+        // Determine the key for this payee (use new ID format)
+        const consolidatedId = payeeInfo.legacy ? LEGACY_TO_NEW_MAP[payeeInfo.id] : payeeInfo.id
+        
+        if (!consolidatedId) continue
 
-        payees.push({
-          payeeId,
-          name: details.name || `${details.firstName || ''} ${details.lastName || ''}`.trim() || sbData?.name || 'Unknown',
-          email: details.email || sbData?.email || '',
-          company: details.company || sbData?.company || null,
-          paymentMethod: details.paymentMethod || null,
-          payeeStatus: details.payeeStatus || sbData?.tipaltiStatus || null,
-          isPayable: details.isPayable || details.paymentMethod !== 'NoPM',
-          totalPaid,
-          pendingAmount,
-          lastPaymentDate,
-          lastPaymentAmount,
-          payments,
-          invoices,
-          partnerType: sbData?.partnerType || (payeeId.startsWith('LP-') ? 'Location Partner' : payeeId.startsWith('RP-') ? 'Referral Partner' : null)
-        })
+        // Get or create payee entry
+        const existing = payeesMap.get(consolidatedId)
+        
+        if (existing) {
+          // Merge payment data from legacy ID into new ID
+          existing.totalPaid += totalPaid
+          existing.pendingAmount += pendingAmount
+          existing.payments = [...existing.payments, ...payments]
+          existing.invoices = [...existing.invoices, ...invoices]
+          
+          // Update last payment if this one is more recent
+          if (lastPayment && (!existing.lastPaymentDate || new Date(lastPayment.paymentDate) > new Date(existing.lastPaymentDate))) {
+            existing.lastPaymentDate = lastPayment.paymentDate
+            existing.lastPaymentAmount = lastPayment.amount
+          }
+        } else {
+          // Create new entry
+          payeesMap.set(consolidatedId, {
+            payeeId: consolidatedId,
+            name: details.name || payeeInfo.name || `${details.firstName || ''} ${details.lastName || ''}`.trim() || 'Unknown',
+            email: details.email || '',
+            company: details.company || payeeInfo.company || null,
+            paymentMethod: details.paymentMethod || null,
+            payeeStatus: details.payeeStatus || null,
+            isPayable: details.isPayable || details.paymentMethod !== 'NoPM',
+            totalPaid,
+            pendingAmount,
+            lastPaymentDate: lastPayment?.paymentDate || null,
+            lastPaymentAmount: lastPayment?.amount || null,
+            payments,
+            invoices,
+            partnerType: payeeInfo.type
+          })
+        }
 
       } catch (err) {
-        console.error(`Error fetching payee ${payeeId}:`, err)
+        console.error(`Error fetching payee ${payeeInfo.id}:`, err)
       }
     }
 
-    // Sort by name
-    payees.sort((a, b) => a.name.localeCompare(b.name))
+    // Convert map to array and sort
+    const payees = Array.from(payeesMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 
     // Calculate summary stats
     const summary = {
@@ -254,11 +196,6 @@ export async function GET(request: NextRequest) {
       success: true,
       payees,
       summary,
-      debug: {
-        knownIds: KNOWN_TIPALTI_IDS.length,
-        supabaseIds: supabasePayees.size,
-        totalChecked: allPayeeIds.size
-      }
     })
 
   } catch (error) {
