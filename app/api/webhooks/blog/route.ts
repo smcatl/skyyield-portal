@@ -27,20 +27,22 @@ export async function POST(request: NextRequest) {
       // Handle multipart form data from Make.com
       const formData = await request.formData()
       formData.forEach((value, key) => {
+        const strValue = value.toString()
+        
         // Handle tags array
         if (key === 'tags') {
           try {
-            body[key] = typeof value === 'string' ? JSON.parse(value) : value
+            body[key] = JSON.parse(strValue)
           } catch {
-            body[key] = typeof value === 'string' ? value.split(',').map(t => t.trim()) : []
+            body[key] = strValue.split(',').map(t => t.trim())
           }
         } 
         // Handle booleans
         else if (key === 'is_relevant' || key === 'isRelevant') {
-          body['is_relevant'] = value === 'true' || value === true
+          body['is_relevant'] = strValue === 'true' || strValue === '1'
         }
         else {
-          body[key] = value
+          body[key] = strValue
         }
       })
     } else {
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
     const sourceTitle = body.source_title || body.sourceTitle || null
     const imageUrl = body.image_url || body.imageUrl || body.image || null
     const imagePrompt = body.image_prompt || body.imagePrompt || null
-    const isRelevant = body.is_relevant !== false && body.isRelevant !== false
+    const isRelevant = body.is_relevant !== false && body.is_relevant !== 'false' && body.isRelevant !== false
     
     // Handle tags
     let tags: string[] = []
