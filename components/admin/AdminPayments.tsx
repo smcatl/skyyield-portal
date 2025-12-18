@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react'
 import { 
   RefreshCw, ExternalLink, Building, Users, Handshake, Network,
   CheckCircle, Clock, AlertCircle, DollarSign, Eye, X,
-  FileText, Settings
+  FileText, CreditCard, Calendar, Mail, Phone
 } from 'lucide-react'
-import TipaltiIFrame from '@/components/TipaltiIFrame'
 
 interface PayeeData {
   payeeId: string
@@ -20,8 +19,12 @@ interface PayeeData {
   pendingAmount: number
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
-  payments: any[]
-  invoices: any[]
+  payments: {
+    refCode: string
+    amount: number
+    status: string
+    paidAt: string | null
+  }[]
   partnerType: string | null
 }
 
@@ -38,8 +41,6 @@ export default function AdminPayments() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selectedPayee, setSelectedPayee] = useState<PayeeData | null>(null)
-  const [showModal, setShowModal] = useState(false)
-  const [modalViewType, setModalViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
   const [filterType, setFilterType] = useState<string>('all')
 
   useEffect(() => {
@@ -92,6 +93,21 @@ export default function AdminPayments() {
     return <span className={`px-2 py-1 rounded text-xs ${config.color}`}>{config.label}</span>
   }
 
+  const getPaymentStatusBadge = (status: string) => {
+    const statusMap: Record<string, { color: string, label: string }> = {
+      'Paid': { color: 'bg-green-500/20 text-green-400', label: 'Paid' },
+      'paid': { color: 'bg-green-500/20 text-green-400', label: 'Paid' },
+      'Completed': { color: 'bg-green-500/20 text-green-400', label: 'Paid' },
+      'Pending': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Pending' },
+      'pending': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Pending' },
+      'Deferred': { color: 'bg-blue-500/20 text-blue-400', label: 'Deferred' },
+      'Failed': { color: 'bg-red-500/20 text-red-400', label: 'Failed' },
+    }
+    
+    const config = statusMap[status] || { color: 'bg-gray-500/20 text-gray-400', label: status }
+    return <span className={`px-2 py-1 rounded text-xs ${config.color}`}>{config.label}</span>
+  }
+
   const getPartnerIcon = (partnerType: string | null) => {
     switch (partnerType) {
       case 'Location Partner':
@@ -107,12 +123,6 @@ export default function AdminPayments() {
     }
   }
 
-  const openPayeeModal = (payee: PayeeData) => {
-    setSelectedPayee(payee)
-    setModalViewType('paymentHistory')
-    setShowModal(true)
-  }
-
   const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined || isNaN(amount)) {
       return '$0.00'
@@ -121,6 +131,19 @@ export default function AdminPayments() {
       style: 'currency',
       currency: 'USD',
     }).format(amount)
+  }
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '—'
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    } catch {
+      return '—'
+    }
   }
 
   // Filter payees
@@ -279,7 +302,7 @@ export default function AdminPayments() {
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center">
                       <button
-                        onClick={() => openPayeeModal(payee)}
+                        onClick={() => setSelectedPayee(payee)}
                         className="flex items-center gap-1 px-3 py-1.5 text-[#0EA5E9] hover:bg-[#0EA5E9]/10 rounded transition-colors text-sm"
                       >
                         <Eye className="w-4 h-4" />
@@ -302,72 +325,120 @@ export default function AdminPayments() {
         </p>
       </div>
 
-      {/* Payee Modal with Tipalti iFrame */}
-      {showModal && selectedPayee && (
+      {/* Payee Detail Modal - No iFrame, just data */}
+      {selectedPayee && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#2D3B5F] shrink-0">
-              <div>
-                <h3 className="text-lg font-semibold text-white">{selectedPayee.name}</h3>
-                <p className="text-[#94A3B8] text-sm">
-                  {selectedPayee.company && <span>{selectedPayee.company} • </span>}
-                  {selectedPayee.payeeId}
-                </p>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-full flex items-center justify-center">
+                  {getPartnerIcon(selectedPayee.partnerType)}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">{selectedPayee.name}</h3>
+                  <p className="text-[#94A3B8] text-sm">{selectedPayee.partnerType}</p>
+                </div>
               </div>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => setSelectedPayee(null)}
                 className="p-2 text-[#94A3B8] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Tabs */}
-            <div className="flex gap-1 px-6 py-2 border-b border-[#2D3B5F] bg-[#0A0F2C] shrink-0">
-              {[
-                { id: 'paymentHistory', label: 'Payment History', icon: DollarSign },
-                { id: 'invoiceHistory', label: 'Invoices', icon: FileText },
-                { id: 'paymentDetails', label: 'Payment Details', icon: Settings },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setModalViewType(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm ${
-                    modalViewType === tab.id
-                      ? 'bg-[#0EA5E9] text-white'
-                      : 'text-[#94A3B8] hover:text-white hover:bg-[#2D3B5F]'
-                  }`}
-                >
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-6 space-y-6">
+              {/* Contact Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-[#94A3B8] text-sm mb-1">
+                    <Mail className="w-4 h-4" />
+                    Email
+                  </div>
+                  <div className="text-white">{selectedPayee.email}</div>
+                </div>
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-[#94A3B8] text-sm mb-1">
+                    <CreditCard className="w-4 h-4" />
+                    Tipalti ID
+                  </div>
+                  <div className="text-[#0EA5E9] font-mono">{selectedPayee.payeeId}</div>
+                </div>
+              </div>
 
-            {/* Tipalti iFrame */}
-            <div className="flex-1 min-h-0 p-4 overflow-hidden">
-              <div className="h-full min-h-[500px]">
-                <TipaltiIFrame
-                  payeeId={selectedPayee.payeeId}
-                  viewType={modalViewType}
-                  environment="sandbox"
-                />
+              {selectedPayee.company && (
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-[#94A3B8] text-sm mb-1">
+                    <Building className="w-4 h-4" />
+                    Company / Venue
+                  </div>
+                  <div className="text-white">{selectedPayee.company}</div>
+                </div>
+              )}
+
+              {/* Payment Summary */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
+                  <div className="text-[#94A3B8] text-sm mb-1">Total Paid</div>
+                  <div className="text-xl font-bold text-[#10F981]">{formatCurrency(selectedPayee.totalPaid)}</div>
+                </div>
+                <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
+                  <div className="text-[#94A3B8] text-sm mb-1">Pending</div>
+                  <div className="text-xl font-bold text-yellow-400">{formatCurrency(selectedPayee.pendingAmount)}</div>
+                </div>
+                <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
+                  <div className="text-[#94A3B8] text-sm mb-1">Status</div>
+                  <div className="mt-1">{getStatusBadge(selectedPayee.payeeStatus, selectedPayee.isPayable)}</div>
+                </div>
+              </div>
+
+              {/* Payment History */}
+              <div>
+                <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#0EA5E9]" />
+                  Payment History
+                </h4>
+                {selectedPayee.payments && selectedPayee.payments.length > 0 ? (
+                  <div className="bg-[#0A0F2C] rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-[#2D3B5F]">
+                          <th className="text-left px-4 py-3 text-[#94A3B8] text-xs font-medium">Date</th>
+                          <th className="text-right px-4 py-3 text-[#94A3B8] text-xs font-medium">Amount</th>
+                          <th className="text-center px-4 py-3 text-[#94A3B8] text-xs font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedPayee.payments.map((payment, idx) => (
+                          <tr key={idx} className="border-t border-[#2D3B5F]/50">
+                            <td className="px-4 py-3 text-white text-sm">
+                              {formatDate(payment.paidAt)}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[#10F981] font-medium text-sm">
+                              {formatCurrency(payment.amount)}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {getPaymentStatusBadge(payment.status)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="bg-[#0A0F2C] rounded-lg p-6 text-center text-[#94A3B8]">
+                    No payment history available
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Modal Footer */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-[#2D3B5F] bg-[#0A0F2C] shrink-0">
-              <div className="flex items-center gap-4 text-sm">
-                {getStatusBadge(selectedPayee.payeeStatus, selectedPayee.isPayable)}
-                <span className="text-[#94A3B8]">
-                  Total Paid: <span className="text-[#10F981] font-medium">{formatCurrency(selectedPayee.totalPaid)}</span>
-                </span>
-                {selectedPayee.pendingAmount > 0 && (
-                  <span className="text-[#94A3B8]">
-                    Pending: <span className="text-yellow-400 font-medium">{formatCurrency(selectedPayee.pendingAmount)}</span>
-                  </span>
-                )}
+              <div className="text-[#94A3B8] text-sm">
+                Payment Method: <span className="text-white">{selectedPayee.paymentMethod || 'ACH'}</span>
               </div>
               <div className="flex gap-2">
                 <a
@@ -377,10 +448,10 @@ export default function AdminPayments() {
                   className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Open in Tipalti
+                  Manage in Tipalti
                 </a>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={() => setSelectedPayee(null)}
                   className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors text-sm"
                 >
                   Close
