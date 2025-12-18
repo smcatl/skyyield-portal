@@ -18,7 +18,6 @@ const TIPALTI_CONFIG = {
     : 'https://api.sandbox.tipalti.com',
 }
 
-// Generate HMAC signature
 function generateHmac(data: string): string {
   const hmac = crypto.createHmac('sha256', TIPALTI_CONFIG.apiKey)
   hmac.update(data)
@@ -29,16 +28,42 @@ function getTimestamp(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-// Known payee IDs - these should eventually come from your database
-const KNOWN_PAYEES = [
-  'RP-STOSH001',
-  'RP-APRIL001', 
-  'LP-PHENIX-EV',
-  'LP-PHENIX-SBV',
-  'LP-PHENIX-WH',
-  'LP-PHENIX-CE',
-  'LP-PHENIX-TC',
-]
+// Known payees with their expected details (fallback if API fails)
+const KNOWN_PAYEES: Record<string, { name: string; email: string; company?: string }> = {
+  'RP-STOSH001': { name: 'Stosh Cohen', email: 'smc92589@gmail.com' },
+  'RP-APRIL001': { name: 'April Economides', email: 'aprileconomides@gmail.com' },
+  'LP-PHENIX-EV': { name: 'Frank Lopez', email: 'flopez@phenixsalonsuites.com', company: 'Phenix-East Village' },
+  'LP-PHENIX-SBV': { name: 'Frank Lopez', email: 'phenixsealbeachvillage@gmail.com', company: 'Phenix Seal Beach Village, LP' },
+  'LP-PHENIX-WH': { name: 'Frank Lopez', email: 'phenixwhittier@gmail.com', company: 'Phenix Whittier, LP' },
+  'LP-PHENIX-CE': { name: 'Frank Lopez', email: 'phenixcypresseast@gmail.com', company: 'Phenix Cypress East, LP' },
+  'LP-PHENIX-TC': { name: 'Frank Lopez', email: 'phenixtorrancecrossroads@gmail.com', company: 'Phenix Torrance Crossroads, LP' },
+}
+
+// Historical payment data (from Tipalti CSV export)
+const HISTORICAL_PAYMENTS: Record<string, { amount: number; status: string; paidAt: string }[]> = {
+  'RP-STOSH001': [
+    { amount: 1.00, status: 'Deferred', paidAt: '' },
+    { amount: 3.00, status: 'Paid', paidAt: '2025-10-16' },
+  ],
+  'RP-APRIL001': [
+    { amount: 200.00, status: 'Paid', paidAt: '2025-11-21' },
+  ],
+  'LP-PHENIX-EV': [
+    { amount: 200.00, status: 'Paid', paidAt: '2025-12-12' },
+  ],
+  'LP-PHENIX-SBV': [
+    { amount: 200.00, status: 'Paid', paidAt: '2025-12-12' },
+  ],
+  'LP-PHENIX-WH': [
+    { amount: 200.00, status: 'Paid', paidAt: '2025-12-12' },
+  ],
+  'LP-PHENIX-CE': [
+    { amount: 200.00, status: 'Paid', paidAt: '2025-12-12' },
+  ],
+  'LP-PHENIX-TC': [
+    { amount: 200.00, status: 'Paid', paidAt: '2025-12-12' },
+  ],
+}
 
 // Get payee details from Tipalti
 async function getPayeeDetails(payeeId: string): Promise<any> {
@@ -71,30 +96,50 @@ async function getPayeeDetails(payeeId: string): Promise<any> {
     const text = await response.text()
     
     // Check for errors
-    if (text.includes('Payee not found') || text.includes('Error')) {
+    if (text.includes('Payee not found') || text.includes('<errorCode>') || text.includes('Fault')) {
+      console.log(`Payee ${payeeId} not found in Tipalti`)
       return null
     }
     
-    // Parse response - handle various XML formats
-    const getName = (xml: string) => {
-      const match = xml.match(/<Name>([^<]*)<\/Name>/i) || 
-                    xml.match(/<tip:Name>([^<]*)<\/tip:Name>/i)
-      return match?.[1] || null
+    // Better XML parsing - try multiple patterns
+    const extractField = (xml: string, fieldName: string): string | null => {
+      // Try with namespace prefix
+      let match = xml.match(new RegExp(`<tip:${fieldName}>([^<]*)</tip:${fieldName}>`, 'i'))
+      if (match) return match[1]
+      
+      // Try without namespace
+      match = xml.match(new RegExp(`<${fieldName}>([^<]*)</${fieldName}>`, 'i'))
+      if (match) return match[1]
+      
+      // Try with a]> pattern for Name which might have special chars
+      match = xml.match(new RegExp(`<${fieldName}[^>]*>([^<]*)</${fieldName}>`, 'i'))
+      if (match) return match[1]
+      
+      return null
     }
     
-    const getField = (xml: string, field: string) => {
-      const regex = new RegExp(`<${field}>([^<]*)<\/${field}>`, 'i')
-      const match = xml.match(regex)
-      return match?.[1] || null
+    const name = extractField(text, 'Name')
+    const firstName = extractField(text, 'FirstName')
+    const lastName = extractField(text, 'LastName')
+    const company = extractField(text, 'CompanyName')
+    const email = extractField(text, 'Email')
+    const payeeStatus = extractField(text, 'PayeeStatus')
+    const isPayableStr = extractField(text, 'IsPayable')
+    const paymentMethod = extractField(text, 'PreferredPayerPaymentMethod')
+    
+    // Construct full name
+    let fullName = name
+    if (!fullName && (firstName || lastName)) {
+      fullName = [firstName, lastName].filter(Boolean).join(' ')
     }
     
     return {
-      name: getName(text),
-      company: getField(text, 'CompanyName'),
-      email: getField(text, 'Email'),
-      payeeStatus: getField(text, 'PayeeStatus'),
-      isPayable: getField(text, 'IsPayable')?.toLowerCase() === 'true',
-      paymentMethod: getField(text, 'PreferredPayerPaymentMethod'),
+      name: fullName,
+      company,
+      email,
+      payeeStatus: payeeStatus || 'Active',
+      isPayable: isPayableStr?.toLowerCase() === 'true',
+      paymentMethod,
     }
   } catch (error) {
     console.error(`Error getting payee ${payeeId}:`, error)
@@ -124,103 +169,124 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
     
     // Get payments from Supabase
-    let paymentsQuery = supabase
-      .from('tipalti_payments')
-      .select('*')
-      .order('paid_at', { ascending: false, nullsFirst: false })
-    
-    if (startDate) {
-      paymentsQuery = paymentsQuery.gte('paid_at', startDate)
-    }
-    if (endDate) {
-      paymentsQuery = paymentsQuery.lte('paid_at', endDate)
-    }
-    
-    const { data: payments, error: paymentsError } = await paymentsQuery
-    
-    if (paymentsError) {
-      console.error('Supabase error:', paymentsError)
-    }
-
-    // Group payments by payee_id
-    const paymentsByPayee = new Map<string, any[]>()
-    for (const payment of (payments || [])) {
-      const payeeId = payment.payee_id
-      if (!paymentsByPayee.has(payeeId)) {
-        paymentsByPayee.set(payeeId, [])
+    let paymentsFromDb: any[] = []
+    try {
+      let query = supabase
+        .from('tipalti_payments')
+        .select('*')
+        .order('paid_at', { ascending: false, nullsFirst: false })
+      
+      if (startDate) {
+        query = query.gte('paid_at', startDate)
       }
-      paymentsByPayee.get(payeeId)!.push(payment)
+      if (endDate) {
+        query = query.lte('paid_at', endDate)
+      }
+      
+      const { data, error } = await query
+      if (!error && data) {
+        paymentsFromDb = data
+      }
+    } catch (err) {
+      console.error('Error fetching from Supabase:', err)
     }
 
-    // Get unique payee IDs - combine from payments and known list
-    const allPayeeIds = new Set([
-      ...KNOWN_PAYEES,
-      ...paymentsByPayee.keys()
-    ])
+    // Group DB payments by payee_id
+    const dbPaymentsByPayee = new Map<string, any[]>()
+    for (const payment of paymentsFromDb) {
+      const payeeId = payment.payee_id
+      if (!dbPaymentsByPayee.has(payeeId)) {
+        dbPaymentsByPayee.set(payeeId, [])
+      }
+      dbPaymentsByPayee.get(payeeId)!.push(payment)
+    }
 
-    // Fetch live payee details from Tipalti
+    // Build payee list
     const payees: any[] = []
     let totalPaid = 0
     let totalPending = 0
     let payableCount = 0
 
-    for (const payeeId of allPayeeIds) {
+    for (const [payeeId, fallbackInfo] of Object.entries(KNOWN_PAYEES)) {
       // Get live details from Tipalti
       const tipaltiDetails = await getPayeeDetails(payeeId)
       
-      // Get payments for this payee
-      const payeePayments = paymentsByPayee.get(payeeId) || []
+      // Get payments - first from DB, then fallback to historical
+      let payments = dbPaymentsByPayee.get(payeeId) || []
+      const historicalPayments = HISTORICAL_PAYMENTS[payeeId] || []
       
-      // Calculate totals
-      const paidPayments = payeePayments.filter(p => 
-        p.status === 'Paid' || p.status === 'paid' || p.status === 'Completed'
-      )
-      const pendingPayments = payeePayments.filter(p => 
-        p.status === 'Pending' || p.status === 'pending' || p.status === 'Deferred'
-      )
+      // Calculate totals from historical if no DB payments
+      let payeeTotalPaid = 0
+      let payeePendingAmount = 0
+      let lastPaymentDate: string | null = null
+      let lastPaymentAmount: number | null = null
       
-      const payeeTotalPaid = paidPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
-      const payeePendingAmount = pendingPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+      if (payments.length > 0) {
+        // Use DB data
+        const paidPayments = payments.filter(p => 
+          p.status === 'Paid' || p.status === 'paid' || p.status === 'Completed'
+        )
+        const pendingPayments = payments.filter(p => 
+          p.status === 'Pending' || p.status === 'pending' || p.status === 'Deferred'
+        )
+        payeeTotalPaid = paidPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+        payeePendingAmount = pendingPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+        
+        const lastPayment = paidPayments[0] || payments[0]
+        lastPaymentDate = lastPayment?.paid_at || lastPayment?.submitted_at || null
+        lastPaymentAmount = lastPayment ? parseFloat(lastPayment.amount) || 0 : null
+      } else if (historicalPayments.length > 0) {
+        // Use historical data
+        for (const hp of historicalPayments) {
+          if (hp.status === 'Paid') {
+            payeeTotalPaid += hp.amount
+            if (!lastPaymentDate || hp.paidAt > lastPaymentDate) {
+              lastPaymentDate = hp.paidAt
+              lastPaymentAmount = hp.amount
+            }
+          } else {
+            payeePendingAmount += hp.amount
+          }
+        }
+      }
       
-      // Get last payment
-      const lastPayment = paidPayments[0] || payeePayments[0]
-      const metadata = lastPayment?.metadata || {}
+      // Determine if payable (from Tipalti or default to true for known payees)
+      const isPayable = tipaltiDetails?.isPayable ?? true
       
       // Build payee object
       const payeeData = {
         payeeId,
-        name: tipaltiDetails?.name || metadata.payee_name || payeeId,
-        email: tipaltiDetails?.email || metadata.email || '',
-        company: tipaltiDetails?.company || metadata.company || null,
-        paymentMethod: tipaltiDetails?.paymentMethod || metadata.payment_method || null,
+        name: tipaltiDetails?.name || fallbackInfo.name,
+        email: tipaltiDetails?.email || fallbackInfo.email,
+        company: tipaltiDetails?.company || fallbackInfo.company || null,
+        paymentMethod: tipaltiDetails?.paymentMethod || 'ACH',
         payeeStatus: tipaltiDetails?.payeeStatus || 'Active',
-        isPayable: tipaltiDetails?.isPayable ?? true,
+        isPayable,
         totalPaid: payeeTotalPaid,
         pendingAmount: payeePendingAmount,
-        lastPaymentDate: lastPayment?.paid_at || lastPayment?.submitted_at || null,
-        lastPaymentAmount: lastPayment ? parseFloat(lastPayment.amount) || 0 : null,
-        payments: payeePayments.map(p => ({
-          refCode: p.tipalti_payment_id,
-          amount: parseFloat(p.amount) || 0,
-          status: p.status,
-          paidAt: p.paid_at,
-          submittedAt: p.submitted_at,
+        lastPaymentDate,
+        lastPaymentAmount,
+        payments: historicalPayments.map((hp, i) => ({
+          refCode: `${payeeId}-${i}`,
+          amount: hp.amount,
+          status: hp.status,
+          paidAt: hp.paidAt || null,
         })),
         invoices: [],
         partnerType: getPartnerType(payeeId),
       }
       
-      // Only add if we got valid data from Tipalti or have payments
-      if (tipaltiDetails || payeePayments.length > 0) {
-        payees.push(payeeData)
-        totalPaid += payeeTotalPaid
-        totalPending += payeePendingAmount
-        if (payeeData.isPayable) payableCount++
-      }
+      payees.push(payeeData)
+      totalPaid += payeeTotalPaid
+      totalPending += payeePendingAmount
+      if (isPayable) payableCount++
     }
 
-    // Sort by total paid descending
-    payees.sort((a, b) => b.totalPaid - a.totalPaid)
+    // Sort by total paid descending, then by name
+    payees.sort((a, b) => {
+      if (b.totalPaid !== a.totalPaid) return b.totalPaid - a.totalPaid
+      return a.name.localeCompare(b.name)
+    })
 
     return NextResponse.json({
       success: true,
