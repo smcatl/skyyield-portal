@@ -77,11 +77,7 @@ export default function AdminPayments() {
     }
   }
 
-  const getStatusBadge = (status: string | null, isPayable: boolean) => {
-    if (isPayable) {
-      return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Active</span>
-    }
-    
+  const getStatusBadge = (status: string | null) => {
     const statusMap: Record<string, { color: string, label: string }> = {
       'Active': { color: 'bg-green-500/20 text-green-400', label: 'Active' },
       'Pending': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Pending' },
@@ -89,7 +85,7 @@ export default function AdminPayments() {
       'Suspended': { color: 'bg-red-500/20 text-red-400', label: 'Suspended' },
     }
     
-    const config = statusMap[status || ''] || { color: 'bg-gray-500/20 text-gray-400', label: status || 'Unknown' }
+    const config = statusMap[status || ''] || { color: 'bg-green-500/20 text-green-400', label: status || 'Active' }
     return <span className={`px-2 py-1 rounded text-xs ${config.color}`}>{config.label}</span>
   }
 
@@ -294,7 +290,12 @@ export default function AdminPayments() {
                     <span className="text-[#0EA5E9] font-mono text-sm">{payee.payeeId}</span>
                   </td>
                   <td className="px-6 py-4">
-                    {getStatusBadge(payee.payeeStatus, payee.isPayable)}
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(payee.payeeStatus)}
+                      {payee.isPayable && (
+                        <span className="px-2 py-1 bg-[#10F981]/20 text-[#10F981] rounded text-xs">Payable</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className="text-[#10F981] font-medium">{formatCurrency(payee.totalPaid)}</span>
@@ -390,7 +391,12 @@ export default function AdminPayments() {
                 </div>
                 <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
                   <div className="text-[#94A3B8] text-sm mb-1">Status</div>
-                  <div className="mt-1">{getStatusBadge(selectedPayee.payeeStatus, selectedPayee.isPayable)}</div>
+                  <div className="mt-1 flex items-center justify-center gap-2">
+                    {getStatusBadge(selectedPayee.payeeStatus)}
+                    {selectedPayee.isPayable && (
+                      <span className="px-2 py-1 bg-[#10F981]/20 text-[#10F981] rounded text-xs">Payable</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
