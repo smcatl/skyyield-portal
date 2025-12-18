@@ -3,126 +3,200 @@
 import { useState, useEffect } from 'react'
 import { 
   RefreshCw, ExternalLink, Building, Users, Handshake, Network,
-  CheckCircle, Clock, AlertCircle, DollarSign, Eye
+  CheckCircle, Clock, AlertCircle, DollarSign, Eye, X,
+  CreditCard, FileText, Settings, Calendar, Filter
 } from 'lucide-react'
 import TipaltiIFrame from '@/components/TipaltiIFrame'
 
-interface PartnerPayment {
-  id: string
+interface PayeeData {
+  payeeId: string
   name: string
   email: string
-  type: 'location_partner' | 'referral_partner' | 'channel_partner' | 'relationship_partner'
-  tipalti_payee_id: string | null
-  tipalti_status: string | null
-  company_name: string | null
-  total_earned: number
-  last_payment_date: string | null
-  last_payment_amount: number | null
+  company: string | null
+  paymentMethod: string | null
+  payeeStatus: string | null
+  isPayable: boolean
+  totalPaid: number
+  pendingAmount: number
+  lastPaymentDate: string | null
+  lastPaymentAmount: number | null
+  payments: any[]
+  invoices: any[]
+  partnerType: string | null
 }
 
-const typeLabels: Record<string, string> = {
-  location_partner: 'Location Partner',
-  referral_partner: 'Referral Partner',
-  channel_partner: 'Channel Partner',
-  relationship_partner: 'Relationship Partner'
-}
-
-const typeIcons: Record<string, any> = {
-  location_partner: Building,
-  referral_partner: Users,
-  channel_partner: Network,
-  relationship_partner: Handshake
+interface Summary {
+  totalPayees: number
+  totalPaid: number
+  totalPending: number
+  payableCount: number
 }
 
 export default function AdminPayments() {
   const [loading, setLoading] = useState(true)
-  const [partners, setPartners] = useState<PartnerPayment[]>([])
+  const [payees, setPayees] = useState<PayeeData[]>([])
+  const [summary, setSummary] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedPartner, setSelectedPartner] = useState<PartnerPayment | null>(null)
-  const [viewType, setViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
+  const [selectedPayee, setSelectedPayee] = useState<PayeeData | null>(null)
+  const [activeTab, setActiveTab] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
   const [showIframe, setShowIframe] = useState(false)
+  
+  // Date filters
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
   const [filterType, setFilterType] = useState<string>('all')
 
   useEffect(() => {
-    loadPartners()
+    loadPayees()
   }, [])
 
-  const loadPartners = async () => {
+  const loadPayees = async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/admin/payments')
+      let url = '/api/admin/payments'
+      const params = new URLSearchParams()
+      if (startDate) params.set('startDate', startDate)
+      if (endDate) params.set('endDate', endDate)
+      if (params.toString()) url += '?' + params.toString()
+
+      const res = await fetch(url)
       const data = await res.json()
       
       if (data.success) {
-        setPartners(data.partners)
+        // Ensure payees is always an array
+        setPayees(Array.isArray(data.payees) ? data.payees : [])
+        setSummary(data.summary || {
+          totalPayees: 0,
+          totalPaid: 0,
+          totalPending: 0,
+          payableCount: 0
+        })
       } else {
-        setError(data.error || 'Failed to load partners')
+        setError(data.error || 'Failed to load payees')
+        setPayees([])
+        setSummary(null)
       }
     } catch (err) {
       setError('Failed to load payment data')
+      setPayees([])
+      setSummary(null)
       console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
-  const getStatusBadge = (status: string | null) => {
-    if (!status) return null
+  const applyDateFilter = () => {
+    loadPayees()
+  }
+
+  const clearFilters = () => {
+    setStartDate('')
+    setEndDate('')
+    setFilterType('all')
+    loadPayees()
+  }
+
+  const getStatusBadge = (status: string | null, isPayable: boolean) => {
+    if (isPayable) {
+      return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Payable</span>
+    }
     
     const statusMap: Record<string, { color: string, label: string }> = {
-      'payable': { color: 'bg-green-500/20 text-green-400', label: 'Active' },
-      'completed_pending': { color: 'bg-blue-500/20 text-blue-400', label: 'Pending Approval' },
+      'Active': { color: 'bg-green-500/20 text-green-400', label: 'Active' },
+      'Pending': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Pending' },
+      'Invited': { color: 'bg-purple-500/20 text-purple-400', label: 'Invited' },
+      'Suspended': { color: 'bg-red-500/20 text-red-400', label: 'Suspended' },
+      'payable': { color: 'bg-green-500/20 text-green-400', label: 'Payable' },
+      'completed_pending': { color: 'bg-blue-500/20 text-blue-400', label: 'Setup Complete' },
       'signup_in_progress': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Signing Up' },
       'invite_sent': { color: 'bg-purple-500/20 text-purple-400', label: 'Invited' },
       'not_invited': { color: 'bg-gray-500/20 text-gray-400', label: 'Not Invited' },
-      'suspended': { color: 'bg-red-500/20 text-red-400', label: 'Suspended' },
-      'inactive': { color: 'bg-gray-500/20 text-gray-400', label: 'Inactive' },
     }
     
-    const config = statusMap[status] || { color: 'bg-gray-500/20 text-gray-400', label: status }
+    const config = statusMap[status || ''] || { color: 'bg-gray-500/20 text-gray-400', label: status || 'Unknown' }
     
-    return (
-      <span className={`px-2 py-1 rounded text-xs ${config.color}`}>
-        {config.label}
-      </span>
-    )
+    return <span className={`px-2 py-1 rounded text-xs ${config.color}`}>{config.label}</span>
   }
 
-  const openPartnerView = (partner: PartnerPayment, view: typeof viewType) => {
-    setSelectedPartner(partner)
-    setViewType(view)
+  const getPartnerIcon = (partnerType: string | null) => {
+    switch (partnerType) {
+      case 'Location Partner':
+        return <Building className="w-4 h-4" />
+      case 'Referral Partner':
+        return <Users className="w-4 h-4" />
+      case 'Channel Partner':
+        return <Network className="w-4 h-4" />
+      case 'Relationship Partner':
+        return <Handshake className="w-4 h-4" />
+      default:
+        return <Users className="w-4 h-4" />
+    }
+  }
+
+  const openPayeeView = (payee: PayeeData) => {
+    setSelectedPayee(payee)
     setShowIframe(true)
   }
 
-  const filteredPartners = filterType === 'all' 
-    ? partners 
-    : partners.filter(p => p.type === filterType)
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return '$0.00'
+    }
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount)
+  }
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A'
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    } catch {
+      return 'N/A'
+    }
+  }
+
+  // Filter payees based on selected filter type
+  const filteredPayees = (payees || []).filter(payee => {
+    if (filterType === 'all') return true
+    if (filterType === 'payable') return payee.isPayable
+    if (filterType === 'pending') return !payee.isPayable
+    if (filterType === 'location') return payee.partnerType === 'Location Partner'
+    if (filterType === 'referral') return payee.partnerType === 'Referral Partner'
+    return true
+  })
+
+  // Get payments for the Payment History tab
+  const allPayments = (payees || []).flatMap(payee => 
+    (payee.payments || []).map(payment => ({
+      ...payment,
+      payeeName: payee.name,
+      payeeId: payee.payeeId,
+      partnerType: payee.partnerType
+    }))
+  ).sort((a, b) => {
+    const dateA = new Date(a.paidAt || a.submittedAt || 0).getTime()
+    const dateB = new Date(b.paidAt || b.submittedAt || 0).getTime()
+    return dateB - dateA
+  })
 
   if (loading) {
     return (
-      <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 flex items-center justify-center min-h-[300px]">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#0EA5E9] mx-auto mb-3" />
-          <p className="text-[#94A3B8]">Loading payment data...</p>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold text-white">Payments & Commissions</h2>
+          <p className="text-[#94A3B8] text-sm">Manage partner payments through Tipalti</p>
         </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="bg-[#1A1F3A] border border-red-500/30 rounded-xl p-8">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-white font-medium mb-2">Error Loading Data</h3>
-          <p className="text-[#94A3B8] text-sm mb-4">{error}</p>
-          <button
-            onClick={loadPartners}
-            className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
-          >
-            Try Again
-          </button>
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="w-8 h-8 text-[#0EA5E9] animate-spin" />
+          <span className="ml-3 text-[#94A3B8]">Loading payment data...</span>
         </div>
       </div>
     )
@@ -137,16 +211,63 @@ export default function AdminPayments() {
           <p className="text-[#94A3B8] text-sm">Manage partner payments through Tipalti</p>
         </div>
         <button
-          onClick={loadPartners}
-          className="flex items-center gap-2 px-3 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors"
+          onClick={loadPayees}
+          className="flex items-center gap-2 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F] transition-colors"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
         </button>
       </div>
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-5 h-5" />
+            <span>{error}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Users className="w-5 h-5 text-[#0EA5E9]" />
+              <span className="text-[#94A3B8] text-sm">Total Payees</span>
+            </div>
+            <div className="text-2xl font-bold text-white">{summary.totalPayees || 0}</div>
+          </div>
+          
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <CheckCircle className="w-5 h-5 text-green-400" />
+              <span className="text-[#94A3B8] text-sm">Payable</span>
+            </div>
+            <div className="text-2xl font-bold text-green-400">{summary.payableCount || 0}</div>
+          </div>
+          
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <DollarSign className="w-5 h-5 text-[#10F981]" />
+              <span className="text-[#94A3B8] text-sm">Total Paid</span>
+            </div>
+            <div className="text-2xl font-bold text-[#10F981]">{formatCurrency(summary.totalPaid)}</div>
+          </div>
+          
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Clock className="w-5 h-5 text-yellow-400" />
+              <span className="text-[#94A3B8] text-sm">Pending</span>
+            </div>
+            <div className="text-2xl font-bold text-yellow-400">{formatCurrency(summary.totalPending)}</div>
+          </div>
+        </div>
+      )}
+
       {/* View Type Tabs */}
-      <div className="flex gap-2 border-b border-[#2D3B5F]">
+      <div className="flex gap-1 border-b border-[#2D3B5F]">
         {[
           { id: 'paymentHistory', label: 'Payment History' },
           { id: 'invoiceHistory', label: 'Invoice History' },
@@ -154,10 +275,11 @@ export default function AdminPayments() {
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => setViewType(tab.id as any)}
-            className={`px-4 py-2 border-b-2 transition-colors ${viewType === tab.id
-              ? 'border-[#0EA5E9] text-white'
-              : 'border-transparent text-[#94A3B8] hover:text-white'
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-[#0EA5E9] text-white'
+                : 'border-transparent text-[#94A3B8] hover:text-white'
             }`}
           >
             {tab.label}
@@ -165,124 +287,179 @@ export default function AdminPayments() {
         ))}
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-4">
-        <span className="text-[#94A3B8] text-sm">Filter by type:</span>
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
-        >
-          <option value="all">All Partners ({partners.length})</option>
-          <option value="location_partner">Location Partners ({partners.filter(p => p.type === 'location_partner').length})</option>
-          <option value="referral_partner">Referral Partners ({partners.filter(p => p.type === 'referral_partner').length})</option>
-          <option value="channel_partner">Channel Partners ({partners.filter(p => p.type === 'channel_partner').length})</option>
-          <option value="relationship_partner">Relationship Partners ({partners.filter(p => p.type === 'relationship_partner').length})</option>
-        </select>
-      </div>
-
-      {/* Partners Table */}
-      <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-        {filteredPartners.length === 0 ? (
-          <div className="p-8 text-center">
-            <DollarSign className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
-            <h3 className="text-white font-medium mb-2">No Partners with Tipalti</h3>
-            <p className="text-[#94A3B8] text-sm">
-              Partners will appear here once they have a Tipalti payee ID assigned.
-            </p>
+      {/* Payment History Tab */}
+      {activeTab === 'paymentHistory' && (
+        <div className="space-y-4">
+          {/* Filter */}
+          <div className="flex items-center gap-4">
+            <span className="text-[#94A3B8] text-sm">Filter by type:</span>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg px-3 py-2 text-white text-sm min-w-[180px]"
+            >
+              <option value="all">All Partners ({payees?.length || 0})</option>
+              <option value="payable">Payable Only</option>
+              <option value="pending">Pending Setup</option>
+              <option value="location">Location Partners</option>
+              <option value="referral">Referral Partners</option>
+            </select>
           </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#2D3B5F]">
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Partner</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Tipalti ID</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Status</th>
-                <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPartners.map(partner => {
-                const TypeIcon = typeIcons[partner.type] || Building
-                return (
-                  <tr key={`${partner.type}-${partner.id}`} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-white font-medium">{partner.name}</p>
-                        <p className="text-[#94A3B8] text-sm">{partner.email}</p>
-                        {partner.company_name && (
-                          <p className="text-[#64748B] text-xs">{partner.company_name}</p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <TypeIcon className="w-4 h-4 text-[#0EA5E9]" />
-                        <span className="text-[#94A3B8]">{typeLabels[partner.type]}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <code className="text-[#0EA5E9] text-sm bg-[#0EA5E9]/10 px-2 py-1 rounded">
-                        {partner.tipalti_payee_id}
-                      </code>
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(partner.tipalti_status)}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => openPartnerView(partner, viewType)}
-                        className="flex items-center gap-1 text-[#0EA5E9] hover:underline text-sm ml-auto"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View
-                      </button>
+
+          {/* Partners Table */}
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#2D3B5F]">
+                  <th className="text-left px-6 py-4 text-[#94A3B8] text-sm font-medium">Partner</th>
+                  <th className="text-left px-6 py-4 text-[#94A3B8] text-sm font-medium">Type</th>
+                  <th className="text-left px-6 py-4 text-[#94A3B8] text-sm font-medium">Tipalti ID</th>
+                  <th className="text-left px-6 py-4 text-[#94A3B8] text-sm font-medium">Status</th>
+                  <th className="text-right px-6 py-4 text-[#94A3B8] text-sm font-medium">Total Paid</th>
+                  <th className="text-center px-6 py-4 text-[#94A3B8] text-sm font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPayees.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-[#94A3B8]">
+                      {error ? 'Error loading data' : 'No payees found'}
                     </td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                ) : (
+                  filteredPayees.map((payee) => (
+                    <tr 
+                      key={payee.payeeId} 
+                      className="border-t border-[#2D3B5F] hover:bg-[#0A0F2C]/50 transition-colors"
+                    >
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-white font-medium">{payee.name || payee.payeeId}</div>
+                          <div className="text-[#94A3B8] text-sm">{payee.email || ''}</div>
+                          {payee.company && (
+                            <div className="text-[#64748B] text-xs">{payee.company}</div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 text-[#94A3B8]">
+                          {getPartnerIcon(payee.partnerType)}
+                          <span className="text-sm">{payee.partnerType || 'Partner'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[#0EA5E9] font-mono text-sm">{payee.payeeId}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {getStatusBadge(payee.payeeStatus, payee.isPayable)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-[#10F981] font-medium">{formatCurrency(payee.totalPaid)}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => openPayeeView(payee)}
+                            className="flex items-center gap-1 px-3 py-1 text-[#0EA5E9] hover:bg-[#0EA5E9]/10 rounded transition-colors text-sm"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-      {/* Info Note */}
+      {/* Invoice History Tab */}
+      {activeTab === 'invoiceHistory' && (
+        <div className="space-y-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <TipaltiIFrame 
+              payeeId="admin_at_skyyield.io"
+              viewType="invoiceHistory"
+              environment="sandbox"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Payment Details Tab */}
+      {activeTab === 'paymentDetails' && (
+        <div className="space-y-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <TipaltiIFrame 
+              payeeId="admin_at_skyyield.io"
+              viewType="paymentDetails"
+              environment="sandbox"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Note */}
       <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
         <p className="text-[#94A3B8] text-sm">
-          <strong className="text-white">Note:</strong> Payment processing is handled securely by Tipalti.
+          <strong className="text-white">Note:</strong> Payment processing is handled securely by Tipalti. 
           Partners can update payment details, view past payments, and download invoices.
         </p>
       </div>
 
-      {/* Tipalti iFrame Modal */}
-      {showIframe && selectedPartner?.tipalti_payee_id && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
-            <div className="p-4 border-b border-[#2D3B5F] flex items-center justify-between">
+      {/* Payee Detail Modal with Tipalti iFrame */}
+      {showIframe && selectedPayee && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#2D3B5F]">
               <div>
-                <h3 className="text-lg font-semibold text-white">
-                  {viewType === 'paymentHistory' && 'Payment History'}
-                  {viewType === 'invoiceHistory' && 'Invoices'}
-                  {viewType === 'paymentDetails' && 'Payment Details'}
-                </h3>
-                <p className="text-[#64748B] text-sm">
-                  {selectedPartner.name} • {selectedPartner.tipalti_payee_id}
-                </p>
+                <h3 className="text-lg font-semibold text-white">{selectedPayee.name}</h3>
+                <p className="text-[#94A3B8] text-sm">{selectedPayee.payeeId} • {selectedPayee.partnerType}</p>
               </div>
               <button
                 onClick={() => setShowIframe(false)}
-                className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
+                className="p-2 text-[#94A3B8] hover:text-white hover:bg-[#2D3B5F] rounded-lg transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4">
+
+            {/* Modal Content - Tipalti iFrame */}
+            <div className="p-6 h-[60vh] overflow-auto">
               <TipaltiIFrame
-                payeeId={selectedPartner.tipalti_payee_id}
-                viewType={viewType}
-                environment="production"
+                payeeId={selectedPayee.payeeId}
+                viewType="paymentDetails"
+                environment="sandbox"
               />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-[#2D3B5F]">
+              <div className="text-[#94A3B8] text-sm">
+                Status: {getStatusBadge(selectedPayee.payeeStatus, selectedPayee.isPayable)}
+                <span className="ml-4">Total Paid: <span className="text-[#10F981] font-medium">{formatCurrency(selectedPayee.totalPaid)}</span></span>
+              </div>
+              <div className="flex gap-2">
+                <a
+                  href={`https://hub.sandbox.tipalti.com/payees/${selectedPayee.payeeId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F]/80 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Manage in Tipalti
+                </a>
+                <button
+                  onClick={() => setShowIframe(false)}
+                  className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
