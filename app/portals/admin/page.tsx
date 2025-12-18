@@ -2083,7 +2083,7 @@ export default function AdminPortalPage() {
         )}
 
         {/* Blog Tab */}
-
+        {activeTab === 'blog' && <AdminBlog />}
 
         {/* Forms Tab */}
         {activeTab === 'forms' && (
