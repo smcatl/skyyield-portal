@@ -12,10 +12,12 @@ interface BlogPost {
   title: string
   slug: string
   summary: string
+  excerpt?: string
   content: string
   category: string
   tags: string[]
   image_url: string | null
+  featured_image?: string | null
   source_url: string | null
   source_title: string | null
   status: 'pending' | 'draft' | 'approved' | 'published' | 'rejected'
@@ -38,12 +40,12 @@ interface Counts {
 export default function AdminBlog() {
   const [posts, setPosts] = useState<BlogPost[]>([])
   const [counts, setCounts] = useState<Counts>({ pending: 0, draft: 0, approved: 0, published: 0, rejected: 0, total: 0 })
-  const [categories, setCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null)
   const [editMode, setEditMode] = useState(false)
+  const [editForm, setEditForm] = useState<Partial<BlogPost>>({})
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -63,7 +65,6 @@ export default function AdminBlog() {
       if (data.success) {
         setPosts(data.posts || [])
         setCounts(data.counts || { pending: 0, draft: 0, approved: 0, published: 0, rejected: 0, total: 0 })
-        setCategories(data.categories || [])
       }
     } catch (err) {
       console.error('Failed to load posts:', err)
@@ -72,20 +73,20 @@ export default function AdminBlog() {
     }
   }
 
-  const handleAction = async (postId: string, action: string, extra?: Record<string, any>) => {
+  const handleAction = async (postId: string, action: string) => {
     setSaving(true)
     try {
       const res = await fetch('/api/admin/blog', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: postId, action, ...extra })
+        body: JSON.stringify({ id: postId, action })
       })
 
       const data = await res.json()
       if (data.success) {
         loadPosts()
         if (selectedPost?.id === postId) {
-          setSelectedPost(data.post)
+          setSelectedPost(null)
         }
       } else {
         alert(data.error || 'Action failed')
@@ -97,28 +98,41 @@ export default function AdminBlog() {
     }
   }
 
+  const handleDelete = async (postId: string) => {
+    if (!confirm('Delete this post?')) return
+    
+    try {
+      const res = await fetch('/api/admin/blog', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: postId })
+      })
+      
+      if (res.ok) {
+        loadPosts()
+        if (selectedPost?.id === postId) setSelectedPost(null)
+      }
+    } catch (err) {
+      alert('Delete failed')
+    }
+  }
+
   const handleSaveEdit = async () => {
     if (!selectedPost) return
     setSaving(true)
+    
     try {
       const res = await fetch('/api/admin/blog', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedPost.id,
-          title: selectedPost.title,
-          summary: selectedPost.summary,
-          content: selectedPost.content,
-          category: selectedPost.category,
-          tags: selectedPost.tags,
-          image_url: selectedPost.image_url,
-        })
+        body: JSON.stringify({ id: selectedPost.id, ...editForm })
       })
-
+      
       const data = await res.json()
       if (data.success) {
-        setEditMode(false)
         loadPosts()
+        setSelectedPost(data.post)
+        setEditMode(false)
       } else {
         alert(data.error || 'Save failed')
       }
@@ -129,19 +143,12 @@ export default function AdminBlog() {
     }
   }
 
-  const handleDelete = async (postId: string) => {
-    if (!confirm('Are you sure you want to delete this post?')) return
-    try {
-      const res = await fetch(`/api/admin/blog?id=${postId}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (data.success) {
-        loadPosts()
-        if (selectedPost?.id === postId) setSelectedPost(null)
-      }
-    } catch (err) {
-      alert('Delete failed')
-    }
-  }
+  const filteredPosts = posts.filter(post => {
+    const matchesSearch = !searchTerm || 
+      post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (post.summary || '').toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesSearch
+  })
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -149,7 +156,7 @@ export default function AdminBlog() {
       draft: 'bg-gray-500/20 text-gray-400',
       approved: 'bg-blue-500/20 text-blue-400',
       published: 'bg-green-500/20 text-green-400',
-      rejected: 'bg-red-500/20 text-red-400',
+      rejected: 'bg-red-500/20 text-red-400'
     }
     return (
       <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status] || styles.draft}`}>
@@ -158,31 +165,13 @@ export default function AdminBlog() {
     )
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending': return <Clock className="w-4 h-4 text-yellow-400" />
-      case 'approved': return <CheckCircle className="w-4 h-4 text-blue-400" />
-      case 'published': return <CheckCircle className="w-4 h-4 text-green-400" />
-      case 'rejected': return <XCircle className="w-4 h-4 text-red-400" />
-      default: return <FileText className="w-4 h-4 text-gray-400" />
-    }
-  }
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '—'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric'
     })
   }
 
-  // Filter posts by search
-  const filteredPosts = posts.filter(post => {
-    if (!searchTerm) return true
-    const term = searchTerm.toLowerCase()
-    return post.title.toLowerCase().includes(term) ||
-           post.summary?.toLowerCase().includes(term) ||
-           post.category?.toLowerCase().includes(term)
-  })
+  const getImageUrl = (post: BlogPost) => post.image_url || post.featured_image
 
   return (
     <div className="space-y-6">
@@ -195,7 +184,7 @@ export default function AdminBlog() {
         <button
           onClick={loadPosts}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F]"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
@@ -223,14 +212,15 @@ export default function AdminBlog() {
       </div>
 
       {/* Search and Filter */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
           <input
             type="text"
             placeholder="Search articles..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && loadPosts()}
             className="w-full pl-10 pr-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
           />
         </div>
@@ -239,7 +229,7 @@ export default function AdminBlog() {
           onChange={(e) => setFilterStatus(e.target.value)}
           className="px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
         >
-          <option value="all">All</option>
+          <option value="all">All Status</option>
           <option value="pending">Pending</option>
           <option value="draft">Drafts</option>
           <option value="approved">Approved</option>
@@ -248,146 +238,160 @@ export default function AdminBlog() {
         </select>
         <button
           onClick={loadPosts}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
         >
           <RefreshCw className="w-4 h-4" />
           Show All ({counts.total})
         </button>
       </div>
 
-      {/* Posts Table */}
-      <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[#2D3B5F]">
-              <th className="text-left px-4 py-3 text-[#94A3B8] text-xs font-medium uppercase">Article</th>
-              <th className="text-left px-4 py-3 text-[#94A3B8] text-xs font-medium uppercase">Category</th>
-              <th className="text-left px-4 py-3 text-[#94A3B8] text-xs font-medium uppercase">Source</th>
-              <th className="text-center px-4 py-3 text-[#94A3B8] text-xs font-medium uppercase">Status</th>
-              <th className="text-left px-4 py-3 text-[#94A3B8] text-xs font-medium uppercase">Created</th>
-              <th className="text-center px-4 py-3 text-[#94A3B8] text-xs font-medium uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-[#94A3B8]">
-                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                  Loading...
-                </td>
-              </tr>
-            ) : filteredPosts.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-[#94A3B8]">
-                  <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  No articles found
-                </td>
-              </tr>
-            ) : (
-              filteredPosts.map(post => (
-                <tr key={post.id} className="border-t border-[#2D3B5F] hover:bg-[#0A0F2C]/50">
-                  <td className="px-4 py-3">
-                    <div className="flex items-start gap-3">
-                      {post.image_url ? (
-                        <img src={post.image_url} alt="" className="w-12 h-12 object-cover rounded" />
-                      ) : (
-                        <div className="w-12 h-12 bg-[#2D3B5F] rounded flex items-center justify-center">
-                          <ImageIcon className="w-6 h-6 text-[#64748B]" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white font-medium truncate">{post.title}</div>
-                        <div className="text-[#64748B] text-sm truncate">{post.summary}</div>
-                      </div>
+      {/* Posts List - Card Layout */}
+      <div className="space-y-4">
+        {loading ? (
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-[#0EA5E9]" />
+            <p className="text-[#94A3B8]">Loading articles...</p>
+          </div>
+        ) : filteredPosts.length === 0 ? (
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
+            <FileText className="w-12 h-12 mx-auto mb-3 text-[#64748B]" />
+            <p className="text-[#94A3B8]">No articles found</p>
+          </div>
+        ) : (
+          filteredPosts.map(post => (
+            <div key={post.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4 hover:border-[#0EA5E9]/50 transition-colors">
+              <div className="flex flex-col md:flex-row gap-4">
+                {/* Image */}
+                <div className="w-full md:w-32 h-32 md:h-24 flex-shrink-0">
+                  {getImageUrl(post) ? (
+                    <img 
+                      src={getImageUrl(post)!} 
+                      alt="" 
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#2D3B5F] rounded-lg flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-[#64748B]" />
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-1 bg-[#0EA5E9]/10 text-[#0EA5E9] rounded text-xs">
-                      {post.category}
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-start gap-2 mb-2">
+                    <h3 className="text-white font-medium flex-1">{post.title}</h3>
+                    {getStatusBadge(post.status)}
+                  </div>
+                  <p className="text-[#94A3B8] text-sm line-clamp-2 mb-3">
+                    {post.summary || post.excerpt || 'No summary'}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-[#64748B]">
+                    <span className="px-2 py-1 bg-[#0EA5E9]/10 text-[#0EA5E9] rounded">
+                      {post.category || 'Uncategorized'}
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {post.source_url ? (
-                      <a href={post.source_url} target="_blank" rel="noopener noreferrer" 
-                         className="text-[#0EA5E9] hover:underline text-sm truncate block max-w-[150px]">
-                        {post.source_title || 'Source'}
+                    {post.source_url && (
+                      <a 
+                        href={post.source_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[#0EA5E9] hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Source
                       </a>
-                    ) : (
-                      <span className="text-[#64748B] text-sm">Manual</span>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-center">{getStatusBadge(post.status)}</td>
-                  <td className="px-4 py-3 text-[#94A3B8] text-sm">{formatDate(post.created_at)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
+                    <span>{formatDate(post.created_at)}</span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex md:flex-col items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 md:border-l border-[#2D3B5F] md:pl-4">
+                  <button
+                    onClick={() => { setSelectedPost(post); setEditMode(false); setEditForm(post); }}
+                    className="flex items-center gap-1 px-3 py-1.5 text-[#0EA5E9] bg-[#0EA5E9]/10 rounded hover:bg-[#0EA5E9]/20 text-sm"
+                    title="View"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span className="md:hidden">View</span>
+                  </button>
+                  
+                  {post.status === 'pending' && (
+                    <>
                       <button
-                        onClick={() => { setSelectedPost(post); setEditMode(false); }}
-                        className="p-1.5 text-[#0EA5E9] hover:bg-[#0EA5E9]/10 rounded"
-                        title="View/Edit"
+                        onClick={() => handleAction(post.id, 'approve')}
+                        disabled={saving}
+                        className="flex items-center gap-1 px-3 py-1.5 text-green-400 bg-green-400/10 rounded hover:bg-green-400/20 text-sm"
+                        title="Approve"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Check className="w-4 h-4" />
+                        <span className="md:hidden">Approve</span>
                       </button>
-                      {post.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => handleAction(post.id, 'approve')}
-                            className="p-1.5 text-green-400 hover:bg-green-400/10 rounded"
-                            title="Approve"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleAction(post.id, 'reject')}
-                            className="p-1.5 text-red-400 hover:bg-red-400/10 rounded"
-                            title="Reject"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      {post.status === 'approved' && (
-                        <button
-                          onClick={() => handleAction(post.id, 'publish')}
-                          className="p-1.5 text-green-400 hover:bg-green-400/10 rounded"
-                          title="Publish"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      )}
                       <button
-                        onClick={() => handleDelete(post.id)}
-                        className="p-1.5 text-red-400 hover:bg-red-400/10 rounded"
-                        title="Delete"
+                        onClick={() => handleAction(post.id, 'reject')}
+                        disabled={saving}
+                        className="flex items-center gap-1 px-3 py-1.5 text-red-400 bg-red-400/10 rounded hover:bg-red-400/20 text-sm"
+                        title="Reject"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <X className="w-4 h-4" />
+                        <span className="md:hidden">Reject</span>
                       </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                    </>
+                  )}
+                  
+                  {post.status === 'approved' && (
+                    <button
+                      onClick={() => handleAction(post.id, 'publish')}
+                      disabled={saving}
+                      className="flex items-center gap-1 px-3 py-1.5 text-green-400 bg-green-400/10 rounded hover:bg-green-400/20 text-sm"
+                      title="Publish"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span className="md:hidden">Publish</span>
+                    </button>
+                  )}
+                  
+                  {post.status === 'published' && (
+                    <button
+                      onClick={() => handleAction(post.id, 'unpublish')}
+                      disabled={saving}
+                      className="flex items-center gap-1 px-3 py-1.5 text-yellow-400 bg-yellow-400/10 rounded hover:bg-yellow-400/20 text-sm"
+                      title="Unpublish"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      <span className="md:hidden">Unpublish</span>
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => handleDelete(post.id)}
+                    disabled={saving}
+                    className="flex items-center gap-1 px-3 py-1.5 text-red-400 bg-red-400/10 rounded hover:bg-red-400/20 text-sm"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="md:hidden">Delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
-      {/* Post Detail Modal */}
+      {/* Detail Modal */}
       {selectedPost && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#2D3B5F] shrink-0">
-              <div className="flex items-center gap-3">
-                {getStatusIcon(selectedPost.status)}
-                <h3 className="text-lg font-semibold text-white">
-                  {editMode ? 'Edit Article' : 'Article Details'}
-                </h3>
-                {getStatusBadge(selectedPost.status)}
-              </div>
+            <div className="flex items-center justify-between p-4 border-b border-[#2D3B5F]">
+              <h3 className="text-lg font-semibold text-white">
+                {editMode ? 'Edit Article' : 'Article Details'}
+              </h3>
               <div className="flex items-center gap-2">
                 {!editMode && (
                   <button
-                    onClick={() => setEditMode(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 text-[#0EA5E9] hover:bg-[#0EA5E9]/10 rounded"
+                    onClick={() => { setEditMode(true); setEditForm(selectedPost); }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-[#0EA5E9] text-white rounded hover:bg-[#0EA5E9]/80 text-sm"
                   >
                     <Edit className="w-4 h-4" />
                     Edit
@@ -395,179 +399,167 @@ export default function AdminBlog() {
                 )}
                 <button
                   onClick={() => { setSelectedPost(null); setEditMode(false); }}
-                  className="p-2 text-[#94A3B8] hover:text-white hover:bg-[#2D3B5F] rounded-lg"
+                  className="p-2 text-[#94A3B8] hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Modal Content */}
-            <div className="flex-1 overflow-auto p-6 space-y-4">
-              {/* Title */}
-              <div>
-                <label className="block text-[#94A3B8] text-sm mb-1">Title</label>
-                {editMode ? (
-                  <input
-                    type="text"
-                    value={selectedPost.title}
-                    onChange={(e) => setSelectedPost({ ...selectedPost, title: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
-                  />
-                ) : (
-                  <div className="text-white text-lg font-medium">{selectedPost.title}</div>
-                )}
-              </div>
-
-              {/* Summary */}
-              <div>
-                <label className="block text-[#94A3B8] text-sm mb-1">Summary</label>
-                {editMode ? (
-                  <textarea
-                    value={selectedPost.summary || ''}
-                    onChange={(e) => setSelectedPost({ ...selectedPost, summary: e.target.value })}
-                    rows={2}
-                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white resize-none"
-                  />
-                ) : (
-                  <div className="text-[#94A3B8]">{selectedPost.summary}</div>
-                )}
-              </div>
-
-              {/* Category & Tags */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-1">Category</label>
-                  {editMode ? (
-                    <select
-                      value={selectedPost.category}
-                      onChange={(e) => setSelectedPost({ ...selectedPost, category: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
-                    >
-                      <option>Technology</option>
-                      <option>Business</option>
-                      <option>Industry News</option>
-                      <option>Equipment</option>
-                      <option>Strategy</option>
-                    </select>
-                  ) : (
-                    <span className="px-2 py-1 bg-[#0EA5E9]/10 text-[#0EA5E9] rounded text-sm">
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {editMode ? (
+                <>
+                  <div>
+                    <label className="block text-[#94A3B8] text-sm mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={editForm.title || ''}
+                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[#94A3B8] text-sm mb-1">Summary</label>
+                    <textarea
+                      value={editForm.summary || ''}
+                      onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
+                      rows={3}
+                      className="w-full px-3 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[#94A3B8] text-sm mb-1">Content</label>
+                    <textarea
+                      value={editForm.content || ''}
+                      onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                      rows={10}
+                      className="w-full px-3 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white font-mono text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#94A3B8] text-sm mb-1">Category</label>
+                      <input
+                        type="text"
+                        value={editForm.category || ''}
+                        onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#94A3B8] text-sm mb-1">Image URL</label>
+                      <input
+                        type="text"
+                        value={editForm.image_url || ''}
+                        onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded text-white"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {getImageUrl(selectedPost) && (
+                    <img 
+                      src={getImageUrl(selectedPost)!} 
+                      alt="" 
+                      className="w-full h-48 object-cover rounded-lg"
+                    />
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {getStatusBadge(selectedPost.status)}
+                    <span className="px-2 py-1 bg-[#0EA5E9]/10 text-[#0EA5E9] rounded text-xs">
                       {selectedPost.category}
                     </span>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-1">Tags</label>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedPost.tags?.map((tag, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-[#2D3B5F] text-[#94A3B8] rounded text-xs">
-                        {tag}
-                      </span>
-                    ))}
+                    {selectedPost.source_url && (
+                      <a 
+                        href={selectedPost.source_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[#0EA5E9] text-xs hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        View Source
+                      </a>
+                    )}
                   </div>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div>
-                <label className="block text-[#94A3B8] text-sm mb-1">Content</label>
-                {editMode ? (
-                  <textarea
-                    value={selectedPost.content || ''}
-                    onChange={(e) => setSelectedPost({ ...selectedPost, content: e.target.value })}
-                    rows={12}
-                    className="w-full px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white font-mono text-sm resize-none"
-                  />
-                ) : (
-                  <div className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg p-4 max-h-64 overflow-auto">
-                    <div className="text-[#94A3B8] whitespace-pre-wrap text-sm">{selectedPost.content}</div>
+                  <h2 className="text-xl font-bold text-white">{selectedPost.title}</h2>
+                  <p className="text-[#94A3B8]">{selectedPost.summary || selectedPost.excerpt}</p>
+                  <div className="prose prose-invert max-w-none">
+                    <div className="whitespace-pre-wrap text-[#94A3B8] text-sm">
+                      {selectedPost.content}
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {/* Image */}
-              {selectedPost.image_url && (
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-1">Featured Image</label>
-                  <img src={selectedPost.image_url} alt="" className="max-w-md rounded-lg" />
-                </div>
-              )}
-
-              {/* Source */}
-              {selectedPost.source_url && (
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-1">Source</label>
-                  <a href={selectedPost.source_url} target="_blank" rel="noopener noreferrer"
-                     className="text-[#0EA5E9] hover:underline flex items-center gap-1">
-                    {selectedPost.source_title || selectedPost.source_url}
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
+                </>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-[#2D3B5F] bg-[#0A0F2C] shrink-0">
-              <div className="text-[#94A3B8] text-sm">
-                Created: {formatDate(selectedPost.created_at)}
-                {selectedPost.published_at && ` • Published: ${formatDate(selectedPost.published_at)}`}
+            <div className="flex items-center justify-between p-4 border-t border-[#2D3B5F]">
+              <div className="flex items-center gap-2">
+                {selectedPost.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => handleAction(selectedPost.id, 'approve')}
+                      disabled={saving}
+                      className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleAction(selectedPost.id, 'reject')}
+                      disabled={saving}
+                      className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
+                {selectedPost.status === 'approved' && (
+                  <button
+                    onClick={() => handleAction(selectedPost.id, 'publish')}
+                    disabled={saving}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+                  >
+                    Publish Now
+                  </button>
+                )}
+                {selectedPost.status === 'published' && (
+                  <button
+                    onClick={() => handleAction(selectedPost.id, 'unpublish')}
+                    disabled={saving}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
+                  >
+                    Unpublish
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {editMode ? (
                   <>
                     <button
                       onClick={() => setEditMode(false)}
-                      className="px-4 py-2 text-[#94A3B8] hover:text-white"
+                      className="px-4 py-2 text-[#94A3B8] hover:text-white text-sm"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSaveEdit}
                       disabled={saving}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 disabled:opacity-50"
+                      className="flex items-center gap-1 px-4 py-2 bg-[#0EA5E9] text-white rounded hover:bg-[#0EA5E9]/80 text-sm"
                     >
                       <Save className="w-4 h-4" />
                       {saving ? 'Saving...' : 'Save Changes'}
                     </button>
                   </>
                 ) : (
-                  <>
-                    {selectedPost.status === 'pending' && (
-                      <>
-                        <button
-                          onClick={() => handleAction(selectedPost.id, 'reject')}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
-                        >
-                          <X className="w-4 h-4" />
-                          Reject
-                        </button>
-                        <button
-                          onClick={() => handleAction(selectedPost.id, 'approve')}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30"
-                        >
-                          <Check className="w-4 h-4" />
-                          Approve
-                        </button>
-                      </>
-                    )}
-                    {selectedPost.status === 'approved' && (
-                      <button
-                        onClick={() => handleAction(selectedPost.id, 'publish')}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#10F981] text-black rounded-lg hover:bg-[#10F981]/80"
-                      >
-                        <Send className="w-4 h-4" />
-                        Publish
-                      </button>
-                    )}
-                    {selectedPost.status === 'published' && (
-                      <button
-                        onClick={() => handleAction(selectedPost.id, 'unpublish')}
-                        className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30"
-                      >
-                        Unpublish
-                      </button>
-                    )}
-                  </>
+                  <button
+                    onClick={() => setSelectedPost(null)}
+                    className="px-4 py-2 bg-[#2D3B5F] text-white rounded hover:bg-[#3D4B6F] text-sm"
+                  >
+                    Close
+                  </button>
                 )}
               </div>
             </div>
