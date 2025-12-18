@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { 
   RefreshCw, ExternalLink, Building, Users, Handshake, Network,
   CheckCircle, Clock, AlertCircle, DollarSign, Eye, X,
-  CreditCard, FileText, Settings
+  CreditCard, FileText, Settings, Calendar, Filter
 } from 'lucide-react'
 import TipaltiIFrame from '@/components/TipaltiIFrame'
 
@@ -22,6 +22,7 @@ interface PayeeData {
   lastPaymentAmount: number | null
   payments: any[]
   invoices: any[]
+  partnerType: string | null
 }
 
 interface Summary {
@@ -39,6 +40,11 @@ export default function AdminPayments() {
   const [selectedPayee, setSelectedPayee] = useState<PayeeData | null>(null)
   const [activeTab, setActiveTab] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
   const [showIframe, setShowIframe] = useState(false)
+  
+  // Date filters
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  const [filterType, setFilterType] = useState<string>('all')
 
   useEffect(() => {
     loadPayees()
@@ -48,7 +54,13 @@ export default function AdminPayments() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/admin/payments')
+      let url = '/api/admin/payments'
+      const params = new URLSearchParams()
+      if (startDate) params.set('startDate', startDate)
+      if (endDate) params.set('endDate', endDate)
+      if (params.toString()) url += '?' + params.toString()
+
+      const res = await fetch(url)
       const data = await res.json()
       
       if (data.success) {
@@ -65,6 +77,17 @@ export default function AdminPayments() {
     }
   }
 
+  const applyDateFilter = () => {
+    loadPayees()
+  }
+
+  const clearFilters = () => {
+    setStartDate('')
+    setEndDate('')
+    setFilterType('all')
+    loadPayees()
+  }
+
   const getStatusBadge = (status: string | null, isPayable: boolean) => {
     if (isPayable) {
       return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Payable</span>
@@ -75,6 +98,11 @@ export default function AdminPayments() {
       'Pending': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Pending' },
       'Invited': { color: 'bg-purple-500/20 text-purple-400', label: 'Invited' },
       'Suspended': { color: 'bg-red-500/20 text-red-400', label: 'Suspended' },
+      'payable': { color: 'bg-green-500/20 text-green-400', label: 'Payable' },
+      'completed_pending': { color: 'bg-blue-500/20 text-blue-400', label: 'Setup Complete' },
+      'signup_in_progress': { color: 'bg-yellow-500/20 text-yellow-400', label: 'Signing Up' },
+      'invite_sent': { color: 'bg-purple-500/20 text-purple-400', label: 'Invited' },
+      'not_invited': { color: 'bg-gray-500/20 text-gray-400', label: 'Not Invited' },
     }
     
     const config = statusMap[status || ''] || { color: 'bg-gray-500/20 text-gray-400', label: status || 'Unknown' }
@@ -98,6 +126,17 @@ export default function AdminPayments() {
     if (!dateStr) return '-'
     return new Date(dateStr).toLocaleDateString()
   }
+
+  // Filter payees by type
+  const filteredPayees = filterType === 'all' 
+    ? payees 
+    : payees.filter(p => {
+        if (filterType === 'location') return p.partnerType === 'Location Partner' || p.payeeId.startsWith('LP-')
+        if (filterType === 'referral') return p.partnerType === 'Referral Partner' || p.payeeId.startsWith('RP-')
+        if (filterType === 'channel') return p.partnerType === 'Channel Partner' || p.payeeId.startsWith('CP-')
+        if (filterType === 'relationship') return p.partnerType === 'Relationship Partner' || p.payeeId.startsWith('REL-')
+        return true
+      })
 
   if (loading) {
     return (
@@ -186,6 +225,68 @@ export default function AdminPayments() {
         </div>
       )}
 
+      {/* Filters */}
+      <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-[#64748B]" />
+            <span className="text-[#94A3B8] text-sm">Filters:</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-[#64748B] text-sm">Type:</label>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+            >
+              <option value="all">All Types</option>
+              <option value="location">Location Partners</option>
+              <option value="referral">Referral Partners</option>
+              <option value="channel">Channel Partners</option>
+              <option value="relationship">Relationship Partners</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-[#64748B]" />
+            <label className="text-[#64748B] text-sm">From:</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-[#64748B] text-sm">To:</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm focus:outline-none focus:border-[#0EA5E9]"
+            />
+          </div>
+
+          <button
+            onClick={applyDateFilter}
+            className="px-3 py-1.5 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 text-sm"
+          >
+            Apply
+          </button>
+
+          {(startDate || endDate || filterType !== 'all') && (
+            <button
+              onClick={clearFilters}
+              className="px-3 py-1.5 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] text-sm"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-2 border-b border-[#2D3B5F]">
         {[
@@ -210,17 +311,18 @@ export default function AdminPayments() {
       {/* Payment History Tab */}
       {activeTab === 'paymentHistory' && (
         <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-          {payees.length === 0 ? (
+          {filteredPayees.length === 0 ? (
             <div className="p-8 text-center">
               <DollarSign className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
               <h3 className="text-white font-medium mb-2">No Payees Found</h3>
-              <p className="text-[#94A3B8] text-sm">No Tipalti payees have been set up yet.</p>
+              <p className="text-[#94A3B8] text-sm">No Tipalti payees match your filters.</p>
             </div>
           ) : (
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#2D3B5F]">
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payee</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Tipalti ID</th>
                   <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Total Paid</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Last Payment</th>
@@ -229,7 +331,7 @@ export default function AdminPayments() {
                 </tr>
               </thead>
               <tbody>
-                {payees.map(payee => (
+                {filteredPayees.map(payee => (
                   <tr key={payee.payeeId} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
                     <td className="px-6 py-4">
                       <div>
@@ -239,12 +341,18 @@ export default function AdminPayments() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
+                      <span className="text-[#94A3B8] text-sm">{payee.partnerType || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4">
                       <code className="text-[#0EA5E9] text-sm bg-[#0EA5E9]/10 px-2 py-1 rounded">
                         {payee.payeeId}
                       </code>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="text-green-400 font-medium">{formatCurrency(payee.totalPaid)}</span>
+                      {payee.payments.length > 0 && (
+                        <p className="text-[#64748B] text-xs">{payee.payments.length} payments</p>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div>
@@ -277,17 +385,18 @@ export default function AdminPayments() {
       {/* Invoice History Tab */}
       {activeTab === 'invoiceHistory' && (
         <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-          {payees.length === 0 ? (
+          {filteredPayees.length === 0 ? (
             <div className="p-8 text-center">
               <FileText className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
               <h3 className="text-white font-medium mb-2">No Invoices Found</h3>
-              <p className="text-[#94A3B8] text-sm">No invoices have been created yet.</p>
+              <p className="text-[#94A3B8] text-sm">No invoices match your filters.</p>
             </div>
           ) : (
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#2D3B5F]">
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payee</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Tipalti ID</th>
                   <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Pending</th>
                   <th className="text-center px-6 py-4 text-sm font-medium text-[#94A3B8]">Invoices</th>
@@ -296,13 +405,16 @@ export default function AdminPayments() {
                 </tr>
               </thead>
               <tbody>
-                {payees.map(payee => (
+                {filteredPayees.map(payee => (
                   <tr key={payee.payeeId} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
                     <td className="px-6 py-4">
                       <div>
                         <p className="text-white font-medium">{payee.name}</p>
                         <p className="text-[#94A3B8] text-sm">{payee.email}</p>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[#94A3B8] text-sm">{payee.partnerType || '-'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <code className="text-[#0EA5E9] text-sm bg-[#0EA5E9]/10 px-2 py-1 rounded">
@@ -340,32 +452,36 @@ export default function AdminPayments() {
       {/* Payment Details Tab */}
       {activeTab === 'paymentDetails' && (
         <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-          {payees.length === 0 ? (
+          {filteredPayees.length === 0 ? (
             <div className="p-8 text-center">
               <Settings className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
               <h3 className="text-white font-medium mb-2">No Payees Found</h3>
-              <p className="text-[#94A3B8] text-sm">No Tipalti payees have been set up yet.</p>
+              <p className="text-[#94A3B8] text-sm">No Tipalti payees match your filters.</p>
             </div>
           ) : (
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#2D3B5F]">
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payee</th>
+                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Tipalti ID</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payment Method</th>
                   <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Status</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Payable</th>
+                  <th className="text-center px-6 py-4 text-sm font-medium text-[#94A3B8]">Payable</th>
                   <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {payees.map(payee => (
+                {filteredPayees.map(payee => (
                   <tr key={payee.payeeId} className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
                     <td className="px-6 py-4">
                       <div>
                         <p className="text-white font-medium">{payee.name}</p>
                         <p className="text-[#94A3B8] text-sm">{payee.email}</p>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[#94A3B8] text-sm">{payee.partnerType || '-'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <code className="text-[#0EA5E9] text-sm bg-[#0EA5E9]/10 px-2 py-1 rounded">
@@ -378,11 +494,11 @@ export default function AdminPayments() {
                     <td className="px-6 py-4">
                       <span className="text-[#94A3B8]">{payee.payeeStatus || 'Unknown'}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-center">
                       {payee.isPayable ? (
-                        <CheckCircle className="w-5 h-5 text-green-400" />
+                        <CheckCircle className="w-5 h-5 text-green-400 mx-auto" />
                       ) : (
-                        <AlertCircle className="w-5 h-5 text-yellow-400" />
+                        <AlertCircle className="w-5 h-5 text-yellow-400 mx-auto" />
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -405,8 +521,8 @@ export default function AdminPayments() {
       {/* Info Note */}
       <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
         <p className="text-[#94A3B8] text-sm">
-          <strong className="text-white">Note:</strong> Payment processing is handled securely by Tipalti.
-          Click "View" to see detailed payment history, invoices, or manage payment settings for each payee.
+          <strong className="text-white">Note:</strong> Payment data is pulled directly from Tipalti. 
+          If totals show $0, payments may not have been processed yet. Click "View" to see the Tipalti portal for detailed information.
         </p>
       </div>
 
