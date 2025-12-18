@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { 
   RefreshCw, ExternalLink, Building, Users, Handshake, Network,
   CheckCircle, Clock, AlertCircle, DollarSign, Eye, X,
-  CreditCard, FileText, Settings, Calendar, Filter
+  CreditCard, FileText, Settings, Calendar, Filter, Info
 } from 'lucide-react'
 import TipaltiIFrame from '@/components/TipaltiIFrame'
 
@@ -40,6 +40,7 @@ export default function AdminPayments() {
   const [selectedPayee, setSelectedPayee] = useState<PayeeData | null>(null)
   const [activeTab, setActiveTab] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
   const [showIframe, setShowIframe] = useState(false)
+  const [iframeViewType, setIframeViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentDetails')
   
   // Date filters
   const [startDate, setStartDate] = useState<string>('')
@@ -64,7 +65,6 @@ export default function AdminPayments() {
       const data = await res.json()
       
       if (data.success) {
-        // Ensure payees is always an array
         setPayees(Array.isArray(data.payees) ? data.payees : [])
         setSummary(data.summary || {
           totalPayees: 0,
@@ -75,12 +75,22 @@ export default function AdminPayments() {
       } else {
         setError(data.error || 'Failed to load payees')
         setPayees([])
-        setSummary(null)
+        setSummary({
+          totalPayees: 0,
+          totalPaid: 0,
+          totalPending: 0,
+          payableCount: 0
+        })
       }
     } catch (err) {
       setError('Failed to load payment data')
       setPayees([])
-      setSummary(null)
+      setSummary({
+        totalPayees: 0,
+        totalPaid: 0,
+        totalPending: 0,
+        payableCount: 0
+      })
       console.error(err)
     } finally {
       setLoading(false)
@@ -135,8 +145,9 @@ export default function AdminPayments() {
     }
   }
 
-  const openPayeeView = (payee: PayeeData) => {
+  const openPayeeView = (payee: PayeeData, viewType: 'paymentHistory' | 'invoiceHistory' | 'paymentDetails' = 'paymentDetails') => {
     setSelectedPayee(payee)
+    setIframeViewType(viewType)
     setShowIframe(true)
   }
 
@@ -173,25 +184,11 @@ export default function AdminPayments() {
     return true
   })
 
-  // Get payments for the Payment History tab
-  const allPayments = (payees || []).flatMap(payee => 
-    (payee.payments || []).map(payment => ({
-      ...payment,
-      payeeName: payee.name,
-      payeeId: payee.payeeId,
-      partnerType: payee.partnerType
-    }))
-  ).sort((a, b) => {
-    const dateA = new Date(a.paidAt || a.submittedAt || 0).getTime()
-    const dateB = new Date(b.paidAt || b.submittedAt || 0).getTime()
-    return dateB - dateA
-  })
-
   if (loading) {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-xl font-semibold text-white">Payments & Commissions</h2>
+          <h2 className="text-xl font-semibold text-white">Payments & Invoices</h2>
           <p className="text-[#94A3B8] text-sm">Manage partner payments through Tipalti</p>
         </div>
         <div className="flex items-center justify-center py-12">
@@ -287,7 +284,7 @@ export default function AdminPayments() {
         ))}
       </div>
 
-      {/* Payment History Tab */}
+      {/* Payment History Tab - Shows partner list */}
       {activeTab === 'paymentHistory' && (
         <div className="space-y-4">
           {/* Filter */}
@@ -323,7 +320,7 @@ export default function AdminPayments() {
                 {filteredPayees.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-[#94A3B8]">
-                      {error ? 'Error loading data' : 'No payees found'}
+                      {loading ? 'Loading...' : 'No payees found'}
                     </td>
                   </tr>
                 ) : (
@@ -376,28 +373,85 @@ export default function AdminPayments() {
         </div>
       )}
 
-      {/* Invoice History Tab */}
+      {/* Invoice History Tab - Select a partner to view */}
       {activeTab === 'invoiceHistory' && (
         <div className="space-y-4">
           <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <TipaltiIFrame 
-              payeeId="admin_at_skyyield.io"
-              viewType="invoiceHistory"
-              environment="sandbox"
-            />
+            <div className="flex items-center gap-3 mb-4">
+              <FileText className="w-5 h-5 text-[#0EA5E9]" />
+              <h3 className="text-white font-medium">Invoice History</h3>
+            </div>
+            
+            {payees.length === 0 ? (
+              <div className="text-center py-8 text-[#94A3B8]">
+                <Info className="w-8 h-8 mx-auto mb-3 opacity-50" />
+                <p>No partners found. Add partners to view their invoices.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-[#94A3B8] text-sm mb-4">Select a partner to view their invoice history:</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {payees.map((payee) => (
+                    <button
+                      key={payee.payeeId}
+                      onClick={() => openPayeeView(payee, 'invoiceHistory')}
+                      className="flex items-center gap-3 p-4 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg hover:border-[#0EA5E9] transition-colors text-left"
+                    >
+                      {getPartnerIcon(payee.partnerType)}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-medium truncate">{payee.name || payee.payeeId}</div>
+                        <div className="text-[#64748B] text-xs">{payee.partnerType}</div>
+                      </div>
+                      <Eye className="w-4 h-4 text-[#0EA5E9]" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Payment Details Tab */}
+      {/* Payment Details Tab - Select a partner to view */}
       {activeTab === 'paymentDetails' && (
         <div className="space-y-4">
           <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <TipaltiIFrame 
-              payeeId="admin_at_skyyield.io"
-              viewType="paymentDetails"
-              environment="sandbox"
-            />
+            <div className="flex items-center gap-3 mb-4">
+              <Settings className="w-5 h-5 text-[#0EA5E9]" />
+              <h3 className="text-white font-medium">Payment Details</h3>
+            </div>
+            
+            {payees.length === 0 ? (
+              <div className="text-center py-8 text-[#94A3B8]">
+                <Info className="w-8 h-8 mx-auto mb-3 opacity-50" />
+                <p>No partners found. Add partners to view their payment details.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-[#94A3B8] text-sm mb-4">Select a partner to view/edit their payment details:</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {payees.map((payee) => (
+                    <button
+                      key={payee.payeeId}
+                      onClick={() => openPayeeView(payee, 'paymentDetails')}
+                      className="flex items-center gap-3 p-4 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg hover:border-[#0EA5E9] transition-colors text-left"
+                    >
+                      {getPartnerIcon(payee.partnerType)}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-medium truncate">{payee.name || payee.payeeId}</div>
+                        <div className="text-[#64748B] text-xs flex items-center gap-2">
+                          {payee.partnerType}
+                          {payee.isPayable && (
+                            <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded text-[10px]">Payable</span>
+                          )}
+                        </div>
+                      </div>
+                      <Settings className="w-4 h-4 text-[#94A3B8]" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -428,34 +482,58 @@ export default function AdminPayments() {
               </button>
             </div>
 
+            {/* Modal Tabs */}
+            <div className="flex gap-1 px-6 py-2 border-b border-[#2D3B5F] bg-[#0A0F2C]">
+              {[
+                { id: 'paymentHistory', label: 'Payment History', icon: DollarSign },
+                { id: 'invoiceHistory', label: 'Invoices', icon: FileText },
+                { id: 'paymentDetails', label: 'Payment Details', icon: Settings },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setIframeViewType(tab.id as any)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm ${
+                    iframeViewType === tab.id
+                      ? 'bg-[#0EA5E9] text-white'
+                      : 'text-[#94A3B8] hover:text-white hover:bg-[#2D3B5F]'
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             {/* Modal Content - Tipalti iFrame */}
             <div className="p-6 h-[60vh] overflow-auto">
               <TipaltiIFrame
                 payeeId={selectedPayee.payeeId}
-                viewType="paymentDetails"
+                viewType={iframeViewType}
                 environment="sandbox"
               />
             </div>
 
             {/* Modal Footer */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-[#2D3B5F]">
-              <div className="text-[#94A3B8] text-sm">
-                Status: {getStatusBadge(selectedPayee.payeeStatus, selectedPayee.isPayable)}
-                <span className="ml-4">Total Paid: <span className="text-[#10F981] font-medium">{formatCurrency(selectedPayee.totalPaid)}</span></span>
+              <div className="flex items-center gap-4 text-sm">
+                {getStatusBadge(selectedPayee.payeeStatus, selectedPayee.isPayable)}
+                <span className="text-[#94A3B8]">
+                  Total Paid: <span className="text-[#10F981] font-medium">{formatCurrency(selectedPayee.totalPaid)}</span>
+                </span>
               </div>
               <div className="flex gap-2">
                 <a
                   href={`https://hub.sandbox.tipalti.com/payees/${selectedPayee.payeeId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F]/80 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#2D3B5F]/80 transition-colors text-sm"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Manage in Tipalti
+                  Open in Tipalti
                 </a>
                 <button
                   onClick={() => setShowIframe(false)}
-                  className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+                  className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors text-sm"
                 >
                   Close
                 </button>
