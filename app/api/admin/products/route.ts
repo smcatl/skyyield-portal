@@ -1,17 +1,21 @@
 // app/api/admin/products/route.ts
-// Fetches products from Supabase instead of Stripe
+// Syncs products between Supabase (catalog) and Stripe (payments)
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from '@supabase/supabase-js'
+import Stripe from "stripe"
 
+// Initialize clients
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2025-11-17.clover",
+})
+
 // GET - Fetch all products from Supabase
 export async function GET() {
   try {
-    console.log('Fetching products from Supabase...')
-    
     const { data, error } = await supabase
       .from('store_products')
       .select('*')
@@ -23,12 +27,11 @@ export async function GET() {
       return NextResponse.json({ error: error.message, products: [] }, { status: 500 })
     }
 
-    console.log(`Found ${data?.length || 0} products in Supabase`)
-
-    // Map Supabase fields to the format the portal expects
+    // Map Supabase fields to portal format
     const products = (data || []).map(p => ({
       id: p.id,
-      priceId: p.product_id || p.id, // Use product_id as priceId for compatibility
+      priceId: p.stripe_price_id || p.product_id || p.id,
+      stripeProductId: p.stripe_product_id || null,
       name: p.name,
       description: p.description || '',
       sku: p.sku || '',
@@ -55,26 +58,68 @@ export async function GET() {
   }
 }
 
-// POST - Create a new product in Supabase
+// POST - Create product in both Supabase and Stripe
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     
-    // Generate product_id
-    const { count } = await supabase
-      .from('store_products')
-      .select('*', { count: 'exact', head: true })
-    const productId = `PROD-${String((count || 0) + 1).padStart(4, '0')}`
-    
-    // Calculate store_price
+    // Calculate prices
     const msrp = body.msrp || 0
     const markup = body.markup || 0.2
     const storePrice = body.storePrice || Math.round(msrp * (1 + markup) * 100) / 100
 
+    // 1. Create in Stripe first to get IDs
+    let stripeProduct: Stripe.Product | null = null
+    let stripePrice: Stripe.Price | null = null
+
+    try {
+      // Create Stripe product
+      stripeProduct = await stripe.products.create({
+        name: body.name,
+        description: body.description || undefined,
+        images: (body.images || []).filter(Boolean).slice(0, 8),
+        metadata: {
+          sku: body.sku || '',
+          category: body.category || '',
+          manufacturer: body.manufacturer || 'Ubiquiti',
+          msrp: String(msrp),
+          markup: String(markup),
+          features: body.features || '',
+          type_layer: body.typeLayer || '',
+          availability: body.availability || 'In Stock',
+          product_url: body.productUrl || '',
+          show_in_store: body.showInStore !== false ? 'true' : 'false',
+        },
+      })
+
+      // Create Stripe price
+      stripePrice = await stripe.prices.create({
+        product: stripeProduct.id,
+        unit_amount: Math.round(storePrice * 100), // Convert to cents
+        currency: 'usd',
+      })
+
+      // Set as default price
+      await stripe.products.update(stripeProduct.id, {
+        default_price: stripePrice.id,
+      })
+    } catch (stripeError) {
+      console.error('Stripe error (continuing with Supabase only):', stripeError)
+    }
+
+    // 2. Generate product_id for Supabase
+    const { count } = await supabase
+      .from('store_products')
+      .select('*', { count: 'exact', head: true })
+    const productId = `PROD-${String((count || 0) + 1).padStart(4, '0')}`
+
+    // 3. Create in Supabase with Stripe IDs
     const { data, error } = await supabase
       .from('store_products')
       .insert([{
         product_id: productId,
+        stripe_product_id: stripeProduct?.id || null,
+        stripe_price_id: stripePrice?.id || null,
         sku: body.sku,
         name: body.name,
         description: body.description,
@@ -99,6 +144,14 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Supabase insert error:', error)
+      // If Supabase fails but Stripe succeeded, we should clean up Stripe
+      if (stripeProduct) {
+        try {
+          await stripe.products.update(stripeProduct.id, { active: false })
+        } catch (e) {
+          console.error('Failed to deactivate Stripe product:', e)
+        }
+      }
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
@@ -106,7 +159,8 @@ export async function POST(request: NextRequest) {
       success: true, 
       product: {
         id: data.id,
-        priceId: data.product_id,
+        priceId: stripePrice?.id || data.product_id,
+        stripeProductId: stripeProduct?.id,
         name: data.name,
       }
     })
@@ -116,7 +170,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Update a product in Supabase
+// PUT - Update product in both Supabase and Stripe
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
@@ -126,32 +180,97 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 })
     }
 
-    // Recalculate store_price if msrp or markup changed
+    // Get existing product to find Stripe IDs
+    const { data: existing } = await supabase
+      .from('store_products')
+      .select('stripe_product_id, stripe_price_id, store_price')
+      .eq('id', id)
+      .single()
+
+    // Calculate prices
     const msrp = body.msrp || 0
     const markup = body.markup || 0.2
     const storePrice = body.storePrice || Math.round(msrp * (1 + markup) * 100) / 100
+    const priceChanged = existing?.store_price !== storePrice
+
+    // 1. Update Stripe if we have a Stripe product
+    if (existing?.stripe_product_id) {
+      try {
+        // Update product metadata
+        await stripe.products.update(existing.stripe_product_id, {
+          name: body.name,
+          description: body.description || undefined,
+          images: (body.images || []).filter(Boolean).slice(0, 8),
+          metadata: {
+            sku: body.sku || '',
+            category: body.category || '',
+            manufacturer: body.manufacturer || 'Ubiquiti',
+            msrp: String(msrp),
+            markup: String(markup),
+            features: body.features || '',
+            type_layer: body.typeLayer || '',
+            availability: body.availability || 'In Stock',
+            product_url: body.productUrl || '',
+            show_in_store: body.showInStore !== false ? 'true' : 'false',
+          },
+          active: body.showInStore !== false,
+        })
+
+        // If price changed, create new price (Stripe prices are immutable)
+        if (priceChanged) {
+          const newPrice = await stripe.prices.create({
+            product: existing.stripe_product_id,
+            unit_amount: Math.round(storePrice * 100),
+            currency: 'usd',
+          })
+
+          // Set as default price
+          await stripe.products.update(existing.stripe_product_id, {
+            default_price: newPrice.id,
+          })
+
+          // Deactivate old price
+          if (existing.stripe_price_id) {
+            await stripe.prices.update(existing.stripe_price_id, { active: false })
+          }
+
+          // Update Supabase with new price ID
+          body.stripe_price_id = newPrice.id
+        }
+      } catch (stripeError) {
+        console.error('Stripe update error (continuing with Supabase):', stripeError)
+      }
+    }
+
+    // 2. Update Supabase
+    const updateData: Record<string, any> = {
+      sku: body.sku,
+      name: body.name,
+      description: body.description,
+      manufacturer: body.manufacturer,
+      category: body.category,
+      features: body.features,
+      type_layer: body.typeLayer,
+      msrp: msrp,
+      markup: markup,
+      store_price: storePrice,
+      partner_price: body.partnerPrice || msrp,
+      availability: body.availability,
+      is_visible: body.showInStore !== false,
+      product_url: body.productUrl,
+      image_1_url: body.images?.[0] || '',
+      image_2_url: body.images?.[1] || '',
+      image_3_url: body.images?.[2] || '',
+    }
+
+    // Add stripe_price_id if it was updated
+    if (body.stripe_price_id) {
+      updateData.stripe_price_id = body.stripe_price_id
+    }
 
     const { data, error } = await supabase
       .from('store_products')
-      .update({
-        sku: body.sku,
-        name: body.name,
-        description: body.description,
-        manufacturer: body.manufacturer,
-        category: body.category,
-        features: body.features,
-        type_layer: body.typeLayer,
-        msrp: msrp,
-        markup: markup,
-        store_price: storePrice,
-        partner_price: body.partnerPrice || msrp,
-        availability: body.availability,
-        is_visible: body.showInStore !== false,
-        product_url: body.productUrl,
-        image_1_url: body.images?.[0] || '',
-        image_2_url: body.images?.[1] || '',
-        image_3_url: body.images?.[2] || '',
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()
@@ -168,7 +287,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - Delete a product from Supabase
+// DELETE - Deactivate product in both Supabase and Stripe
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -178,6 +297,23 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 })
     }
 
+    // Get Stripe ID before deleting
+    const { data: existing } = await supabase
+      .from('store_products')
+      .select('stripe_product_id')
+      .eq('id', id)
+      .single()
+
+    // 1. Deactivate in Stripe (don't delete, just archive)
+    if (existing?.stripe_product_id) {
+      try {
+        await stripe.products.update(existing.stripe_product_id, { active: false })
+      } catch (stripeError) {
+        console.error('Stripe deactivation error:', stripeError)
+      }
+    }
+
+    // 2. Delete from Supabase (or set is_active = false to soft delete)
     const { error } = await supabase
       .from('store_products')
       .delete()
