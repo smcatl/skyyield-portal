@@ -2,23 +2,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
+import { getPayeeDetails, getPaymentHistory, getPayeeInvoices } from '@/lib/tipalti'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-interface PartnerPayment {
-  id: string
+// Known Tipalti payee IDs - add new ones here as partners are added
+const KNOWN_TIPALTI_IDS = [
+  // Location Partners (Frank's venues)
+  'LP-PHENIX-EV',
+  'LP-PHENIX-SBV', 
+  'LP-PHENIX-WH',
+  'LP-PHENIX-CE',
+  'LP-PHENIX-TC',
+  // Referral Partners
+  'RP-STOSH001',
+  'RP-APRIL001',
+  // Legacy numeric IDs (if any still exist)
+  '1', '2', '3', '4', '5', '6', '7',
+  // Test/Vendor IDs to check
+  't3f6072d3t530bt', 't09993d6dta684t', 'tb3538ab6t2139t',
+  't94d1ed53tb2d1t', 't1a5e706bta715t', 'tf6080a90tc8cft'
+]
+
+interface PayeeData {
+  payeeId: string
   name: string
   email: string
-  type: 'location_partner' | 'referral_partner' | 'channel_partner' | 'relationship_partner'
-  tipalti_payee_id: string | null
-  tipalti_status: string | null
-  company_name: string | null
-  total_earned: number
-  last_payment_date: string | null
-  last_payment_amount: number | null
+  company: string | null
+  paymentMethod: string | null
+  payeeStatus: string | null
+  isPayable: boolean
+  totalPaid: number
+  pendingAmount: number
+  lastPaymentDate: string | null
+  lastPaymentAmount: number | null
+  payments: any[]
+  invoices: any[]
 }
 
 export async function GET(request: NextRequest) {
@@ -39,140 +61,85 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const partners: PartnerPayment[] = []
+    const { searchParams } = new URL(request.url)
+    const view = searchParams.get('view') || 'all' // all, payments, invoices
 
-    // Get Location Partners with Tipalti IDs
-    const { data: locationPartners } = await supabase
-      .from('location_partners')
-      .select(`
-        id,
-        company_legal_name,
-        dba_name,
-        contact_first_name,
-        contact_last_name,
-        contact_email,
-        tipalti_payee_id,
-        tipalti_status,
-        last_payment_date,
-        last_payment_amount
-      `)
-      .not('tipalti_payee_id', 'is', null)
-      .order('company_legal_name')
+    const payees: PayeeData[] = []
 
-    if (locationPartners) {
-      for (const lp of locationPartners) {
-        partners.push({
-          id: lp.id,
-          name: `${lp.contact_first_name || ''} ${lp.contact_last_name || ''}`.trim() || 'Unknown',
-          email: lp.contact_email || '',
-          type: 'location_partner',
-          tipalti_payee_id: lp.tipalti_payee_id,
-          tipalti_status: lp.tipalti_status,
-          company_name: lp.company_legal_name || lp.dba_name,
-          total_earned: 0, // Will be calculated from Tipalti or commission_payments table
-          last_payment_date: lp.last_payment_date,
-          last_payment_amount: lp.last_payment_amount
+    // Fetch data for all known Tipalti IDs
+    for (const payeeId of KNOWN_TIPALTI_IDS) {
+      try {
+        // Get payee details
+        const detailsResult = await getPayeeDetails(payeeId)
+        
+        if (!detailsResult.success || !detailsResult.data?.email) {
+          continue // Skip if payee doesn't exist
+        }
+
+        const details = detailsResult.data
+
+        // Get payment history
+        const paymentsResult = await getPaymentHistory(payeeId)
+        const payments = paymentsResult.success ? (paymentsResult.payments || []) : []
+
+        // Get invoices
+        const invoicesResult = await getPayeeInvoices(payeeId)
+        const invoices = invoicesResult.success ? (invoicesResult.invoices || []) : []
+
+        // Calculate totals
+        const paidPayments = payments.filter((p: any) => 
+          p.status?.toLowerCase() === 'paid' || p.status?.toLowerCase() === 'completed'
+        )
+        const totalPaid = paidPayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
+
+        const pendingInvoices = invoices.filter((i: any) => 
+          i.status?.toLowerCase() === 'pending' || i.status?.toLowerCase() === 'approved'
+        )
+        const pendingAmount = pendingInvoices.reduce((sum: number, i: any) => sum + (i.amount || 0), 0)
+
+        // Get last payment
+        const sortedPayments = [...paidPayments].sort((a: any, b: any) => 
+          new Date(b.paymentDate || 0).getTime() - new Date(a.paymentDate || 0).getTime()
+        )
+        const lastPayment = sortedPayments[0]
+
+        payees.push({
+          payeeId,
+          name: details.name || `${details.firstName || ''} ${details.lastName || ''}`.trim() || 'Unknown',
+          email: details.email || '',
+          company: details.company || null,
+          paymentMethod: details.paymentMethod || null,
+          payeeStatus: details.payeeStatus || null,
+          isPayable: details.isPayable || false,
+          totalPaid,
+          pendingAmount,
+          lastPaymentDate: lastPayment?.paymentDate || null,
+          lastPaymentAmount: lastPayment?.amount || null,
+          payments: view === 'all' || view === 'payments' ? payments : [],
+          invoices: view === 'all' || view === 'invoices' ? invoices : [],
         })
+
+      } catch (err) {
+        console.error(`Error fetching payee ${payeeId}:`, err)
+        // Continue to next payee
       }
     }
 
-    // Get Referral Partners with Tipalti IDs
-    const { data: referralPartners } = await supabase
-      .from('referral_partners')
-      .select(`
-        id,
-        company_name,
-        contact_name,
-        email,
-        tipalti_payee_id,
-        tipalti_status
-      `)
-      .not('tipalti_payee_id', 'is', null)
-      .order('contact_name')
+    // Sort by name
+    payees.sort((a, b) => a.name.localeCompare(b.name))
 
-    if (referralPartners) {
-      for (const rp of referralPartners) {
-        partners.push({
-          id: rp.id,
-          name: rp.contact_name || 'Unknown',
-          email: rp.email || '',
-          type: 'referral_partner',
-          tipalti_payee_id: rp.tipalti_payee_id,
-          tipalti_status: rp.tipalti_status,
-          company_name: rp.company_name,
-          total_earned: 0,
-          last_payment_date: null,
-          last_payment_amount: null
-        })
-      }
-    }
-
-    // Get Channel Partners with Tipalti IDs
-    const { data: channelPartners } = await supabase
-      .from('channel_partners')
-      .select(`
-        id,
-        company_name,
-        contact_name,
-        email,
-        tipalti_payee_id,
-        tipalti_status
-      `)
-      .not('tipalti_payee_id', 'is', null)
-      .order('contact_name')
-
-    if (channelPartners) {
-      for (const cp of channelPartners) {
-        partners.push({
-          id: cp.id,
-          name: cp.contact_name || 'Unknown',
-          email: cp.email || '',
-          type: 'channel_partner',
-          tipalti_payee_id: cp.tipalti_payee_id,
-          tipalti_status: cp.tipalti_status,
-          company_name: cp.company_name,
-          total_earned: 0,
-          last_payment_date: null,
-          last_payment_amount: null
-        })
-      }
-    }
-
-    // Get Relationship Partners with Tipalti IDs
-    const { data: relationshipPartners } = await supabase
-      .from('relationship_partners')
-      .select(`
-        id,
-        company_name,
-        contact_name,
-        email,
-        tipalti_payee_id,
-        tipalti_status
-      `)
-      .not('tipalti_payee_id', 'is', null)
-      .order('contact_name')
-
-    if (relationshipPartners) {
-      for (const relp of relationshipPartners) {
-        partners.push({
-          id: relp.id,
-          name: relp.contact_name || 'Unknown',
-          email: relp.email || '',
-          type: 'relationship_partner',
-          tipalti_payee_id: relp.tipalti_payee_id,
-          tipalti_status: relp.tipalti_status,
-          company_name: relp.company_name,
-          total_earned: 0,
-          last_payment_date: null,
-          last_payment_amount: null
-        })
-      }
+    // Calculate summary stats
+    const summary = {
+      totalPayees: payees.length,
+      totalPaid: payees.reduce((sum, p) => sum + p.totalPaid, 0),
+      totalPending: payees.reduce((sum, p) => sum + p.pendingAmount, 0),
+      payableCount: payees.filter(p => p.isPayable).length,
     }
 
     return NextResponse.json({
       success: true,
-      partners,
-      count: partners.length
+      payees,
+      summary,
     })
 
   } catch (error) {
