@@ -1,195 +1,196 @@
-// API Route: Products (Supabase)
 // app/api/admin/products/route.ts
+// Fetches products from Supabase instead of Stripe
+import { NextRequest, NextResponse } from "next/server"
+import { createClient } from '@supabase/supabase-js'
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseAdmin } from '@/lib/supabase/client'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-// GET: Fetch products
-export async function GET(request: NextRequest) {
+// GET - Fetch all products from Supabase
+export async function GET() {
   try {
-    const supabase = getSupabaseAdmin()
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-
-    // Single product fetch
-    if (id) {
-      const { data: product, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', id)
-        .single()
-
-      if (error || !product) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      }
-
-      return NextResponse.json({ product })
-    }
-
-    // List products
-    let query = supabase.from('products').select('*')
-
-    const category = searchParams.get('category')
-    if (category) {
-      query = query.eq('category', category)
-    }
-
-    const visible = searchParams.get('visible')
-    if (visible === 'true') {
-      query = query.eq('is_visible', true)
-    }
-
-    const featured = searchParams.get('featured')
-    if (featured === 'true') {
-      query = query.eq('is_featured', true)
-    }
-
-    const inStock = searchParams.get('inStock')
-    if (inStock === 'true') {
-      query = query.eq('in_stock', true)
-    }
-
-    const search = searchParams.get('search')?.toLowerCase()
-    if (search) {
-      query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%,manufacturer.ilike.%${search}%`)
-    }
-
-    const { data: products, error } = await query.order('sort_order', { ascending: true })
+    console.log('Fetching products from Supabase...')
+    
+    const { data, error } = await supabase
+      .from('store_products')
+      .select('*')
+      .order('category', { ascending: true })
+      .order('name', { ascending: true })
 
     if (error) {
       console.error('Supabase error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: error.message, products: [] }, { status: 500 })
     }
 
-    return NextResponse.json({ products: products || [] })
+    console.log(`Found ${data?.length || 0} products in Supabase`)
+
+    // Map Supabase fields to the format the portal expects
+    const products = (data || []).map(p => ({
+      id: p.id,
+      priceId: p.product_id || p.id, // Use product_id as priceId for compatibility
+      name: p.name,
+      description: p.description || '',
+      sku: p.sku || '',
+      category: p.category || 'Uncategorized',
+      manufacturer: p.manufacturer || '',
+      msrp: p.msrp || 0,
+      storePrice: p.store_price || 0,
+      partnerPrice: p.partner_price || p.msrp || 0,
+      markup: p.markup || 0.2,
+      features: p.features || '',
+      typeLayer: p.type_layer || '',
+      availability: p.availability || 'In Stock',
+      showInStore: p.is_visible !== false,
+      productUrl: p.product_url || '',
+      images: [p.image_1_url, p.image_2_url, p.image_3_url].filter(Boolean),
+      active: p.is_active !== false,
+      createdAt: p.created_at ? new Date(p.created_at).getTime() / 1000 : Date.now() / 1000,
+    }))
+
+    return NextResponse.json({ products })
   } catch (error) {
-    console.error('GET /api/admin/products error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error fetching products:', error)
+    return NextResponse.json({ error: 'Failed to fetch products', products: [] }, { status: 500 })
   }
 }
 
-// POST: Create product
+// POST - Create a new product in Supabase
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
     const body = await request.json()
+    
+    // Generate product_id
+    const { count } = await supabase
+      .from('store_products')
+      .select('*', { count: 'exact', head: true })
+    const productId = `PROD-${String((count || 0) + 1).padStart(4, '0')}`
+    
+    // Calculate store_price
+    const msrp = body.msrp || 0
+    const markup = body.markup || 0.2
+    const storePrice = body.storePrice || Math.round(msrp * (1 + markup) * 100) / 100
 
-    const productData = {
-      sku: body.sku,
-      name: body.name,
-      manufacturer: body.manufacturer,
-      category: body.category,
-      subcategory: body.subcategory,
-      our_cost: body.ourCost || body.our_cost,
-      partner_price: body.partnerPrice || body.partner_price,
-      retail_price: body.retailPrice || body.retail_price,
-      msrp: body.msrp,
-      description: body.description,
-      specifications: body.specifications || {},
-      image_url: body.imageUrl || body.image_url,
-      product_url: body.productUrl || body.product_url,
-      in_stock: body.inStock ?? body.in_stock ?? true,
-      stock_quantity: body.stockQuantity || body.stock_quantity || 0,
-      lead_time_days: body.leadTimeDays || body.lead_time_days,
-      is_visible: body.isVisible ?? body.is_visible ?? true,
-      is_featured: body.isFeatured ?? body.is_featured ?? false,
-      sort_order: body.sortOrder || body.sort_order || 0,
-      tags: body.tags || [],
-      stripe_product_id: body.stripeProductId || body.stripe_product_id,
-      stripe_price_id: body.stripePriceId || body.stripe_price_id,
-    }
-
-    const { data: product, error } = await supabase
-      .from('products')
-      .insert(productData)
+    const { data, error } = await supabase
+      .from('store_products')
+      .insert([{
+        product_id: productId,
+        sku: body.sku,
+        name: body.name,
+        description: body.description,
+        manufacturer: body.manufacturer || 'Ubiquiti',
+        category: body.category,
+        features: body.features,
+        type_layer: body.typeLayer,
+        msrp: msrp,
+        markup: markup,
+        store_price: storePrice,
+        partner_price: msrp,
+        availability: body.availability || 'In Stock',
+        is_visible: body.showInStore !== false,
+        is_active: true,
+        product_url: body.productUrl,
+        image_1_url: body.images?.[0] || '',
+        image_2_url: body.images?.[1] || '',
+        image_3_url: body.images?.[2] || '',
+      }])
       .select()
       .single()
 
     if (error) {
-      console.error('Insert error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('Supabase insert error:', error)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json({ product }, { status: 201 })
+    return NextResponse.json({ 
+      success: true, 
+      product: {
+        id: data.id,
+        priceId: data.product_id,
+        name: data.name,
+      }
+    })
   } catch (error) {
-    console.error('POST /api/admin/products error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error creating product:', error)
+    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 })
   }
 }
 
-// PUT: Update product
+// PUT - Update a product in Supabase
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
     const body = await request.json()
-    const { id, ...updates } = body
+    const { id } = body
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      return NextResponse.json({ error: 'Product ID required' }, { status: 400 })
     }
 
-    // Map camelCase to snake_case
-    const updateData: Record<string, any> = {}
-    const fieldMap: Record<string, string> = {
-      ourCost: 'our_cost',
-      partnerPrice: 'partner_price',
-      retailPrice: 'retail_price',
-      imageUrl: 'image_url',
-      productUrl: 'product_url',
-      inStock: 'in_stock',
-      stockQuantity: 'stock_quantity',
-      leadTimeDays: 'lead_time_days',
-      isVisible: 'is_visible',
-      isFeatured: 'is_featured',
-      sortOrder: 'sort_order',
-      stripeProductId: 'stripe_product_id',
-      stripePriceId: 'stripe_price_id',
-    }
+    // Recalculate store_price if msrp or markup changed
+    const msrp = body.msrp || 0
+    const markup = body.markup || 0.2
+    const storePrice = body.storePrice || Math.round(msrp * (1 + markup) * 100) / 100
 
-    for (const [key, value] of Object.entries(updates)) {
-      const dbField = fieldMap[key] || key
-      updateData[dbField] = value
-    }
-
-    const { data: product, error } = await supabase
-      .from('products')
-      .update(updateData)
+    const { data, error } = await supabase
+      .from('store_products')
+      .update({
+        sku: body.sku,
+        name: body.name,
+        description: body.description,
+        manufacturer: body.manufacturer,
+        category: body.category,
+        features: body.features,
+        type_layer: body.typeLayer,
+        msrp: msrp,
+        markup: markup,
+        store_price: storePrice,
+        partner_price: body.partnerPrice || msrp,
+        availability: body.availability,
+        is_visible: body.showInStore !== false,
+        product_url: body.productUrl,
+        image_1_url: body.images?.[0] || '',
+        image_2_url: body.images?.[1] || '',
+        image_3_url: body.images?.[2] || '',
+      })
       .eq('id', id)
       .select()
       .single()
 
     if (error) {
-      console.error('Update error:', error)
+      console.error('Supabase update error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ product })
+    return NextResponse.json({ success: true, product: data })
   } catch (error) {
-    console.error('PUT /api/admin/products error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error updating product:', error)
+    return NextResponse.json({ error: 'Failed to update product' }, { status: 500 })
   }
 }
 
-// DELETE: Remove product
+// DELETE - Delete a product from Supabase
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      return NextResponse.json({ error: 'Product ID required' }, { status: 400 })
     }
 
-    const { error } = await supabase.from('products').delete().eq('id', id)
+    const { error } = await supabase
+      .from('store_products')
+      .delete()
+      .eq('id', id)
 
     if (error) {
+      console.error('Supabase delete error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('DELETE /api/admin/products error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error deleting product:', error)
+    return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 })
   }
 }
