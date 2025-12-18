@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { PreviewPortalDropdown } from '@/components/admin/PreviewPortalDropdown'
 import AdminPayments from '@/components/admin/AdminPayments'
 import { AddRoleModal } from '@/components/admin/AddRoleModal'
+import AdminBlog from '@/components/admin/AdminBlog'
 import {
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
   CheckCircle, Clock, Package, TrendingUp,
@@ -692,12 +693,6 @@ export default function AdminPortalPage() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set())
 
-  // Blog state
-  const [articles, setArticles] = useState<BlogArticle[]>([])
-  const [articlesLoading, setArticlesLoading] = useState(false)
-  const [articleSearch, setArticleSearch] = useState('')
-  const [articleStatusFilter, setArticleStatusFilter] = useState('all')
-
   // Calculator state
   const [calcSquareFootage, setCalcSquareFootage] = useState(2500)
   const [calcFootTraffic, setCalcFootTraffic] = useState(500)
@@ -918,56 +913,6 @@ export default function AdminPortalPage() {
       setProducts([])
     } finally {
       setProductsLoading(false)
-    }
-  }
-
-  // Fetch blog articles
-  const fetchArticles = async () => {
-    setArticlesLoading(true)
-    try {
-      const res = await fetch('/api/blog/articles')
-      if (res.ok) {
-        const data = await res.json()
-        setArticles(data.articles || [])
-      } else {
-        console.error('Articles API returned:', res.status)
-        setArticles([])
-      }
-    } catch (err) {
-      console.error('Error fetching articles:', err)
-      setArticles([])
-    } finally {
-      setArticlesLoading(false)
-    }
-  }
-
-  // Update article status
-  const updateArticleStatus = async (articleId: string, status: string) => {
-    try {
-      await fetch(`/api/blog/articles/${articleId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      })
-      // Update local state
-      setArticles(prev => prev.map(a =>
-        a.id === articleId ? { ...a, status: status as BlogArticle['status'] } : a
-      ))
-    } catch (err) {
-      console.error('Error updating article:', err)
-    }
-  }
-
-  // Delete article
-  const deleteArticle = async (articleId: string) => {
-    if (!confirm('Are you sure you want to delete this article?')) return
-    try {
-      await fetch(`/api/blog/articles/${articleId}`, {
-        method: 'DELETE',
-      })
-      setArticles(prev => prev.filter(a => a.id !== articleId))
-    } catch (err) {
-      console.error('Error deleting article:', err)
     }
   }
 
@@ -1345,7 +1290,6 @@ export default function AdminPortalPage() {
   useEffect(() => {
     if (activeTab === 'users') fetchUsers()
     if (activeTab === 'products' || activeTab === 'approved-products') fetchProducts()
-    if (activeTab === 'blog') fetchArticles()
     if (activeTab === 'forms') {
       fetchForms()
       fetchSubmissions()
@@ -2139,209 +2083,7 @@ export default function AdminPortalPage() {
         )}
 
         {/* Blog Tab */}
-        {activeTab === 'blog' && (
-          <div className="space-y-6">
-            {/* Header */}
-            <div>
-              <h2 className="text-xl font-semibold text-white">Blog Management</h2>
-              <p className="text-[#94A3B8] text-sm">Review, approve, and manage blog articles</p>
-            </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-[#0EA5E9]">
-                  {articles.filter(a => a.status === 'pending').length}
-                </div>
-                <div className="text-[#94A3B8] text-sm">Pending Review</div>
-              </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-green-400">
-                  {articles.filter(a => a.status === 'published').length}
-                </div>
-                <div className="text-[#94A3B8] text-sm">Published</div>
-              </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-[#94A3B8]">
-                  {articles.filter(a => a.status === 'draft').length}
-                </div>
-                <div className="text-[#94A3B8] text-sm">Drafts</div>
-              </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                <div className="text-2xl font-bold text-red-400">
-                  {articles.filter(a => a.status === 'rejected').length}
-                </div>
-                <div className="text-[#94A3B8] text-sm">Rejected</div>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
-                  <input
-                    type="text"
-                    placeholder="Search articles..."
-                    value={articleSearch}
-                    onChange={(e) => setArticleSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
-                  />
-                </div>
-                <select
-                  value={articleStatusFilter}
-                  onChange={(e) => setArticleStatusFilter(e.target.value)}
-                  className="px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                >
-                  <option value="all">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="published">Published</option>
-                  <option value="draft">Draft</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-                <button
-                  onClick={fetchArticles}
-                  disabled={articlesLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${articlesLoading ? 'animate-spin' : ''}`} />
-                  Show All ({articles.filter(a => {
-                    const matchesSearch = a.title.toLowerCase().includes(articleSearch.toLowerCase())
-                    const matchesStatus = articleStatusFilter === 'all' || a.status === articleStatusFilter
-                    return matchesSearch && matchesStatus
-                  }).length})
-                </button>
-              </div>
-            </div>
-
-            {/* Articles Table */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[#2D3B5F]">
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Article</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Category</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Source</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Status</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Created</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8] uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {articlesLoading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">
-                        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                        Loading articles...
-                      </td>
-                    </tr>
-                  ) : articles.filter(a => {
-                    const matchesSearch = a.title.toLowerCase().includes(articleSearch.toLowerCase())
-                    const matchesStatus = articleStatusFilter === 'all' || a.status === articleStatusFilter
-                    return matchesSearch && matchesStatus
-                  }).length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">
-                        <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>No articles found</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    articles.filter(a => {
-                      const matchesSearch = a.title.toLowerCase().includes(articleSearch.toLowerCase())
-                      const matchesStatus = articleStatusFilter === 'all' || a.status === articleStatusFilter
-                      return matchesSearch && matchesStatus
-                    }).map(article => (
-                      <tr key={article.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-[#2D3B5F] rounded-lg flex items-center justify-center overflow-hidden">
-                              {article.image ? (
-                                <img src={article.image} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <FileText className="w-6 h-6 text-[#64748B]" />
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-white font-medium">{article.title}</div>
-                              {article.excerpt && (
-                                <div className="text-[#64748B] text-sm truncate max-w-xs">{article.excerpt}</div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {article.category && (
-                            <span className="px-2 py-1 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded text-xs">
-                              {article.category}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-[#94A3B8]">{article.source || 'Original'}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${article.status === 'published' ? 'bg-green-500/20 text-green-400' :
-                            article.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                              article.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                                'bg-[#2D3B5F] text-[#94A3B8]'
-                            }`}>
-                            {article.status.charAt(0).toUpperCase() + article.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-[#94A3B8] text-sm">
-                          {new Date(article.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link
-                              href={`/blog/${article.id}`}
-                              className="px-3 py-1.5 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
-                            >
-                              Preview
-                            </Link>
-                            <Link
-                              href={`/admin/blog/edit/${article.id}`}
-                              className="px-3 py-1.5 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
-                            >
-                              Edit
-                            </Link>
-                            {article.status !== 'published' && (
-                              <button
-                                onClick={() => updateArticleStatus(article.id, 'published')}
-                                className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
-                              >
-                                Approve
-                              </button>
-                            )}
-                            {article.status !== 'rejected' && article.status !== 'published' && (
-                              <button
-                                onClick={() => updateArticleStatus(article.id, 'rejected')}
-                                className="px-3 py-1.5 border border-red-500 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm"
-                              >
-                                Reject
-                              </button>
-                            )}
-                            <button
-                              onClick={() => deleteArticle(article.id)}
-                              className="px-3 py-1.5 border border-red-500 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         {/* Forms Tab */}
         {activeTab === 'forms' && (
