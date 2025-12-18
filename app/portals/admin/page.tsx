@@ -7,6 +7,7 @@ import CRMTab from '@/components/admin/crm/CRMTab'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PreviewPortalDropdown } from '@/components/admin/PreviewPortalDropdown'
+import AdminPayments from '@/components/admin/AdminPayments'
 import { AddRoleModal } from '@/components/admin/AddRoleModal'
 import {
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
@@ -3984,92 +3985,7 @@ export default function AdminPortalPage() {
 
         {/* Payments Tab */}
         {activeTab === 'payments' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-white">Payments & Invoices</h2>
-              <p className="text-[#94A3B8] text-sm">Manage partner payments through Tipalti</p>
-            </div>
-
-            {/* View Type Tabs */}
-            <div className="flex gap-2 border-b border-[#2D3B5F]">
-              {[
-                { id: 'paymentHistory', label: 'Payment History' },
-                { id: 'invoiceHistory', label: 'Invoice History' },
-                { id: 'paymentDetails', label: 'Payment Details' },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setPaymentsViewType(tab.id as any)}
-                  className={`px-4 py-2 border-b-2 transition-colors ${paymentsViewType === tab.id
-                    ? 'border-[#0EA5E9] text-white'
-                    : 'border-transparent text-[#94A3B8] hover:text-white'
-                    }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Payment Partners Table */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[#2D3B5F]">
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Partner</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Type</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Total Earned</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-[#94A3B8]">Status</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-[#94A3B8]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-white font-medium">John Smith</p>
-                        <p className="text-[#94A3B8] text-sm">john@coffeeshop.com</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-[#94A3B8]">Location Partner</td>
-                    <td className="px-6 py-4 text-white">$4,500.00</td>
-                    <td className="px-6 py-4"><span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Active</span></td>
-                    <td className="px-6 py-4 text-right"><button className="text-[#0EA5E9] hover:underline text-sm">View</button></td>
-                  </tr>
-                  <tr className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-white font-medium">Sarah Johnson</p>
-                        <p className="text-[#94A3B8] text-sm">sarah@fitnesscenter.com</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-[#94A3B8]">Location Partner</td>
-                    <td className="px-6 py-4 text-white">$8,200.00</td>
-                    <td className="px-6 py-4"><span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Active</span></td>
-                    <td className="px-6 py-4 text-right"><button className="text-[#0EA5E9] hover:underline text-sm">View</button></td>
-                  </tr>
-                  <tr className="border-b border-[#2D3B5F]/50 hover:bg-[#2D3B5F]/20">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-white font-medium">Mike Chen</p>
-                        <p className="text-[#94A3B8] text-sm">mike@techsolutions.com</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-[#94A3B8]">Channel Partner</td>
-                    <td className="px-6 py-4 text-white">$2,500.00</td>
-                    <td className="px-6 py-4"><span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">Pending</span></td>
-                    <td className="px-6 py-4 text-right"><button className="text-[#0EA5E9] hover:underline text-sm">View</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-              <p className="text-[#94A3B8] text-sm">
-                <strong className="text-white">Note:</strong> Payment processing is handled securely by Tipalti.
-                Partners can update payment details, view past payments, and download invoices.
-              </p>
-            </div>
-          </div>
+          <AdminPayments />
         )}
 
         {/* Settings Tab */}
