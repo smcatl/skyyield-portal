@@ -143,14 +143,15 @@ export async function POST(request: NextRequest) {
 
     // 2. Increment form submission count
     if (formRecord) {
-      await supabase.rpc('increment_submission_count', { form_slug: formRecord.slug })
-        .catch(() => {
-          // If RPC doesn't exist, try direct update
-          supabase
-            .from('forms')
-            .update({ submission_count: (formRecord as any).submission_count + 1 })
-            .eq('slug', formRecord.slug)
-        })
+      try {
+        await supabase.rpc('increment_submission_count', { form_slug: formRecord.slug })
+      } catch {
+        // If RPC doesn't exist, try direct update
+        await supabase
+          .from('forms')
+          .update({ submission_count: ((formRecord as any).submission_count || 0) + 1 })
+          .eq('slug', formRecord.slug)
+      }
     }
 
     // 3. Create pipeline record based on form type
