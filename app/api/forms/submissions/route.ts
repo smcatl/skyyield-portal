@@ -16,12 +16,14 @@ function generateId(prefix: string): string {
   return `${prefix}-${result}`
 }
 
-// Map form slugs to partner types
+// Map form slugs/types to pipeline types
 const FORM_TO_PIPELINE_TYPE: Record<string, string> = {
   'location-partner-application': 'location_partner',
   'location-partner': 'location_partner',
+  'location_partner': 'location_partner',
   'referral-partner-sign-up': 'referral_partner',
   'referral-partner': 'referral_partner',
+  'referral_partner': 'referral_partner',
   'contractor-application': 'contractor',
   'contractor': 'contractor',
 }
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('form_submissions')
       .select('*')
-      .order('submitted_at', { ascending: false })
+      .order('created_at', { ascending: false })
 
     if (formId) {
       query = query.eq('form_id', formId)
@@ -72,13 +74,13 @@ export async function GET(request: NextRequest) {
     // Get stats
     const { data: allSubmissions } = await supabase
       .from('form_submissions')
-      .select('status')
+      .select('status, processed')
 
     const stats = {
       total: allSubmissions?.length || 0,
-      new: allSubmissions?.filter(s => s.status === 'new').length || 0,
+      new: allSubmissions?.filter(s => s.status === 'new' || (!s.status && !s.processed)).length || 0,
       reviewed: allSubmissions?.filter(s => s.status === 'reviewed').length || 0,
-      approved: allSubmissions?.filter(s => s.status === 'approved').length || 0,
+      approved: allSubmissions?.filter(s => s.status === 'approved' || s.processed === true).length || 0,
       rejected: allSubmissions?.filter(s => s.status === 'rejected').length || 0,
     }
 
@@ -93,22 +95,30 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { formId, formName, formSlug, data, submittedBy } = body
+    const { formId, formName, formSlug, formType, data, submittedBy } = body
 
     if (!formId || !data) {
       return NextResponse.json({ error: 'Form ID and data required' }, { status: 400 })
     }
 
+    // Determine pipeline type from slug, type, or name
+    const slug = formSlug || formType || formName?.toLowerCase().replace(/\s+/g, '-') || ''
+    const pipelineType = FORM_TO_PIPELINE_TYPE[slug] || FORM_TO_PIPELINE_TYPE[formType] || null
+
     // 1. Create submission in form_submissions table
     const submissionRecord = {
-      id: `sub_${Date.now()}`,
       form_id: formId,
       form_name: formName || 'Unknown Form',
-      form_slug: formSlug,
+      form_slug: formSlug || slug,
+      form_type: formType || pipelineType,
       data: data,
+      name: data.name || data.contact_name || `${data.first_name || ''} ${data.last_name || ''}`.trim() || null,
+      email: data.email || data.contact_email || null,
       submitted_at: new Date().toISOString(),
       submitted_by: submittedBy || null,
       status: 'new',
+      processed: false,
+      pipeline_type: pipelineType,
     }
 
     const { data: submission, error: subError } = await supabase
@@ -119,39 +129,34 @@ export async function POST(request: NextRequest) {
 
     if (subError) {
       console.error('Error creating submission:', subError)
-      // Continue anyway - we'll try to create the pipeline record
+      return NextResponse.json({ error: 'Failed to create submission' }, { status: 500 })
     }
 
-    // 2. Determine if this form should create a pipeline record
-    const slug = formSlug || formName?.toLowerCase().replace(/\s+/g, '-') || ''
-    const pipelineType = FORM_TO_PIPELINE_TYPE[slug]
-
+    // 2. Create pipeline record based on type
     let pipelineRecord = null
 
     if (pipelineType === 'location_partner') {
-      // Create Location Partner record
-      pipelineRecord = await createLocationPartner(data, submission?.id)
+      pipelineRecord = await createLocationPartner(data, submission.id)
     } else if (pipelineType === 'referral_partner') {
-      // Create Referral Partner record
-      pipelineRecord = await createReferralPartner(data, submission?.id)
+      pipelineRecord = await createReferralPartner(data, submission.id)
     } else if (pipelineType === 'contractor') {
-      // Create Contractor record
-      pipelineRecord = await createContractor(data, submission?.id)
+      pipelineRecord = await createContractor(data, submission.id)
     }
 
     // 3. Update submission with pipeline reference
-    if (pipelineRecord && submission) {
+    if (pipelineRecord) {
       await supabase
         .from('form_submissions')
         .update({ 
-          pipeline_type: pipelineType,
           pipeline_id: pipelineRecord.id,
+          created_entity_type: pipelineType,
+          created_entity_id: pipelineRecord.id,
         })
         .eq('id', submission.id)
     }
 
     return NextResponse.json({ 
-      submission: submission || submissionRecord,
+      submission,
       pipelineRecord,
       message: 'Submission received successfully'
     }, { status: 201 })
@@ -162,7 +167,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Create Location Partner from form data
-async function createLocationPartner(data: Record<string, any>, submissionId?: string) {
+async function createLocationPartner(data: Record<string, any>, submissionId: string) {
   try {
     // Generate partner ID: LP-YYYY-####
     const year = new Date().getFullYear()
@@ -174,38 +179,32 @@ async function createLocationPartner(data: Record<string, any>, submissionId?: s
 
     const record = {
       partner_id: partnerId,
-      // Contact info - try multiple field name patterns
-      contact_name: data.contact_name || data.contactName || data.name || `${data.first_name || data.firstName || ''} ${data.last_name || data.lastName || ''}`.trim(),
-      contact_first_name: data.first_name || data.firstName || data.contact_first_name,
-      contact_last_name: data.last_name || data.lastName || data.contact_last_name,
-      email: data.email || data.contact_email || data.contactEmail,
-      phone: data.phone || data.contact_phone || data.contactPhone,
-      contact_title: data.title || data.contact_title || data.contactTitle,
-      // Business info
-      company_name: data.business_name || data.company_name || data.companyName || data.businessName,
-      company_type: data.business_type || data.company_type || data.companyType || data.entity_type,
-      dba_name: data.dba_name || data.dbaName,
-      ein: data.ein,
-      // Address
-      address: data.address || data.street_address || data.addressLine1,
-      address_line_2: data.address_line_2 || data.addressLine2 || data.suite,
-      city: data.city,
-      state: data.state,
-      zip: data.zip || data.zipCode || data.postal_code,
-      // Venue info
-      venue_type: data.business_type || data.venue_type || data.venueType,
+      contact_name: data.contact_name || data.contactName || data.name || `${data.first_name || data.firstName || ''} ${data.last_name || data.lastName || ''}`.trim() || null,
+      contact_first_name: data.first_name || data.firstName || data.contact_first_name || null,
+      contact_last_name: data.last_name || data.lastName || data.contact_last_name || null,
+      email: data.email || data.contact_email || data.contactEmail || null,
+      phone: data.phone || data.contact_phone || data.contactPhone || null,
+      contact_title: data.title || data.contact_title || data.contactTitle || null,
+      company_name: data.business_name || data.company_name || data.companyName || data.businessName || null,
+      company_type: data.business_type || data.company_type || data.companyType || data.entity_type || null,
+      dba_name: data.dba_name || data.dbaName || null,
+      ein: data.ein || null,
+      address: data.address || data.street_address || data.addressLine1 || null,
+      address_line_2: data.address_line_2 || data.addressLine2 || data.suite || null,
+      city: data.city || null,
+      state: data.state || null,
+      zip: data.zip || data.zipCode || data.postal_code || null,
+      venue_type: data.business_type || data.venue_type || data.venueType || null,
       square_footage: parseInt(data.square_footage || data.squareFootage) || null,
       monthly_visitors: parseInt(data.daily_visitors || data.monthly_visitors || data.monthlyVisitors) || null,
       existing_wifi: data.existing_wifi === 'yes' || data.existingWifi === 'yes' || data.has_wifi === true,
-      existing_isp: data.existing_isp || data.existingIsp || data.isp,
-      // Pipeline status
+      existing_isp: data.existing_isp || data.existingIsp || data.isp || null,
       stage: 'application',
       status: 'pending',
-      // Source tracking
       referral_source: data.referral_source || 'website',
-      referred_by_code: data.referred_by_code || data.ref,
+      referred_by_code: data.referred_by_code || data.ref || null,
       form_submission_id: submissionId,
-      notes: data.notes || data.additional_notes || data.additionalNotes,
+      notes: data.notes || data.additional_notes || data.additionalNotes || null,
     }
 
     const { data: partner, error } = await supabase
@@ -233,43 +232,36 @@ async function createLocationPartner(data: Record<string, any>, submissionId?: s
 }
 
 // Create Referral Partner from form data
-async function createReferralPartner(data: Record<string, any>, submissionId?: string) {
+async function createReferralPartner(data: Record<string, any>, submissionId: string) {
   try {
     const partnerId = generateId('RP')
-
-    const fullName = data.name || data.contact_name || `${data.first_name || data.firstName || ''} ${data.last_name || data.lastName || ''}`.trim()
+    const fullName = data.name || data.contact_name || `${data.first_name || data.firstName || ''} ${data.last_name || data.lastName || ''}`.trim() || null
 
     const record = {
       partner_id: partnerId,
       partner_type: data.partner_type || 'referral',
       entity_type: data.entity_type || data.entityType || 'individual',
-      // Contact info
       contact_full_name: fullName,
-      contact_first_name: data.first_name || data.firstName,
-      contact_last_name: data.last_name || data.lastName,
-      contact_email: data.email || data.contact_email,
-      contact_phone: data.phone || data.contact_phone,
-      contact_title: data.title || data.contact_title,
-      // Company info (if business)
-      company_name: data.company || data.company_name || data.companyName,
-      company_type: data.company_type || data.companyType,
-      linkedin_profile: data.linkedin || data.linkedin_profile || data.linkedInProfile,
-      // Address
-      address_line_1: data.address || data.address_line_1 || data.addressLine1,
-      city: data.city,
-      state: data.state,
-      zip: data.zip || data.zipCode,
-      // Partnership details
-      network_description: data.network_description || data.networkDescription,
-      estimated_referrals: data.estimated_referrals || data.estimatedReferrals,
-      // Pipeline
+      contact_first_name: data.first_name || data.firstName || null,
+      contact_last_name: data.last_name || data.lastName || null,
+      contact_email: data.email || data.contact_email || null,
+      contact_phone: data.phone || data.contact_phone || null,
+      contact_title: data.title || data.contact_title || null,
+      company_name: data.company || data.company_name || data.companyName || null,
+      company_type: data.company_type || data.companyType || null,
+      linkedin_profile: data.linkedin || data.linkedin_profile || data.linkedInProfile || null,
+      address_line_1: data.address || data.address_line_1 || data.addressLine1 || null,
+      city: data.city || null,
+      state: data.state || null,
+      zip: data.zip || data.zipCode || null,
+      network_description: data.network_description || data.networkDescription || null,
+      estimated_referrals: data.estimated_referrals || data.estimatedReferrals || null,
       pipeline_stage: 'application',
       status: 'pending',
-      // Source tracking
       referral_source: data.referral_source || data.how_did_you_hear || 'website',
-      referred_by_code: data.referred_by_code || data.ref,
+      referred_by_code: data.referred_by_code || data.ref || null,
       form_submission_id: submissionId,
-      notes: data.notes || data.additional_notes,
+      notes: data.notes || data.additional_notes || null,
     }
 
     const { data: partner, error } = await supabase
@@ -283,7 +275,6 @@ async function createReferralPartner(data: Record<string, any>, submissionId?: s
       return null
     }
 
-    // Log activity
     await logActivity('referral_partner', partner.id, 'application_submitted', 'Pipeline', {
       source: 'form_submission',
       submission_id: submissionId,
@@ -297,50 +288,42 @@ async function createReferralPartner(data: Record<string, any>, submissionId?: s
 }
 
 // Create Contractor from form data
-async function createContractor(data: Record<string, any>, submissionId?: string) {
+async function createContractor(data: Record<string, any>, submissionId: string) {
   try {
     const contractorId = generateId('CON')
-
-    const fullName = data.name || data.contact_name || `${data.first_name || data.firstName || ''} ${data.last_name || data.lastName || ''}`.trim()
+    const fullName = data.name || data.contact_name || `${data.first_name || data.firstName || ''} ${data.last_name || data.lastName || ''}`.trim() || null
 
     const record = {
       contractor_id: contractorId,
       entity_type: data.entity_type || data.entityType || 'individual',
       legal_name: data.legal_name || data.legalName || data.company_name || fullName,
-      dba_name: data.dba_name || data.dbaName,
-      ein: data.ein,
-      // Contact info
+      dba_name: data.dba_name || data.dbaName || null,
+      ein: data.ein || null,
       contact_full_name: fullName,
-      contact_first_name: data.first_name || data.firstName || data.contact_first_name,
-      contact_last_name: data.last_name || data.lastName || data.contact_last_name,
-      contact_email: data.email || data.contact_email,
-      contact_phone: data.phone || data.contact_phone,
-      contact_title: data.title || data.contact_title,
-      // Address
-      address_line_1: data.address || data.address_line_1 || data.addressLine1,
-      city: data.city,
-      state: data.state,
-      zip: data.zip || data.zipCode,
-      // Service area
+      contact_first_name: data.first_name || data.firstName || data.contact_first_name || null,
+      contact_last_name: data.last_name || data.lastName || data.contact_last_name || null,
+      contact_email: data.email || data.contact_email || null,
+      contact_phone: data.phone || data.contact_phone || null,
+      contact_title: data.title || data.contact_title || null,
+      address_line_1: data.address || data.address_line_1 || data.addressLine1 || null,
+      city: data.city || null,
+      state: data.state || null,
+      zip: data.zip || data.zipCode || null,
       service_radius_miles: parseInt(data.service_radius || data.service_radius_miles || data.serviceRadiusMiles) || 50,
-      vehicle_type: data.vehicle_type || data.vehicleType,
-      // Qualifications
-      years_experience: data.years_experience || data.yearsExperience,
+      vehicle_type: data.vehicle_type || data.vehicleType || null,
+      years_experience: data.years_experience || data.yearsExperience || null,
       certifications: data.certifications || [],
       services_offered: data.services_offered || data.servicesOffered || [],
-      tools_owned: data.tools_owned || data.toolsOwned,
-      // Rates
+      tools_owned: data.tools_owned || data.toolsOwned || null,
       hourly_rate: parseFloat(data.hourly_rate || data.hourlyRate) || null,
       per_install_rate: parseFloat(data.per_install_rate || data.perInstallRate) || null,
-      availability: data.availability,
-      portfolio_url: data.portfolio_url || data.portfolioUrl,
-      // Pipeline
+      availability: data.availability || null,
+      portfolio_url: data.portfolio_url || data.portfolioUrl || null,
       pipeline_stage: 'application',
       status: 'pending',
-      // Source
       referral_source: data.referral_source || 'website',
       form_submission_id: submissionId,
-      notes: data.notes || data.additional_notes,
+      notes: data.notes || data.additional_notes || null,
     }
 
     const { data: contractor, error } = await supabase
@@ -354,7 +337,6 @@ async function createContractor(data: Record<string, any>, submissionId?: string
       return null
     }
 
-    // Log activity
     await logActivity('contractor', contractor.id, 'application_submitted', 'Pipeline', {
       source: 'form_submission',
       submission_id: submissionId,
@@ -399,8 +381,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Submission ID required' }, { status: 400 })
     }
 
-    const updates: Record<string, any> = {}
-    if (status) updates.status = status
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() }
+    if (status) {
+      updates.status = status
+      updates.processed = status === 'approved'
+      if (status === 'approved' || status === 'rejected') {
+        updates.processed_at = new Date().toISOString()
+        updates.processing_result = status
+      }
+    }
     if (notes !== undefined) updates.notes = notes
 
     const { data: submission, error } = await supabase
@@ -415,7 +404,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
     }
 
-    // If approved/rejected, also update the linked pipeline record
+    // Also update the linked pipeline record
     if (status && submission?.pipeline_type && submission?.pipeline_id) {
       const tableMap: Record<string, string> = {
         'location_partner': 'location_partners',
@@ -425,16 +414,20 @@ export async function PATCH(request: NextRequest) {
       const tableName = tableMap[submission.pipeline_type]
       
       if (tableName) {
-        const pipelineStatus = status === 'approved' ? 'approved' : 
-                              status === 'rejected' ? 'rejected' : undefined
+        const pipelineUpdates: Record<string, any> = {}
+        
+        if (status === 'approved') {
+          pipelineUpdates.status = 'approved'
+          pipelineUpdates.stage = 'initial_review'
+        } else if (status === 'rejected') {
+          pipelineUpdates.status = 'rejected'
+          pipelineUpdates.stage = 'inactive'
+        }
 
-        if (pipelineStatus) {
+        if (Object.keys(pipelineUpdates).length > 0) {
           await supabase
             .from(tableName)
-            .update({ 
-              status: pipelineStatus,
-              stage: pipelineStatus === 'approved' ? 'initial_review' : 'inactive'
-            })
+            .update(pipelineUpdates)
             .eq('id', submission.pipeline_id)
         }
       }
