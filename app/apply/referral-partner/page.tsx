@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Building2, User, MapPin, Wifi, CheckCircle, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react'
+import { Users, User, MapPin, Handshake, CheckCircle, ArrowRight, ArrowLeft, Loader2, Wifi } from 'lucide-react'
 
 const US_STATES = [
   'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
@@ -10,21 +10,6 @@ const US_STATES = [
   'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
   'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
-]
-
-const VENUE_TYPES = [
-  'Restaurant / Cafe',
-  'Bar / Nightclub',
-  'Retail Store',
-  'Hotel / Motel',
-  'Gym / Fitness Center',
-  'Medical Office',
-  'Auto Dealership',
-  'Salon / Spa',
-  'Office Building',
-  'Shopping Center',
-  'Event Venue',
-  'Other'
 ]
 
 const COMPANY_TYPES = [
@@ -35,7 +20,23 @@ const COMPANY_TYPES = [
   'Other'
 ]
 
-function LocationPartnerFormContent() {
+const REFERRAL_ESTIMATES = [
+  '1-2 per month',
+  '3-5 per month',
+  '6-10 per month',
+  '10+ per month'
+]
+
+const HOW_HEARD = [
+  'LinkedIn',
+  'Google Search',
+  'Referral from a friend',
+  'Industry Event',
+  'Social Media',
+  'Other'
+]
+
+function ReferralPartnerFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const refCode = searchParams.get('ref')
@@ -47,35 +48,31 @@ function LocationPartnerFormContent() {
 
   const [formData, setFormData] = useState({
     // Step 1: Contact Info
-    contactFirstName: '',
-    contactLastName: '',
+    entityType: 'individual', // individual or business
+    firstName: '',
+    lastName: '',
+    companyName: '',
+    companyType: '',
     contactEmail: '',
     contactPhone: '',
     contactTitle: '',
+    linkedInProfile: '',
 
-    // Step 2: Business Info
-    companyLegalName: '',
-    companyType: '',
-    dbaName: '',
-    ein: '',
-
-    // Step 3: Location
-    address: '',
+    // Step 2: Location
+    addressLine1: '',
     addressLine2: '',
     city: '',
     state: '',
     zip: '',
 
-    // Step 4: Venue Details
-    venueType: '',
-    squareFootage: '',
-    monthlyVisitors: '',
-    existingWifi: '',
-    existingIsp: '',
+    // Step 3: Partnership Details
+    networkDescription: '',
+    estimatedReferrals: '',
+    howDidYouHear: '',
     additionalNotes: '',
 
     // Hidden
-    referralCode: refCode || '',
+    referredByCode: refCode || '',
     agreedToTerms: false,
   })
 
@@ -90,27 +87,25 @@ function LocationPartnerFormContent() {
     const newErrors: Record<string, string> = {}
 
     if (stepNum === 1) {
-      if (!formData.contactFirstName.trim()) newErrors.contactFirstName = 'First name is required'
-      if (!formData.contactLastName.trim()) newErrors.contactLastName = 'Last name is required'
+      if (formData.entityType === 'individual') {
+        if (!formData.firstName.trim()) newErrors.firstName = 'First name is required'
+        if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required'
+      } else {
+        if (!formData.companyName.trim()) newErrors.companyName = 'Company name is required'
+        if (!formData.companyType) newErrors.companyType = 'Company type is required'
+      }
       if (!formData.contactEmail.trim()) newErrors.contactEmail = 'Email is required'
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)) newErrors.contactEmail = 'Invalid email'
       if (!formData.contactPhone.trim()) newErrors.contactPhone = 'Phone is required'
     }
 
     if (stepNum === 2) {
-      if (!formData.companyLegalName.trim()) newErrors.companyLegalName = 'Company name is required'
-      if (!formData.companyType) newErrors.companyType = 'Company type is required'
+      if (!formData.city.trim()) newErrors.city = 'City is required'
+      if (!formData.state) newErrors.state = 'State is required'
     }
 
     if (stepNum === 3) {
-      if (!formData.address.trim()) newErrors.address = 'Address is required'
-      if (!formData.city.trim()) newErrors.city = 'City is required'
-      if (!formData.state) newErrors.state = 'State is required'
-      if (!formData.zip.trim()) newErrors.zip = 'ZIP code is required'
-    }
-
-    if (stepNum === 4) {
-      if (!formData.venueType) newErrors.venueType = 'Venue type is required'
+      if (!formData.networkDescription.trim()) newErrors.networkDescription = 'Please describe your network'
       if (!formData.agreedToTerms) newErrors.agreedToTerms = 'You must agree to the terms'
     }
 
@@ -127,37 +122,39 @@ function LocationPartnerFormContent() {
   const prevStep = () => setStep(step - 1)
 
   const handleSubmit = async () => {
-    if (!validateStep(4)) return
+    if (!validateStep(3)) return
 
     setIsSubmitting(true)
     try {
-      const response = await fetch('/api/pipeline/partners', {
+      const fullName = formData.entityType === 'individual'
+        ? `${formData.firstName} ${formData.lastName}`.trim()
+        : formData.contactTitle ? `${formData.firstName} ${formData.lastName}`.trim() : ''
+
+      const response = await fetch('/api/pipeline/referral-partners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contact_name: `${formData.contactFirstName} ${formData.contactLastName}`.trim(),
-          contact_first_name: formData.contactFirstName,
-          contact_last_name: formData.contactLastName,
-          email: formData.contactEmail,
-          phone: formData.contactPhone,
+          partner_type: 'referral',
+          entity_type: formData.entityType,
+          company_name: formData.entityType === 'business' ? formData.companyName : null,
+          company_type: formData.entityType === 'business' ? formData.companyType : null,
+          contact_full_name: fullName,
+          contact_first_name: formData.firstName,
+          contact_last_name: formData.lastName,
+          contact_email: formData.contactEmail,
+          contact_phone: formData.contactPhone,
           contact_title: formData.contactTitle,
-          company_name: formData.companyLegalName,
-          company_type: formData.companyType,
-          dba_name: formData.dbaName,
-          ein: formData.ein,
-          address: formData.address,
+          linkedin_profile: formData.linkedInProfile,
+          address_line_1: formData.addressLine1,
           address_line_2: formData.addressLine2,
           city: formData.city,
           state: formData.state,
           zip: formData.zip,
-          venue_type: formData.venueType,
-          square_footage: formData.squareFootage ? parseInt(formData.squareFootage) : null,
-          monthly_visitors: formData.monthlyVisitors ? parseInt(formData.monthlyVisitors) : null,
-          existing_wifi: formData.existingWifi === 'yes',
-          existing_isp: formData.existingIsp,
+          network_description: formData.networkDescription,
+          estimated_referrals: formData.estimatedReferrals,
+          referral_source: formData.howDidYouHear || 'website',
+          referred_by_code: formData.referredByCode,
           notes: formData.additionalNotes,
-          referred_by_code: formData.referralCode,
-          referral_source: refCode ? 'referral' : 'website',
         }),
       })
 
@@ -181,7 +178,7 @@ function LocationPartnerFormContent() {
           </div>
           <h1 className="text-3xl font-bold text-white mb-4">Application Submitted!</h1>
           <p className="text-[#94A3B8] mb-8">
-            Thank you for your interest in partnering with SkyYield. Our team will review your application and contact you within 2 business days.
+            Thank you for your interest in becoming a SkyYield Referral Partner. We'll review your application and reach out within 2 business days with next steps.
           </p>
           <button
             onClick={() => router.push('/')}
@@ -203,13 +200,13 @@ function LocationPartnerFormContent() {
             <Wifi className="w-8 h-8 text-[#0EA5E9]" />
             <span className="text-2xl font-bold text-white">SkyYield</span>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Location Partner Application</h1>
-          <p className="text-[#94A3B8]">Turn your venue's WiFi into a revenue stream</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Referral Partner Application</h1>
+          <p className="text-[#94A3B8]">Earn commissions by connecting businesses with SkyYield</p>
         </div>
 
         {/* Progress Steps */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center">
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
@@ -222,8 +219,8 @@ function LocationPartnerFormContent() {
               >
                 {s < step ? <CheckCircle className="w-5 h-5" /> : s}
               </div>
-              {s < 4 && (
-                <div className={`w-12 h-1 mx-1 ${s < step ? 'bg-green-500' : 'bg-[#1E293B]'}`} />
+              {s < 3 && (
+                <div className={`w-16 h-1 mx-1 ${s < step ? 'bg-green-500' : 'bg-[#1E293B]'}`} />
               )}
             </div>
           ))}
@@ -239,28 +236,93 @@ function LocationPartnerFormContent() {
                 <h2 className="text-xl font-semibold text-white">Contact Information</h2>
               </div>
 
+              {/* Entity Type Toggle */}
+              <div>
+                <label className="block text-sm font-medium text-[#94A3B8] mb-3">I am applying as *</label>
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => updateField('entityType', 'individual')}
+                    className={`flex-1 py-3 px-4 rounded-lg border ${
+                      formData.entityType === 'individual'
+                        ? 'border-[#0EA5E9] bg-[#0EA5E9]/10 text-[#0EA5E9]'
+                        : 'border-[#2D3B5F] bg-[#1E293B] text-[#94A3B8]'
+                    } transition-colors`}
+                  >
+                    Individual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateField('entityType', 'business')}
+                    className={`flex-1 py-3 px-4 rounded-lg border ${
+                      formData.entityType === 'business'
+                        ? 'border-[#0EA5E9] bg-[#0EA5E9]/10 text-[#0EA5E9]'
+                        : 'border-[#2D3B5F] bg-[#1E293B] text-[#94A3B8]'
+                    } transition-colors`}
+                  >
+                    Business Entity
+                  </button>
+                </div>
+              </div>
+
+              {/* Business fields */}
+              {formData.entityType === 'business' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-[#94A3B8] mb-2">Company Name *</label>
+                    <input
+                      type="text"
+                      value={formData.companyName}
+                      onChange={(e) => updateField('companyName', e.target.value)}
+                      className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.companyName ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
+                      placeholder="Your Company, LLC"
+                    />
+                    {errors.companyName && <p className="text-red-500 text-sm mt-1">{errors.companyName}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#94A3B8] mb-2">Entity Type *</label>
+                    <select
+                      value={formData.companyType}
+                      onChange={(e) => updateField('companyType', e.target.value)}
+                      className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.companyType ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
+                    >
+                      <option value="">Select type...</option>
+                      {COMPANY_TYPES.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                    {errors.companyType && <p className="text-red-500 text-sm mt-1">{errors.companyType}</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Name fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">First Name *</label>
+                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">
+                    {formData.entityType === 'business' ? 'Contact First Name' : 'First Name *'}
+                  </label>
                   <input
                     type="text"
-                    value={formData.contactFirstName}
-                    onChange={(e) => updateField('contactFirstName', e.target.value)}
-                    className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.contactFirstName ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
+                    value={formData.firstName}
+                    onChange={(e) => updateField('firstName', e.target.value)}
+                    className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.firstName ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
                     placeholder="John"
                   />
-                  {errors.contactFirstName && <p className="text-red-500 text-sm mt-1">{errors.contactFirstName}</p>}
+                  {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">Last Name *</label>
+                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">
+                    {formData.entityType === 'business' ? 'Contact Last Name' : 'Last Name *'}
+                  </label>
                   <input
                     type="text"
-                    value={formData.contactLastName}
-                    onChange={(e) => updateField('contactLastName', e.target.value)}
-                    className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.contactLastName ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
+                    value={formData.lastName}
+                    onChange={(e) => updateField('lastName', e.target.value)}
+                    className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.lastName ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
                     placeholder="Doe"
                   />
-                  {errors.contactLastName && <p className="text-red-500 text-sm mt-1">{errors.contactLastName}</p>}
+                  {errors.lastName && <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>}
                 </div>
               </div>
 
@@ -271,7 +333,7 @@ function LocationPartnerFormContent() {
                   value={formData.contactEmail}
                   onChange={(e) => updateField('contactEmail', e.target.value)}
                   className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.contactEmail ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
-                  placeholder="john@business.com"
+                  placeholder="john@example.com"
                 />
                 {errors.contactEmail && <p className="text-red-500 text-sm mt-1">{errors.contactEmail}</p>}
               </div>
@@ -295,91 +357,41 @@ function LocationPartnerFormContent() {
                     value={formData.contactTitle}
                     onChange={(e) => updateField('contactTitle', e.target.value)}
                     className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    placeholder="Owner / Manager"
+                    placeholder="Business Development"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#94A3B8] mb-2">LinkedIn Profile (optional)</label>
+                <input
+                  type="url"
+                  value={formData.linkedInProfile}
+                  onChange={(e) => updateField('linkedInProfile', e.target.value)}
+                  className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                  placeholder="https://linkedin.com/in/yourprofile"
+                />
               </div>
             </div>
           )}
 
-          {/* Step 2: Business Info */}
+          {/* Step 2: Location */}
           {step === 2 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-6">
-                <Building2 className="w-6 h-6 text-[#0EA5E9]" />
-                <h2 className="text-xl font-semibold text-white">Business Information</h2>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#94A3B8] mb-2">Legal Business Name *</label>
-                <input
-                  type="text"
-                  value={formData.companyLegalName}
-                  onChange={(e) => updateField('companyLegalName', e.target.value)}
-                  className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.companyLegalName ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
-                  placeholder="ABC Holdings, LLC"
-                />
-                {errors.companyLegalName && <p className="text-red-500 text-sm mt-1">{errors.companyLegalName}</p>}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">Entity Type *</label>
-                  <select
-                    value={formData.companyType}
-                    onChange={(e) => updateField('companyType', e.target.value)}
-                    className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.companyType ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
-                  >
-                    <option value="">Select type...</option>
-                    {COMPANY_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                  {errors.companyType && <p className="text-red-500 text-sm mt-1">{errors.companyType}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">DBA Name (if different)</label>
-                  <input
-                    type="text"
-                    value={formData.dbaName}
-                    onChange={(e) => updateField('dbaName', e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    placeholder="Doing Business As..."
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#94A3B8] mb-2">EIN (optional)</label>
-                <input
-                  type="text"
-                  value={formData.ein}
-                  onChange={(e) => updateField('ein', e.target.value)}
-                  className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                  placeholder="XX-XXXXXXX"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Location */}
-          {step === 3 && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-6">
                 <MapPin className="w-6 h-6 text-[#0EA5E9]" />
-                <h2 className="text-xl font-semibold text-white">Venue Location</h2>
+                <h2 className="text-xl font-semibold text-white">Your Location</h2>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#94A3B8] mb-2">Street Address *</label>
+                <label className="block text-sm font-medium text-[#94A3B8] mb-2">Street Address (optional)</label>
                 <input
                   type="text"
-                  value={formData.address}
-                  onChange={(e) => updateField('address', e.target.value)}
-                  className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.address ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
+                  value={formData.addressLine1}
+                  onChange={(e) => updateField('addressLine1', e.target.value)}
+                  className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
                   placeholder="123 Main Street"
                 />
-                {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
               </div>
 
               <div>
@@ -420,88 +432,67 @@ function LocationPartnerFormContent() {
                   {errors.state && <p className="text-red-500 text-sm mt-1">{errors.state}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">ZIP *</label>
+                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">ZIP</label>
                   <input
                     type="text"
                     value={formData.zip}
                     onChange={(e) => updateField('zip', e.target.value)}
-                    className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.zip ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
+                    className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
                     placeholder="30309"
                   />
-                  {errors.zip && <p className="text-red-500 text-sm mt-1">{errors.zip}</p>}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 4: Venue Details */}
-          {step === 4 && (
+          {/* Step 3: Partnership Details */}
+          {step === 3 && (
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-6">
-                <Wifi className="w-6 h-6 text-[#0EA5E9]" />
-                <h2 className="text-xl font-semibold text-white">Venue Details</h2>
+                <Handshake className="w-6 h-6 text-[#0EA5E9]" />
+                <h2 className="text-xl font-semibold text-white">Partnership Details</h2>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#94A3B8] mb-2">Venue Type *</label>
-                <select
-                  value={formData.venueType}
-                  onChange={(e) => updateField('venueType', e.target.value)}
-                  className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.venueType ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]`}
-                >
-                  <option value="">Select venue type...</option>
-                  {VENUE_TYPES.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-                {errors.venueType && <p className="text-red-500 text-sm mt-1">{errors.venueType}</p>}
+                <label className="block text-sm font-medium text-[#94A3B8] mb-2">
+                  Describe your network and how you plan to refer businesses *
+                </label>
+                <textarea
+                  value={formData.networkDescription}
+                  onChange={(e) => updateField('networkDescription', e.target.value)}
+                  rows={4}
+                  className={`w-full px-4 py-3 bg-[#1E293B] border ${errors.networkDescription ? 'border-red-500' : 'border-[#2D3B5F]'} rounded-lg text-white focus:outline-none focus:border-[#0EA5E9] resize-none`}
+                  placeholder="Tell us about your connections in the hospitality, retail, or commercial real estate space..."
+                />
+                {errors.networkDescription && <p className="text-red-500 text-sm mt-1">{errors.networkDescription}</p>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">Approx. Square Footage</label>
-                  <input
-                    type="number"
-                    value={formData.squareFootage}
-                    onChange={(e) => updateField('squareFootage', e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    placeholder="5000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">Monthly Visitors (est.)</label>
-                  <input
-                    type="number"
-                    value={formData.monthlyVisitors}
-                    onChange={(e) => updateField('monthlyVisitors', e.target.value)}
-                    className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    placeholder="10000"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">Existing WiFi?</label>
+                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">Estimated Referrals</label>
                   <select
-                    value={formData.existingWifi}
-                    onChange={(e) => updateField('existingWifi', e.target.value)}
+                    value={formData.estimatedReferrals}
+                    onChange={(e) => updateField('estimatedReferrals', e.target.value)}
                     className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
                   >
                     <option value="">Select...</option>
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
+                    {REFERRAL_ESTIMATES.map(est => (
+                      <option key={est} value={est}>{est}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">Current ISP (if any)</label>
-                  <input
-                    type="text"
-                    value={formData.existingIsp}
-                    onChange={(e) => updateField('existingIsp', e.target.value)}
+                  <label className="block text-sm font-medium text-[#94A3B8] mb-2">How did you hear about us?</label>
+                  <select
+                    value={formData.howDidYouHear}
+                    onChange={(e) => updateField('howDidYouHear', e.target.value)}
                     className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    placeholder="AT&T, Comcast, etc."
-                  />
+                  >
+                    <option value="">Select...</option>
+                    {HOW_HEARD.map(source => (
+                      <option key={source} value={source}>{source}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -512,8 +503,16 @@ function LocationPartnerFormContent() {
                   onChange={(e) => updateField('additionalNotes', e.target.value)}
                   rows={3}
                   className="w-full px-4 py-3 bg-[#1E293B] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9] resize-none"
-                  placeholder="Anything else we should know about your venue?"
+                  placeholder="Anything else you'd like us to know?"
                 />
+              </div>
+
+              {/* Commission Info */}
+              <div className="p-4 bg-[#0EA5E9]/10 border border-[#0EA5E9]/30 rounded-lg">
+                <h3 className="text-[#0EA5E9] font-medium mb-2">Commission Structure</h3>
+                <p className="text-[#94A3B8] text-sm">
+                  As a Referral Partner, you'll earn a percentage of recurring revenue from each business you refer. Commission rates are discussed during onboarding and vary based on deal size and partnership tier.
+                </p>
               </div>
 
               <div className="flex items-start gap-3 p-4 bg-[#1E293B] rounded-lg">
@@ -551,7 +550,7 @@ function LocationPartnerFormContent() {
               <div />
             )}
 
-            {step < 4 ? (
+            {step < 3 ? (
               <button
                 onClick={nextStep}
                 className="flex items-center gap-2 px-6 py-3 bg-[#0EA5E9] text-white rounded-lg font-medium hover:bg-[#0EA5E9]/90 transition-colors"
@@ -593,14 +592,14 @@ function LocationPartnerFormContent() {
   )
 }
 
-export default function LocationPartnerApplicationPage() {
+export default function ReferralPartnerApplicationPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#0A0F2C] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#0EA5E9] animate-spin" />
       </div>
     }>
-      <LocationPartnerFormContent />
+      <ReferralPartnerFormContent />
     </Suspense>
   )
 }
