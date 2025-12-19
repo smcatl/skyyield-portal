@@ -1,314 +1,307 @@
 'use client'
 
 import { useUser } from '@clerk/nextjs'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState, Suspense } from 'react'
-import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import { 
-  ArrowLeft, DollarSign, BarChart3, MapPin, Wifi,
-  Activity, Calculator, FileText, TrendingUp, Settings, 
-  Wallet, Target, Users, Cpu, X
+  Users, DollarSign, Link as LinkIcon, Copy, 
+  TrendingUp, Clock, CheckCircle, AlertCircle,
+  ExternalLink, RefreshCw, Share2
 } from 'lucide-react'
-import FullCalculator from '@/components/portal/FullCalculator'
-import {
-  ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
-  TrainingSection, VenuesSection, PartnerSettings, PartnerAnalytics, PartnerPayments,
-} from '@/components/portal'
-import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
-import CRMTab from '@/components/admin/crm/CRMTab'
 
-type TabType = 'overview' | 'referrals' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
-
-interface Device {
+interface PartnerData {
   id: string
-  name: string
-  type: string
-  serialNumber: string
-  venueId: string
-  venueName: string
-  status: 'online' | 'offline'
-  dataUsageGB: number
-  lastSeen: string
+  partner_id: string
+  company_name: string
+  contact_name: string
+  contact_email: string
+  contact_phone: string
+  pipeline_stage: string
+  referral_code: string
+  referral_tracking_url: string
+  commission_type: string
+  commission_percentage: number
+  commission_flat_fee: number
+  commission_per_referral: number
+  total_referrals: number
+  active_referrals: number
+  total_earned: number
+  tipalti_payee_id: string
+  tipalti_status: string
 }
 
-function ReferralPartnerPortalContent() {
-  const { user, isLoaded } = useUser()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const isPreviewMode = searchParams.get('preview') === 'true'
-  const [activeTab, setActiveTab] = useState<TabType>('overview')
-  const [loading, setLoading] = useState(true)
-  const [partnerId, setPartnerId] = useState<string>('')
-  const [venues, setVenues] = useState<any[]>([])
-  const [devices, setDevices] = useState<Device[]>([])
-  const [documents, setDocuments] = useState<any[]>([])
-  const [materials, setMaterials] = useState<any[]>([])
-  const [stats, setStats] = useState({
-    totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0,
-    totalDataGB: 0, myEarnings: 0, pendingPayments: 0, totalReferrals: 0, convertedReferrals: 0,
-  })
+interface Referral {
+  id: string
+  partner_id: string
+  company_name: string
+  contact_name: string
+  status: string
+  created_at: string
+  commission_earned: number
+}
 
-  useEffect(() => {
-    if (!isLoaded) return
-    if (!user) { router.push('/sign-in'); return }
-    
-    const status = (user.unsafeMetadata as any)?.status || 'pending'
-    
-    // Allow preview mode for any authenticated user (only admins can access the preview links anyway)
-    if (isPreviewMode) {
-      setPartnerId('preview-admin')
-      loadPortalData()
-      return
-    }
-    
-    if (status !== 'approved') { router.push('/pending-approval'); return }
-    setPartnerId((user.unsafeMetadata as any)?.partnerId || user.id)
-    loadPortalData()
-  }, [isLoaded, user, router, isPreviewMode])
-
-  const loadPortalData = async () => {
-    setLoading(true)
-    try {
-      // Fetch real data from API
-      const res = await fetch(`/api/portal/partner-data?partnerType=referral_partner${partnerId ? `&partnerId=${partnerId}` : ''}`)
-      const data = await res.json()
-      
-      if (data.venues) {
-        setVenues(data.venues.map((v: any) => ({ ...v, referredBy: 'You' })))
-      } else {
-        // Fallback mock data
-        setVenues([
-          { id: '1', name: 'Downtown Coffee Shop', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', devicesInstalled: 2, dataUsageGB: 456.2, referredBy: 'You' },
-          { id: '2', name: 'Main St Restaurant', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', devicesInstalled: 1, dataUsageGB: 312.8, referredBy: 'You' },
-          { id: '3', name: 'Midtown Gym', address: '789 Fitness Blvd', city: 'Atlanta', state: 'GA', type: 'Gym', status: 'trial', devicesInstalled: 3, dataUsageGB: 125.4, referredBy: 'You' },
-        ])
-      }
-      
-      if (data.devices) {
-        setDevices(data.devices)
-      } else {
-        setDevices([
-          { id: '1', name: 'AP-Coffee-Main', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-001234', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z' },
-          { id: '2', name: 'AP-Coffee-Patio', type: 'UniFi U6 Mesh', serialNumber: 'UNF6M-005678', venueId: '1', venueName: 'Downtown Coffee Shop', status: 'online', dataUsageGB: 221.7, lastSeen: '2024-12-14T18:30:00Z' },
-          { id: '3', name: 'AP-Restaurant-1', type: 'UniFi U6 Pro', serialNumber: 'UNF6P-009876', venueId: '2', venueName: 'Main St Restaurant', status: 'online', dataUsageGB: 312.8, lastSeen: '2024-12-14T18:25:00Z' },
-        ])
-      }
-      
-      if (data.stats) {
-        setStats({
-          totalVenues: data.stats.totalVenues || 0,
-          activeVenues: data.stats.activeVenues || 0,
-          totalDevices: data.stats.totalDevices || 0,
-          onlineDevices: data.stats.onlineDevices || 0,
-          totalDataGB: data.stats.totalDataGB || 0,
-          myEarnings: data.stats.monthlyEarnings || 0,
-          pendingPayments: data.stats.pendingPayments || 0,
-          totalReferrals: data.stats.totalReferrals || 0,
-          convertedReferrals: data.stats.activeReferrals || 0,
-        })
-      } else {
-        setStats({ totalVenues: 3, activeVenues: 2, totalDevices: 5, onlineDevices: 4, totalDataGB: 869.3, myEarnings: 223.75, pendingPayments: 77.75, totalReferrals: 5, convertedReferrals: 3 })
-      }
-      
-      setDocuments([
-        { id: '1', name: 'Referral Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
-        { id: '2', name: 'Commission Structure', type: 'policy', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
-      ])
-      
-      // Fetch materials from API
-      try {
-        const materialsRes = await fetch('/api/materials?partnerType=referral_partner')
-        const materialsData = await materialsRes.json()
-        if (materialsData.materials) {
-          setMaterials(materialsData.materials.map((m: any) => ({
-            id: m.id,
-            title: m.title,
-            description: m.description,
-            type: m.type,
-            category: m.category,
-            duration: m.duration,
-            url: m.url,
-            completed: false,
-            required: m.required,
-          })))
-        }
-      } catch (err) {
-        // Fallback to default materials
-        setMaterials([
-          { id: '1', title: 'Getting Started with Referrals', description: 'Learn how to effectively refer new partners.', type: 'video', category: 'Onboarding', duration: '5:30', url: '#', completed: true, required: true },
-          { id: '2', title: 'Commission Structure Explained', description: 'Understand how you earn.', type: 'document', category: 'Payments', duration: '10 min', url: '#', completed: true, required: true },
-          { id: '3', title: 'Marketing Materials', description: 'Download brochures and flyers.', type: 'download', category: 'Marketing', duration: '5 min', url: '#', completed: false, required: false },
-        ])
-      }
-    } catch (error) { 
-      console.error('Error loading portal data:', error)
-      setVenues([])
-      setDevices([])
-      setStats({ totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0, totalDataGB: 0, myEarnings: 0, pendingPayments: 0, totalReferrals: 0, convertedReferrals: 0 })
-    }
-    finally { setLoading(false) }
-  }
-
-  if (!isLoaded || !user) {
-    return <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" /></div>
-  }
-
-  const hasCalculatorSubscription = (user.unsafeMetadata as any)?.calculatorSubscription === true
-  const referralCode = `REF-${user.id?.slice(-6).toUpperCase()}`
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'referrals', label: 'My Referrals', icon: Target },
-    { id: 'venues', label: 'Venues', icon: MapPin },
-    { id: 'devices', label: 'Devices', icon: Wifi },
-    { id: 'materials', label: 'Materials', icon: FileText },
-    { id: 'calculator', label: 'Calculator', icon: Calculator },
-    { id: 'payments', label: 'Payments', icon: Wallet },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-  ]
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20">
-      {/* Preview Mode Banner */}
-      {isPreviewMode && (
-        <div className="bg-gradient-to-r from-[#0EA5E9] to-cyan-500 px-4 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-2 text-white">
-              <span className="font-medium">👁️ Preview Mode:</span>
-              <span>Viewing as Referral Partner</span>
-            </div>
-            <Link href="/portals/admin" className="flex items-center gap-1 text-white hover:text-white/80 transition-colors">
-              <X className="w-4 h-4" />
-              Exit Preview
-            </Link>
-          </div>
-        </div>
-      )}
-      <div className="px-4 pb-4 border-b border-[#2D3B5F]">
-        <div className="max-w-7xl mx-auto">
-          <Link href={isPreviewMode ? "/portals/admin" : "/"} className="inline-flex items-center gap-2 text-[#94A3B8] hover:text-white transition-colors mb-4"><ArrowLeft className="w-4 h-4" />{isPreviewMode ? "Back to Admin" : "Back to Home"}</Link>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-white">Referral <span className="text-[#0EA5E9]">Partner</span> Portal</h1>
-              <p className="text-[#94A3B8] mt-1">Welcome back, {user?.firstName}!</p>
-            </div>
-            <PortalSwitcher currentPortal="referral_partner" />
-          </div>
-          <div className="flex gap-1 overflow-x-auto pb-2">
-            {tabs.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id as TabType)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === tab.id ? 'bg-[#0EA5E9] text-white' : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'}`}>
-                <tab.icon className="w-4 h-4" />{tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DashboardCard title="My Referrals" value={stats.totalReferrals} subtitle={`${stats.convertedReferrals} converted`} icon={<Users className="w-5 h-5 text-[#0EA5E9]" />} iconBgColor="bg-[#0EA5E9]/20" />
-                <DashboardCard title="Active Venues" value={stats.activeVenues} subtitle={`${stats.totalVenues} total`} icon={<MapPin className="w-5 h-5 text-green-400" />} iconBgColor="bg-green-500/20" />
-                <DashboardCard title="Total Data" value={stats.totalDataGB.toFixed(1)} suffix=" GB" icon={<Activity className="w-5 h-5 text-purple-400" />} iconBgColor="bg-purple-500/20" />
-                <DashboardCard title="Conversion" value={Math.round((stats.convertedReferrals / stats.totalReferrals) * 100) || 0} suffix="%" icon={<TrendingUp className="w-5 h-5 text-yellow-400" />} iconBgColor="bg-yellow-500/20" />
-              </div>
-              <VenuesSection venues={venues} loading={loading} title="Referred Venues" onViewDetails={() => setActiveTab('venues')} />
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Device Overview</h3>
-                  <button onClick={() => setActiveTab('devices')} className="text-[#0EA5E9] text-sm hover:underline">View All</button>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-white">{stats.totalDevices}</div>
-                    <div className="text-[#64748B] text-sm">Total Devices</div>
-                  </div>
-                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-400">{stats.onlineDevices}</div>
-                    <div className="text-[#64748B] text-sm">Online</div>
-                  </div>
-                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-[#0EA5E9]">{stats.totalDataGB.toFixed(0)}</div>
-                    <div className="text-[#64748B] text-sm">GB Total</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-6">
-              {stats.pendingPayments > 0 && (
-                <div className="bg-gradient-to-br from-[#0EA5E9]/20 to-purple-500/20 border border-[#0EA5E9]/30 rounded-xl p-6">
-                  <div className="text-[#94A3B8] text-sm mb-1">Pending Payments</div>
-                  <div className="text-3xl font-bold text-[#0EA5E9]">${stats.pendingPayments.toFixed(2)}</div>
-                  <div className="text-[#64748B] text-sm mt-2">Next payout: Jan 1, 2025</div>
-                </div>
-              )}
-              <ReferralCodeCard referralCode={referralCode} totalReferrals={stats.totalReferrals} pendingReferrals={stats.totalReferrals - stats.convertedReferrals} earnedFromReferrals={stats.myEarnings} showStats={true} />
-              <ContactCard calendlyUrl="https://calendly.com/scohen-skyyield" supportEmail="support@skyyield.io" showTicketForm={true} />
-              <DocumentsSection documents={documents} loading={loading} title="Documents" />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'referrals' && <CRMTab />}
-        {activeTab === 'venues' && <VenuesSection venues={venues} loading={loading} title="All Referred Venues" />}
-        
-        {activeTab === 'devices' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <DashboardCard title="Total Devices" value={stats.totalDevices} icon={<Cpu className="w-5 h-5 text-purple-400" />} iconBgColor="bg-purple-500/20" />
-              <DashboardCard title="Online" value={stats.onlineDevices} icon={<Wifi className="w-5 h-5 text-green-400" />} iconBgColor="bg-green-500/20" />
-              <DashboardCard title="Offline" value={stats.totalDevices - stats.onlineDevices} icon={<Wifi className="w-5 h-5 text-red-400" />} iconBgColor="bg-red-500/20" />
-              <DashboardCard title="Total Data" value={stats.totalDataGB.toFixed(1)} suffix=" GB" icon={<Activity className="w-5 h-5 text-[#0EA5E9]" />} iconBgColor="bg-[#0EA5E9]/20" />
-            </div>
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-              <div className="p-6 border-b border-[#2D3B5F]"><h2 className="text-xl font-semibold text-white">All Devices</h2><p className="text-[#94A3B8] text-sm">Devices from your referred venues</p></div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr className="border-b border-[#2D3B5F]">
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Device</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Venue</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Status</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Data Usage</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Last Seen</th>
-                  </tr></thead>
-                  <tbody>
-                    {devices.map(device => (
-                      <tr key={device.id} className="border-b border-[#2D3B5F] hover:bg-[#0A0F2C]/50">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center"><Wifi className="w-5 h-5 text-purple-400" /></div>
-                            <div><div className="text-white font-medium">{device.name}</div><div className="text-[#64748B] text-xs">{device.type}</div></div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-[#94A3B8]">{device.venueName}</td>
-                        <td className="px-6 py-4"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${device.status === 'online' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}><span className={`w-1.5 h-1.5 rounded-full ${device.status === 'online' ? 'bg-green-400' : 'bg-red-400'}`} />{device.status}</span></td>
-                        <td className="px-6 py-4 text-[#0EA5E9] font-medium">{device.dataUsageGB.toFixed(1)} GB</td>
-                        <td className="px-6 py-4 text-[#64748B] text-sm">{new Date(device.lastSeen).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'materials' && <TrainingSection items={materials} loading={loading} title="Materials & Resources" showProgress={true} />}
-        {activeTab === 'calculator' && <FullCalculator isSubscribed={hasCalculatorSubscription} />}
-        {activeTab === 'payments' && <PartnerPayments partnerId={partnerId} partnerType="referral_partner" />}
-        {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="referral_partner" showCompanyInfo={true} showPaymentSettings={true} showNotifications={true} />}
-        {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="referral_partner" showReferrals={true} showDataUsage={true} />}
-      </div>
-    </div>
-  )
+interface Commission {
+  id: string
+  commission_month: string
+  commission_amount: number
+  payment_status: string
+  calculation_details: string
 }
 
 export default function ReferralPartnerPortal() {
+  const { user, isLoaded } = useUser()
+  const [partnerData, setPartnerData] = useState<PartnerData | null>(null)
+  const [referrals, setReferrals] = useState<Referral[]>([])
+  const [commissions, setCommissions] = useState<Commission[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (isLoaded && user) {
+      loadPartnerData()
+    }
+  }, [isLoaded, user])
+
+  const loadPartnerData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const res = await fetch('/api/portal/referral-partner')
+      const data = await res.json()
+
+      if (data.success) {
+        setPartnerData(data.partner)
+        setReferrals(data.referrals || [])
+        setCommissions(data.commissions || [])
+      } else {
+        setError(data.error || 'Failed to load data')
+      }
+    } catch (err) {
+      setError('Failed to connect to server')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copyReferralLink = () => {
+    if (partnerData?.referral_tracking_url) {
+      navigator.clipboard.writeText(partnerData.referral_tracking_url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  if (!isLoaded || loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin text-[#0EA5E9] mx-auto mb-4" />
+          <p className="text-[#94A3B8]">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center p-4">
+        <div className="bg-[#1A1F3A] border border-red-500/50 rounded-xl p-8 max-w-md text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">Access Error</h2>
+          <p className="text-[#94A3B8] mb-4">{error}</p>
+          <button
+            onClick={loadPartnerData}
+            className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!partnerData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center p-4">
+        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 max-w-md text-center">
+          <Users className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">No Partner Account Found</h2>
+          <p className="text-[#94A3B8]">Your account is not linked to a Referral Partner record. Please contact support.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      active: 'bg-green-500/20 text-green-400',
+      payable: 'bg-green-500/20 text-green-400',
+      pending: 'bg-yellow-500/20 text-yellow-400',
+      paid: 'bg-green-500/20 text-green-400',
+    }
+    return colors[status?.toLowerCase()] || 'bg-gray-500/20 text-gray-400'
+  }
+
+  const totalEarnings = commissions
+    .filter(c => c.payment_status === 'paid')
+    .reduce((sum, c) => sum + c.commission_amount, 0)
+
+  const pendingEarnings = commissions
+    .filter(c => c.payment_status === 'pending')
+    .reduce((sum, c) => sum + c.commission_amount, 0)
+
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" /></div>}>
-      <ReferralPartnerPortalContent />
-    </Suspense>
+    <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20 pb-12">
+      <div className="max-w-6xl mx-auto px-4">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Welcome back, {partnerData.contact_name?.split(' ')[0]}!
+          </h1>
+          <p className="text-[#94A3B8]">
+            {partnerData.company_name} • {partnerData.partner_id}
+          </p>
+        </div>
+
+        {/* Referral Link Card - PROMINENT */}
+        <div className="bg-gradient-to-r from-[#0EA5E9]/20 to-[#10F981]/20 border border-[#0EA5E9]/50 rounded-xl p-6 mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-xl flex items-center justify-center">
+              <Share2 className="w-6 h-6 text-[#0EA5E9]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Your Referral Link</h2>
+              <p className="text-[#94A3B8] text-sm">Share this link to earn ${partnerData.commission_per_referral || partnerData.commission_percentage + '%'} per referral</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg px-4 py-3 font-mono text-[#0EA5E9] text-sm overflow-x-auto">
+              {partnerData.referral_tracking_url || `https://skyyield.io/partners/location?ref=${partnerData.partner_id}`}
+            </div>
+            <button
+              onClick={copyReferralLink}
+              className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors ${
+                copied 
+                  ? 'bg-green-500 text-white' 
+                  : 'bg-[#0EA5E9] text-white hover:bg-[#0EA5E9]/80'
+              }`}
+            >
+              {copied ? <CheckCircle className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          {partnerData.referral_code && (
+            <p className="text-[#64748B] text-sm mt-3">
+              Referral Code: <span className="text-[#0EA5E9] font-mono">{partnerData.referral_code}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
+                <Users className="w-5 h-5 text-[#0EA5E9]" />
+              </div>
+              <span className="text-[#94A3B8] text-sm">Total Referrals</span>
+            </div>
+            <div className="text-2xl font-bold text-[#0EA5E9]">{partnerData.total_referrals || referrals.length}</div>
+          </div>
+
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-green-400" />
+              </div>
+              <span className="text-[#94A3B8] text-sm">Active</span>
+            </div>
+            <div className="text-2xl font-bold text-green-400">{partnerData.active_referrals || referrals.filter(r => r.status === 'active').length}</div>
+          </div>
+
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-green-400" />
+              </div>
+              <span className="text-[#94A3B8] text-sm">Total Earned</span>
+            </div>
+            <div className="text-2xl font-bold text-green-400">${(partnerData.total_earned || totalEarnings).toFixed(2)}</div>
+          </div>
+
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                <Clock className="w-5 h-5 text-yellow-400" />
+              </div>
+              <span className="text-[#94A3B8] text-sm">Pending</span>
+            </div>
+            <div className="text-2xl font-bold text-yellow-400">${pendingEarnings.toFixed(2)}</div>
+          </div>
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Referrals List */}
+          <div className="lg:col-span-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Your Referrals</h2>
+            {referrals.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="w-12 h-12 text-[#64748B] mx-auto mb-3" />
+                <p className="text-[#94A3B8]">No referrals yet</p>
+                <p className="text-[#64748B] text-sm mt-2">Share your link to start earning!</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {referrals.map(ref => (
+                  <div key={ref.id} className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                    <div>
+                      <div className="text-white font-medium">{ref.company_name || ref.contact_name}</div>
+                      <div className="text-[#64748B] text-sm">
+                        {new Date(ref.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`px-2 py-1 rounded text-xs ${getStatusColor(ref.status)}`}>
+                        {ref.status}
+                      </span>
+                      {ref.commission_earned > 0 && (
+                        <div className="text-green-400 text-sm mt-1">+${ref.commission_earned}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Commission History */}
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Recent Payments</h2>
+            {commissions.length === 0 ? (
+              <div className="text-center py-8">
+                <DollarSign className="w-12 h-12 text-[#64748B] mx-auto mb-3" />
+                <p className="text-[#94A3B8]">No payments yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {commissions.slice(0, 5).map(comm => (
+                  <div key={comm.id} className="p-3 bg-[#0A0F2C] rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-white font-medium">${comm.commission_amount.toFixed(2)}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(comm.payment_status)}`}>
+                        {comm.payment_status}
+                      </span>
+                    </div>
+                    <div className="text-[#64748B] text-xs">{comm.calculation_details}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -10,6 +10,7 @@ import { PreviewPortalDropdown } from '@/components/admin/PreviewPortalDropdown'
 import AdminPayments from '@/components/admin/AdminPayments'
 import { AddRoleModal } from '@/components/admin/AddRoleModal'
 import AdminBlog from '@/components/admin/AdminBlog'
+import CommissionManagement from '@/components/admin/CommissionManagement'
 import {
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
   CheckCircle, Clock, Package, TrendingUp,
@@ -25,7 +26,7 @@ import {
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
-type TabType = 'overview' | 'users' | 'crm' | 'pipeline' | 'followups' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'materials' | 'calculators' | 'payments' | 'settings' | 'analytics'
+type TabType = 'overview' | 'users' | 'crm' | 'pipeline' | 'followups' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'materials' | 'calculators' | 'payments' | 'commissions' | 'settings' | 'analytics'
 
 // Pipeline and Settings types
 interface FollowUpAttempt {
@@ -606,6 +607,7 @@ export default function AdminPortalPage() {
     { id: 'materials', label: 'Materials', icon: BookOpen },
     { id: 'calculators', label: 'Calculators', icon: Calculator },
     { id: 'payments', label: 'Payments', icon: Wallet },
+    { id: 'commissions', label: 'Commissions', icon: Calculator },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   ]
@@ -3729,6 +3731,9 @@ export default function AdminPortalPage() {
         {activeTab === 'payments' && (
           <AdminPayments />
         )}
+
+        {/* Commissions Tab */}
+        {activeTab === 'commissions' && <CommissionManagement />}
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
