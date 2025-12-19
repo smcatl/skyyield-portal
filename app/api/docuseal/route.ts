@@ -361,11 +361,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Try to update (some fields may not exist in table)
-    await supabase
-      .from(tableName)
-      .update(updateFields)
-      .eq('id', entityId)
-      .catch(e => console.log('Update field error (may be expected):', e))
+    try {
+      await supabase
+        .from(tableName)
+        .update(updateFields)
+        .eq('id', entityId)
+    } catch (e) {
+      console.log('Update field error (may be expected):', e)
+    }
 
     // Log activity
     await supabase.from('activity_log').insert({
