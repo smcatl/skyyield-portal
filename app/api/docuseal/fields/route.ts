@@ -381,7 +381,7 @@ export async function POST(request: NextRequest) {
 
       // Generate HTML with field tags
       let html = `<html><body style="font-family: Arial, sans-serif; padding: 40px;">
-        <h1 style="text-align: center;">SkyYield - ${templateSlug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</h1>
+        <h1 style="text-align: center;">SkyYield - ${templateSlug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</h1>
         <hr style="margin: 20px 0;" />`
 
       Object.entries(roleGroups).forEach(([role, roleFields]) => {
@@ -397,7 +397,7 @@ export async function POST(request: NextRequest) {
             : `<text-field name="${f.name}" role="${role}" ${f.required ? 'required="true"' : ''} style="width: 250px; border: 1px solid #ccc;"></text-field>`
 
           html += `<tr>
-            <td style="padding: 10px; border-bottom: 1px solid #eee; width: 200px;"><strong>${f.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong></td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; width: 200px;"><strong>${f.name.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</strong></td>
             <td style="padding: 10px; border-bottom: 1px solid #eee;">${fieldHtml}</td>
           </tr>`
         })
@@ -415,7 +415,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: `SkyYield - ${templateSlug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} (Generated)`,
+          name: `SkyYield - ${templateSlug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())} (Generated)`,
           html,
         }),
       })
