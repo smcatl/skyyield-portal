@@ -1,286 +1,328 @@
 'use client'
 
-import { useUser } from '@clerk/nextjs'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useUser, UserButton } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
 import { 
-  Building, DollarSign, Calendar, FileText, 
-  TrendingUp, Clock, CheckCircle, AlertCircle,
-  ExternalLink, Download, RefreshCw
+  Building2, MapPin, Cpu, DollarSign, FileText, Settings, 
+  TrendingUp, Calendar, Bell, CreditCard, Loader2, ChevronRight
 } from 'lucide-react'
 
-interface PartnerData {
+interface LocationPartner {
   id: string
   partner_id: string
   company_legal_name: string
-  dba_name: string
   contact_first_name: string
   contact_last_name: string
   contact_email: string
-  contact_phone: string
-  pipeline_stage: string
-  commission_type: string
-  commission_percentage: number
-  commission_flat_fee: number
-  tipalti_payee_id: string
-  tipalti_status: string
-  last_payment_amount: number
-  last_payment_date: string
-  trial_status: string
-  trial_end_date: string
-  contract_status: string
+  stage: string
   loi_status: string
+  contract_status: string
+  tipalti_status: string
+  trial_status: string
+  venue_count: number
+  device_count: number
 }
 
-interface Commission {
-  id: string
-  commission_month: string
-  commission_amount: number
-  payment_status: string
-  calculation_details: string
+interface UserData {
+  clerk_id: string
+  email: string
+  user_type: string
+  is_approved: boolean
+  location_partner_ids: string[]
 }
 
-export default function LocationPartnerPortal() {
+export default function LocationPortalPage() {
   const { user, isLoaded } = useUser()
-  const [partnerData, setPartnerData] = useState<PartnerData | null>(null)
-  const [commissions, setCommissions] = useState<Commission[]>([])
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [userData, setUserData] = useState<UserData | null>(null)
+  const [partnerData, setPartnerData] = useState<LocationPartner | null>(null)
+  const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
-    if (isLoaded && user) {
-      loadPartnerData()
+    if (!isLoaded) return
+    if (!user) {
+      router.push('/sign-in')
+      return
     }
-  }, [isLoaded, user])
 
-  const loadPartnerData = async () => {
-    try {
-      setLoading(true)
-      setError(null)
+    async function fetchData() {
+      try {
+        // Get user data
+        const userRes = await fetch('/api/users/me')
+        if (!userRes.ok) throw new Error('Failed to fetch user')
+        const userData: UserData = await userRes.json()
+        setUserData(userData)
 
-      // Fetch partner data for current user
-      const res = await fetch('/api/portal/location-partner')
-      const data = await res.json()
+        // Verify user is a location partner
+        if (userData.user_type !== 'location_partner') {
+          router.push('/dashboard')
+          return
+        }
 
-      if (data.success) {
-        setPartnerData(data.partner)
-        setCommissions(data.commissions || [])
-      } else {
-        setError(data.error || 'Failed to load data')
+        // Get partner data
+        if (userData.location_partner_ids?.length > 0) {
+          const partnerRes = await fetch(`/api/partners/location/${userData.location_partner_ids[0]}`)
+          if (partnerRes.ok) {
+            const partner = await partnerRes.json()
+            setPartnerData(partner)
+          }
+        }
+
+        setLoading(false)
+      } catch (error) {
+        console.error('Error:', error)
+        setLoading(false)
       }
-    } catch (err) {
-      setError('Failed to connect to server')
-    } finally {
-      setLoading(false)
     }
-  }
+
+    fetchData()
+  }, [user, isLoaded, router])
 
   if (!isLoaded || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#0EA5E9] mx-auto mb-4" />
-          <p className="text-[#94A3B8]">Loading your dashboard...</p>
-        </div>
+      <div className="min-h-screen bg-[#0A0F2C] flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-[#0EA5E9] animate-spin" />
       </div>
     )
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center p-4">
-        <div className="bg-[#1A1F3A] border border-red-500/50 rounded-xl p-8 max-w-md text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">Access Error</h2>
-          <p className="text-[#94A3B8] mb-4">{error}</p>
-          <button
-            onClick={loadPartnerData}
-            className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
-  }
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: Building2 },
+    { id: 'venues', label: 'Venues', icon: MapPin },
+    { id: 'devices', label: 'Devices', icon: Cpu },
+    { id: 'payments', label: 'Payments', icon: DollarSign },
+    { id: 'documents', label: 'Documents', icon: FileText },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ]
 
-  if (!partnerData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center p-4">
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 max-w-md text-center">
-          <Building className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">No Partner Account Found</h2>
-          <p className="text-[#94A3B8]">Your account is not linked to a Location Partner record. Please contact support.</p>
-        </div>
-      </div>
-    )
-  }
-
-  const getStatusColor = (status: string) => {
+  const getStageColor = (stage: string) => {
     const colors: Record<string, string> = {
-      active: 'bg-green-500/20 text-green-400',
-      payable: 'bg-green-500/20 text-green-400',
-      pending: 'bg-yellow-500/20 text-yellow-400',
-      completed: 'bg-green-500/20 text-green-400',
-      signed: 'bg-green-500/20 text-green-400',
-      sent: 'bg-blue-500/20 text-blue-400',
-      paid: 'bg-green-500/20 text-green-400',
+      'application': 'bg-yellow-400/20 text-yellow-400',
+      'discovery': 'bg-blue-400/20 text-blue-400',
+      'loi': 'bg-purple-400/20 text-purple-400',
+      'trial': 'bg-cyan-400/20 text-cyan-400',
+      'contract': 'bg-orange-400/20 text-orange-400',
+      'active': 'bg-emerald-400/20 text-emerald-400',
     }
-    return colors[status?.toLowerCase()] || 'bg-gray-500/20 text-gray-400'
+    return colors[stage] || 'bg-gray-400/20 text-gray-400'
   }
-
-  const totalEarnings = commissions
-    .filter(c => c.payment_status === 'paid')
-    .reduce((sum, c) => sum + c.commission_amount, 0)
-
-  const pendingEarnings = commissions
-    .filter(c => c.payment_status === 'pending')
-    .reduce((sum, c) => sum + c.commission_amount, 0)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20 pb-12">
-      <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Welcome back, {partnerData.contact_first_name}!
-          </h1>
-          <p className="text-[#94A3B8]">
-            {partnerData.dba_name || partnerData.company_legal_name} • {partnerData.partner_id}
-          </p>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-green-400" />
-              </div>
-              <span className="text-[#94A3B8] text-sm">Total Earnings</span>
+    <div className="min-h-screen bg-[#0A0F2C]">
+      {/* Header */}
+      <header className="bg-[#0F1629] border-b border-[#2D3B5F] px-6 py-4">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-[#0EA5E9] rounded-lg flex items-center justify-center">
+              <Building2 className="w-6 h-6 text-white" />
             </div>
-            <div className="text-2xl font-bold text-green-400">${totalEarnings.toFixed(2)}</div>
-          </div>
-
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                <Clock className="w-5 h-5 text-yellow-400" />
-              </div>
-              <span className="text-[#94A3B8] text-sm">Pending</span>
-            </div>
-            <div className="text-2xl font-bold text-yellow-400">${pendingEarnings.toFixed(2)}</div>
-          </div>
-
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-[#0EA5E9]" />
-              </div>
-              <span className="text-[#94A3B8] text-sm">Commission Rate</span>
-            </div>
-            <div className="text-2xl font-bold text-[#0EA5E9]">
-              {partnerData.commission_type === 'percentage' 
-                ? `${partnerData.commission_percentage}%`
-                : `$${partnerData.commission_flat_fee}`}
+            <div>
+              <h1 className="text-white font-bold text-lg">Location Partner Portal</h1>
+              <p className="text-[#64748B] text-sm">{partnerData?.company_legal_name || 'Loading...'}</p>
             </div>
           </div>
-
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-purple-400" />
-              </div>
-              <span className="text-[#94A3B8] text-sm">Status</span>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(partnerData.pipeline_stage)}`}>
-              {partnerData.pipeline_stage}
-            </span>
+          <div className="flex items-center gap-4">
+            <button className="p-2 text-[#64748B] hover:text-white hover:bg-[#1E293B] rounded-lg transition-colors">
+              <Bell className="w-5 h-5" />
+            </button>
+            <UserButton afterSignOutUrl="/" />
           </div>
         </div>
+      </header>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Commission History */}
-          <div className="lg:col-span-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Commission History</h2>
-            {commissions.length === 0 ? (
-              <div className="text-center py-8">
-                <DollarSign className="w-12 h-12 text-[#64748B] mx-auto mb-3" />
-                <p className="text-[#94A3B8]">No commission records yet</p>
+      <div className="flex max-w-7xl mx-auto">
+        {/* Sidebar */}
+        <aside className="w-64 min-h-[calc(100vh-73px)] bg-[#0F1629] border-r border-[#2D3B5F] p-4">
+          <nav className="space-y-1">
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-[#0EA5E9]/10 text-[#0EA5E9] border border-[#0EA5E9]/30'
+                      : 'text-[#94A3B8] hover:bg-[#1E293B] hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </nav>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 p-6">
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Welcome Banner */}
+              <div className="bg-gradient-to-r from-[#0EA5E9]/20 to-[#10F981]/20 rounded-xl p-6 border border-[#0EA5E9]/30">
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  Welcome, {partnerData?.contact_first_name || user?.firstName}!
+                </h2>
+                <p className="text-[#94A3B8]">
+                  Partner ID: <span className="text-[#0EA5E9] font-mono">{partnerData?.partner_id}</span>
+                </p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {commissions.map(comm => (
-                  <div key={comm.id} className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
-                    <div>
-                      <div className="text-white font-medium">
-                        {new Date(comm.commission_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+
+              {/* Status Card */}
+              <div className="bg-[#0F1629] rounded-xl border border-[#2D3B5F] p-6">
+                <h3 className="text-white font-semibold mb-4">Onboarding Status</h3>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStageColor(partnerData?.stage || '')}`}>
+                    {partnerData?.stage?.toUpperCase() || 'UNKNOWN'}
+                  </span>
+                </div>
+                
+                {/* Progress Steps */}
+                <div className="grid grid-cols-5 gap-2 mt-6">
+                  {['Application', 'Discovery', 'LOI', 'Trial', 'Contract'].map((step, i) => {
+                    const stages = ['application', 'discovery', 'loi', 'trial', 'contract']
+                    const currentIndex = stages.indexOf(partnerData?.stage || '')
+                    const isComplete = i < currentIndex
+                    const isCurrent = i === currentIndex
+                    
+                    return (
+                      <div key={step} className="text-center">
+                        <div className={`w-8 h-8 rounded-full mx-auto mb-2 flex items-center justify-center ${
+                          isComplete ? 'bg-emerald-500' : isCurrent ? 'bg-[#0EA5E9]' : 'bg-[#2D3B5F]'
+                        }`}>
+                          {isComplete ? '✓' : i + 1}
+                        </div>
+                        <span className={`text-xs ${isCurrent ? 'text-[#0EA5E9]' : 'text-[#64748B]'}`}>
+                          {step}
+                        </span>
                       </div>
-                      <div className="text-[#64748B] text-sm">{comm.calculation_details}</div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-[#0F1629] rounded-xl border border-[#2D3B5F] p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[#64748B] text-sm">Venues</p>
+                      <p className="text-3xl font-bold text-white">{partnerData?.venue_count || 0}</p>
                     </div>
-                    <div className="text-right">
-                      <div className="text-green-400 font-semibold">${comm.commission_amount.toFixed(2)}</div>
-                      <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(comm.payment_status)}`}>
-                        {comm.payment_status}
-                      </span>
-                    </div>
+                    <MapPin className="w-10 h-10 text-[#0EA5E9]/30" />
                   </div>
-                ))}
+                </div>
+                <div className="bg-[#0F1629] rounded-xl border border-[#2D3B5F] p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[#64748B] text-sm">Devices</p>
+                      <p className="text-3xl font-bold text-white">{partnerData?.device_count || 0}</p>
+                    </div>
+                    <Cpu className="w-10 h-10 text-[#10F981]/30" />
+                  </div>
+                </div>
+                <div className="bg-[#0F1629] rounded-xl border border-[#2D3B5F] p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[#64748B] text-sm">Payment Status</p>
+                      <p className="text-lg font-semibold text-white capitalize">
+                        {partnerData?.tipalti_status || 'Not Set Up'}
+                      </p>
+                    </div>
+                    <CreditCard className="w-10 h-10 text-amber-400/30" />
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Account Status */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Account Status</h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[#94A3B8]">Contract</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(partnerData.contract_status)}`}>
-                    {partnerData.contract_status || 'Pending'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[#94A3B8]">LOI</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(partnerData.loi_status)}`}>
-                    {partnerData.loi_status || 'Pending'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[#94A3B8]">Payment Setup</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(partnerData.tipalti_status)}`}>
-                    {partnerData.tipalti_status || 'Not Started'}
-                  </span>
+              {/* Document Status */}
+              <div className="bg-[#0F1629] rounded-xl border border-[#2D3B5F] p-6">
+                <h3 className="text-white font-semibold mb-4">Documents</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-[#64748B]" />
+                      <span className="text-white">Letter of Intent (LOI)</span>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      partnerData?.loi_status === 'signed' ? 'bg-emerald-400/20 text-emerald-400' :
+                      partnerData?.loi_status === 'sent' ? 'bg-yellow-400/20 text-yellow-400' :
+                      'bg-gray-400/20 text-gray-400'
+                    }`}>
+                      {partnerData?.loi_status?.toUpperCase() || 'PENDING'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-[#64748B]" />
+                      <span className="text-white">Location Agreement</span>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      partnerData?.contract_status === 'signed' ? 'bg-emerald-400/20 text-emerald-400' :
+                      partnerData?.contract_status === 'sent' ? 'bg-yellow-400/20 text-yellow-400' :
+                      'bg-gray-400/20 text-gray-400'
+                    }`}>
+                      {partnerData?.contract_status?.toUpperCase() || 'PENDING'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Quick Links */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Quick Links</h2>
-              <div className="space-y-2">
-                <a 
-                  href="/payments"
-                  className="flex items-center gap-2 p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:text-white transition-colors"
-                >
-                  <DollarSign className="w-4 h-4" />
-                  Update Payment Info
-                  <ExternalLink className="w-3 h-3 ml-auto" />
-                </a>
-                <a 
-                  href="/support"
-                  className="flex items-center gap-2 p-3 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:text-white transition-colors"
-                >
-                  <FileText className="w-4 h-4" />
-                  Contact Support
-                  <ExternalLink className="w-3 h-3 ml-auto" />
-                </a>
+          {activeTab === 'payments' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-white">Payments</h2>
+              
+              {/* Tipalti Status */}
+              <div className="bg-[#0F1629] rounded-xl border border-[#2D3B5F] p-6">
+                <h3 className="text-white font-semibold mb-4">Payment Setup Status</h3>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                    partnerData?.tipalti_status === 'active' ? 'bg-emerald-500/20' : 'bg-yellow-500/20'
+                  }`}>
+                    <CreditCard className={`w-6 h-6 ${
+                      partnerData?.tipalti_status === 'active' ? 'text-emerald-400' : 'text-yellow-400'
+                    }`} />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">
+                      {partnerData?.tipalti_status === 'active' ? 'Payment Account Active' : 'Setup Required'}
+                    </p>
+                    <p className="text-[#64748B] text-sm">
+                      {partnerData?.tipalti_status === 'active' 
+                        ? 'Your payment information is verified and ready to receive payments.'
+                        : 'Complete your payment setup to receive revenue share payments.'}
+                    </p>
+                  </div>
+                </div>
+                
+                {partnerData?.tipalti_status !== 'active' && (
+                  <button className="mt-4 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
+                    Complete Payment Setup
+                  </button>
+                )}
+              </div>
+
+              {/* Payment History Placeholder */}
+              <div className="bg-[#0F1629] rounded-xl border border-[#2D3B5F] p-6">
+                <h3 className="text-white font-semibold mb-4">Payment History</h3>
+                <p className="text-[#64748B] text-center py-8">
+                  No payments yet. Payments will appear here once your venue is active.
+                </p>
               </div>
             </div>
-          </div>
-        </div>
+          )}
+
+          {/* Other tabs would go here */}
+          {activeTab !== 'overview' && activeTab !== 'payments' && (
+            <div className="bg-[#0F1629] rounded-xl border border-[#2D3B5F] p-6">
+              <h2 className="text-xl font-bold text-white mb-4 capitalize">{activeTab}</h2>
+              <p className="text-[#64748B]">This section is coming soon.</p>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   )
