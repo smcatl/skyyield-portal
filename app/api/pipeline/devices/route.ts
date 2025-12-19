@@ -1,213 +1,179 @@
-// API Route: Devices (Supabase)
 // app/api/pipeline/devices/route.ts
-
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseAdmin } from '@/lib/supabase/client'
+import { createClient } from '@supabase/supabase-js'
+import { auth } from '@clerk/nextjs/server'
 
-// GET: Fetch devices
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
 export async function GET(request: NextRequest) {
-  try {
-    const supabase = getSupabaseAdmin()
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-    const venueId = searchParams.get('venueId') || searchParams.get('venue_id')
-    const partnerId = searchParams.get('partnerId') || searchParams.get('location_partner_id')
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  const venueId = searchParams.get('venueId')
+  const status = searchParams.get('status')
 
-    // Single device fetch
+  try {
     if (id) {
       const { data: device, error } = await supabase
-        .from('devices')
-        .select('*, venues(*, location_partners(*)), products(*)')
-        .eq('id', id)
-        .single()
-
-      if (error || !device) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      }
-
+        .from('devices').select('*, venues(venue_name, location_partner_id)').eq('id', id).single()
+      if (error) throw error
       return NextResponse.json({ device })
     }
 
-    // List devices
-    let query = supabase.from('devices').select('*, venues(venue_name, location_partner_id), products(name, sku)')
-
-    if (venueId) {
-      query = query.eq('venue_id', venueId)
-    }
-
-    // Filter by partner (through venues)
-    if (partnerId) {
-      const { data: venues } = await supabase
-        .from('venues')
-        .select('id')
-        .eq('location_partner_id', partnerId)
-
-      if (venues && venues.length > 0) {
-        const venueIds = venues.map(v => v.id)
-        query = query.in('venue_id', venueIds)
-      }
-    }
-
-    const status = searchParams.get('status')
-    if (status) {
-      query = query.eq('status', status)
-    }
-
-    const ownership = searchParams.get('ownership')
-    if (ownership) {
-      query = query.eq('ownership', ownership)
-    }
-
-    const { data: devices, error } = await query.order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ devices: devices || [] })
-  } catch (error) {
-    console.error('GET /api/pipeline/devices error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    let query = supabase.from('devices').select('*, venues(venue_name)')
+      .order('created_at', { ascending: false })
+    if (venueId) query = query.eq('venue_id', venueId)
+    if (status) query = query.eq('status', status)
+    const { data, error } = await query.limit(100)
+    if (error) throw error
+    return NextResponse.json({ devices: data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-// POST: Create device
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
+    const { userId } = await auth()
     const body = await request.json()
 
-    const deviceData = {
-      venue_id: body.venueId || body.venue_id,
-      product_id: body.productId || body.product_id,
-      purchase_request_id: body.purchaseRequestId || body.purchase_request_id,
-      device_name: body.deviceName || body.device_name,
-      device_type: body.deviceType || body.device_type || 'access_point',
+    const { count } = await supabase.from('devices').select('*', { count: 'exact', head: true })
+    const deviceId = `DEV-${((count || 0) + 1).toString().padStart(5, '0')}`
+
+    const { data, error } = await supabase.from('devices').insert([{
+      venue_id: body.venue_id,
+      product_id: body.product_id,
+      device_id: deviceId,
+      device_name: body.device_name,
+      device_type: body.device_type || 'access_point',
       manufacturer: body.manufacturer || 'Ubiquiti',
       model: body.model,
-      serial_number: body.serialNumber || body.serial_number,
-      mac_address: body.macAddress || body.mac_address,
+      serial_number: body.serial_number,
+      mac_address: body.mac_address,
       ownership: body.ownership || 'skyyield_owned',
-      status: body.status || 'pending_install',
-      unit_cost: body.unitCost || body.unit_cost,
-      location_in_venue: body.locationInVenue || body.location_in_venue,
-      notes: body.notes,
-    }
+      status: body.status || 'pending_purchase',
+      unit_cost: body.unit_cost,
+      installation_cost: body.installation_cost,
+      partner_paid_amount: body.partner_paid_amount,
+      ip_address: body.ip_address,
+      ssid: body.ssid,
+      network_name: body.network_name,
+      location_in_venue: body.location_in_venue,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }]).select().single()
+    if (error) throw error
 
-    const { data: device, error } = await supabase
-      .from('devices')
-      .insert(deviceData)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Insert error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    // Log activity
-    await supabase.from('activity_log').insert({
+    await supabase.from('activity_log').insert([{
       entity_type: 'device',
-      entity_id: device.id,
-      action: 'created',
-      description: `Device "${device.device_name || device.device_id}" created`,
-    })
-
-    return NextResponse.json({ device }, { status: 201 })
-  } catch (error) {
-    console.error('POST /api/pipeline/devices error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      entity_id: data.id,
+      entity_name: data.device_id,
+      user_id: userId,
+      action: 'device_created',
+      action_category: 'inventory',
+    }])
+    return NextResponse.json({ success: true, device: data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-// PUT: Update device
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
+    const { userId } = await auth()
     const body = await request.json()
     const { id, ...updates } = body
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+    const { data: old } = await supabase.from('devices')
+      .select('status, device_id').eq('id', id).single()
+
+    updates.updated_at = new Date().toISOString()
+
+    // Auto-set timestamps based on status
+    if (updates.status === 'ordered') updates.ordered_at = updates.ordered_at || new Date().toISOString()
+    if (updates.status === 'shipped') updates.shipped_at = updates.shipped_at || new Date().toISOString()
+    if (updates.status === 'delivered') updates.delivered_at = updates.delivered_at || new Date().toISOString()
+    if (updates.status === 'installed' || updates.status === 'active') {
+      updates.installed_at = updates.installed_at || new Date().toISOString()
     }
+    if (updates.status === 'removed') updates.removed_at = updates.removed_at || new Date().toISOString()
 
-    // Map camelCase to snake_case
-    const updateData: Record<string, any> = {}
-    const fieldMap: Record<string, string> = {
-      deviceName: 'device_name',
-      deviceType: 'device_type',
-      serialNumber: 'serial_number',
-      macAddress: 'mac_address',
-      ipAddress: 'ip_address',
-      unitCost: 'unit_cost',
-      installationCost: 'installation_cost',
-      locationInVenue: 'location_in_venue',
-      installedAt: 'installed_at',
-      lastSeenOnline: 'last_seen_online',
-    }
+    const { data, error } = await supabase.from('devices')
+      .update(updates).eq('id', id).select().single()
+    if (error) throw error
 
-    for (const [key, value] of Object.entries(updates)) {
-      const dbField = fieldMap[key] || key
-      updateData[dbField] = value
-    }
-
-    // Get current device for logging
-    const { data: currentDevice } = await supabase
-      .from('devices')
-      .select('status')
-      .eq('id', id)
-      .single()
-
-    const { data: device, error } = await supabase
-      .from('devices')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Update error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    // Log status change
-    if (currentDevice && updateData.status && updateData.status !== currentDevice.status) {
-      await supabase.from('activity_log').insert({
+    if (updates.status && old?.status !== updates.status) {
+      await supabase.from('activity_log').insert([{
         entity_type: 'device',
         entity_id: id,
-        action: 'status_change',
-        description: `Device status: ${currentDevice.status} → ${updateData.status}`,
-      })
+        entity_name: old?.device_id,
+        user_id: userId,
+        action: 'status_changed',
+        action_category: 'inventory',
+        description: `Status: ${old?.status} → ${updates.status}`,
+      }])
     }
-
-    return NextResponse.json({ device })
-  } catch (error) {
-    console.error('PUT /api/pipeline/devices error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: true, device: data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-// DELETE: Remove device
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
+    const { userId } = await auth()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    }
+    const { data: device } = await supabase.from('devices')
+      .select('device_id').eq('id', id).single()
 
     const { error } = await supabase.from('devices').delete().eq('id', id)
+    if (error) throw error
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    await supabase.from('activity_log').insert([{
+      entity_type: 'device',
+      entity_id: id,
+      entity_name: device?.device_id,
+      user_id: userId,
+      action: 'device_deleted',
+      action_category: 'inventory',
+    }])
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { userId } = await auth()
+    const body = await request.json()
+    const { ids, updates } = body
+
+    if (!ids || !Array.isArray(ids)) {
+      return NextResponse.json({ error: 'ids array required' }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('DELETE /api/pipeline/devices error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    updates.updated_at = new Date().toISOString()
+    const { data, error } = await supabase.from('devices')
+      .update(updates).in('id', ids).select()
+    if (error) throw error
+
+    await supabase.from('activity_log').insert([{
+      entity_type: 'device',
+      entity_id: ids[0],
+      user_id: userId,
+      action: 'bulk_update',
+      action_category: 'inventory',
+      description: `${ids.length} devices updated`,
+    }])
+    return NextResponse.json({ success: true, devices: data, count: data?.length })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

@@ -1,189 +1,137 @@
-// API Route: Venues (Supabase)
 // app/api/pipeline/venues/route.ts
-
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabaseAdmin } from '@/lib/supabase/client'
+import { createClient } from '@supabase/supabase-js'
+import { auth } from '@clerk/nextjs/server'
 
-// GET: Fetch venues
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
 export async function GET(request: NextRequest) {
-  try {
-    const supabase = getSupabaseAdmin()
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-    const partnerId = searchParams.get('partnerId') || searchParams.get('location_partner_id')
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  const partnerId = searchParams.get('partnerId')
+  const status = searchParams.get('status')
+  const includeDevices = searchParams.get('includeDevices') === 'true'
 
-    // Single venue fetch
+  try {
     if (id) {
       const { data: venue, error } = await supabase
-        .from('venues')
-        .select('*, location_partners(*), devices(*)')
-        .eq('id', id)
-        .single()
-
-      if (error || !venue) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        .from('venues').select('*').eq('id', id).single()
+      if (error) throw error
+      const response: any = { venue }
+      if (includeDevices) {
+        const { data: devices } = await supabase.from('devices').select('*').eq('venue_id', id)
+        response.devices = devices || []
       }
-
-      return NextResponse.json({ venue })
+      return NextResponse.json(response)
     }
 
-    // List venues
-    let query = supabase.from('venues').select('*, location_partners(company_legal_name, dba_name)')
-
-    if (partnerId) {
-      query = query.eq('location_partner_id', partnerId)
-    }
-
-    const search = searchParams.get('search')?.toLowerCase()
-    if (search) {
-      query = query.or(`venue_name.ilike.%${search}%,city.ilike.%${search}%`)
-    }
-
-    const status = searchParams.get('status')
-    if (status) {
-      query = query.eq('status', status)
-    }
-
-    const { data: venues, error } = await query.order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ venues: venues || [] })
-  } catch (error) {
-    console.error('GET /api/pipeline/venues error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    let query = supabase.from('venues').select('*').order('created_at', { ascending: false })
+    if (partnerId) query = query.eq('location_partner_id', partnerId)
+    if (status) query = query.eq('status', status)
+    const { data, error } = await query.limit(100)
+    if (error) throw error
+    return NextResponse.json({ venues: data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-// POST: Create venue
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
+    const { userId } = await auth()
     const body = await request.json()
 
-    const venueData = {
-      location_partner_id: body.locationPartnerId || body.location_partner_id,
-      venue_name: body.venueName || body.venue_name,
-      venue_type: body.venueType || body.venue_type,
-      address_line_1: body.address1 || body.address_line_1,
-      address_line_2: body.address2 || body.address_line_2,
+    const { count } = await supabase.from('venues')
+      .select('*', { count: 'exact', head: true })
+      .eq('location_partner_id', body.location_partner_id)
+    const venueId = `VEN-${((count || 0) + 1).toString().padStart(3, '0')}`
+
+    const { data, error } = await supabase.from('venues').insert([{
+      location_partner_id: body.location_partner_id,
+      venue_id: venueId,
+      venue_name: body.venue_name,
+      venue_type: body.venue_type,
+      address_line_1: body.address_line_1 || body.address,
+      address_line_2: body.address_line_2,
       city: body.city,
       state: body.state,
       zip: body.zip,
-      square_footage: body.squareFootage || body.square_footage,
+      country: body.country || 'USA',
+      latitude: body.latitude,
+      longitude: body.longitude,
+      site_contact_name: body.site_contact_name,
+      site_contact_phone: body.site_contact_phone,
+      site_contact_email: body.site_contact_email,
+      square_footage: body.square_footage,
       floors: body.floors || 1,
-      monthly_visitors: body.monthlyVisitors || body.monthly_visitors,
-      existing_network: body.existingNetwork || body.existing_network || false,
-      existing_isp: body.existingIsp || body.existing_isp,
-      site_contact_name: body.siteContactName || body.site_contact_name,
-      site_contact_phone: body.siteContactPhone || body.site_contact_phone,
-      site_contact_email: body.siteContactEmail || body.site_contact_email,
+      operating_hours: body.operating_hours,
+      existing_network: body.existing_network || false,
+      existing_isp: body.existing_isp,
+      bandwidth_mbps: body.bandwidth_mbps,
+      monthly_visitors: body.monthly_visitors,
       status: 'pending',
-      notes: body.notes,
-    }
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }]).select().single()
+    if (error) throw error
 
-    const { data: venue, error } = await supabase
-      .from('venues')
-      .insert(venueData)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Insert error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    // Log activity
-    await supabase.from('activity_log').insert({
+    await supabase.from('activity_log').insert([{
       entity_type: 'venue',
-      entity_id: venue.id,
-      action: 'created',
-      description: `Venue "${venue.venue_name}" created`,
-    })
-
-    return NextResponse.json({ venue }, { status: 201 })
-  } catch (error) {
-    console.error('POST /api/pipeline/venues error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      entity_id: data.id,
+      entity_name: data.venue_name,
+      user_id: userId,
+      action: 'venue_created',
+      action_category: 'pipeline',
+    }])
+    return NextResponse.json({ success: true, venue: data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-// PUT: Update venue
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
+    const { userId } = await auth()
     const body = await request.json()
     const { id, ...updates } = body
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    }
-
-    // Map camelCase to snake_case
-    const updateData: Record<string, any> = {}
-    const fieldMap: Record<string, string> = {
-      venueName: 'venue_name',
-      venueType: 'venue_type',
-      addressLine1: 'address_line_1',
-      addressLine2: 'address_line_2',
-      squareFootage: 'square_footage',
-      monthlyVisitors: 'monthly_visitors',
-      existingNetwork: 'existing_network',
-      existingIsp: 'existing_isp',
-      siteContactName: 'site_contact_name',
-      siteContactPhone: 'site_contact_phone',
-      siteContactEmail: 'site_contact_email',
-      installationDate: 'installation_date',
-      goLiveDate: 'go_live_date',
-    }
-
-    for (const [key, value] of Object.entries(updates)) {
-      const dbField = fieldMap[key] || key
-      updateData[dbField] = value
-    }
-
-    const { data: venue, error } = await supabase
-      .from('venues')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Update error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ venue })
-  } catch (error) {
-    console.error('PUT /api/pipeline/venues error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    updates.updated_at = new Date().toISOString()
+    const { data, error } = await supabase.from('venues')
+      .update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return NextResponse.json({ success: true, venue: data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-// DELETE: Remove venue
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = getSupabaseAdmin()
+    const { userId } = await auth()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    }
+    const { data: venue } = await supabase.from('venues')
+      .select('venue_name').eq('id', id).single()
 
     const { error } = await supabase.from('venues').delete().eq('id', id)
+    if (error) throw error
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
+    await supabase.from('activity_log').insert([{
+      entity_type: 'venue',
+      entity_id: id,
+      entity_name: venue?.venue_name,
+      user_id: userId,
+      action: 'venue_deleted',
+      action_category: 'pipeline',
+    }])
     return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('DELETE /api/pipeline/venues error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
