@@ -1,9 +1,16 @@
 // app/portal/location/page.tsx
-// Example Location Partner Portal using effective user
+// Location Partner Portal - Real data from Supabase
 
 import { redirect } from 'next/navigation'
 import { getEffectiveUser, getEffectivePartnerRecord } from '@/lib/getEffectiveUser'
 import { ImpersonationAwareLayout } from '@/components/ImpersonationBanner'
+import { createClient } from '@supabase/supabase-js'
+import LocationPortalClient from './LocationPortalClient'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export default async function LocationPartnerPortal() {
   const user = await getEffectiveUser()
@@ -15,7 +22,7 @@ export default async function LocationPartnerPortal() {
 
   // Check authorization - must be location_partner (or admin impersonating one)
   if (user.userType !== 'location_partner') {
-    redirect('/dashboard') // or show unauthorized message
+    redirect('/dashboard')
   }
 
   // Get the partner record
@@ -24,165 +31,160 @@ export default async function LocationPartnerPortal() {
   if (!partner) {
     return (
       <ImpersonationAwareLayout>
-        <div className="p-8">
-          <h1>Account Not Found</h1>
-          <p>Your partner record could not be loaded.</p>
+        <div className="min-h-screen bg-[#0A0F2C] flex items-center justify-center">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 max-w-md text-center">
+            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">⚠️</span>
+            </div>
+            <h1 className="text-xl font-bold text-white mb-2">Account Not Found</h1>
+            <p className="text-[#94A3B8]">Your partner record could not be loaded. Please contact support.</p>
+          </div>
         </div>
       </ImpersonationAwareLayout>
     )
   }
 
-  return (
-    <ImpersonationAwareLayout>
-      <div className="min-h-screen bg-[#0A0F2C] text-white">
-        {/* Header */}
-        <header className="border-b border-gray-800 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">{partner.company_legal_name || partner.dba_name}</h1>
-              <p className="text-gray-400">Location Partner Portal</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-400">Welcome back,</p>
-              <p className="font-medium">{partner.contact_first_name} {partner.contact_last_name}</p>
-            </div>
-          </div>
-        </header>
+  // Fetch venues for this partner
+  const { data: venues } = await supabase
+    .from('venues')
+    .select('*')
+    .eq('location_partner_id', partner.id)
+    .order('created_at', { ascending: false })
 
-        {/* Main Content */}
-        <main className="p-6">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <StatCard 
-              title="Active Venues" 
-              value="3" 
-              change="+1 this month" 
-            />
-            <StatCard 
-              title="Total Revenue" 
-              value="$12,450" 
-              change="+12% vs last month" 
-            />
-            <StatCard 
-              title="Data Offloaded" 
-              value="1.2 TB" 
-              change="This month" 
-            />
-            <StatCard 
-              title="Next Payment" 
-              value="$2,100" 
-              change="Dec 15, 2024" 
-            />
-          </div>
+  // Fetch devices for all venues
+  const venueIds = (venues || []).map(v => v.id)
+  let devices: any[] = []
+  if (venueIds.length > 0) {
+    const { data: deviceData } = await supabase
+      .from('devices')
+      .select('*')
+      .in('venue_id', venueIds)
+    devices = deviceData || []
+  }
 
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Venues */}
-            <div className="bg-gray-900 rounded-lg p-6">
-              <h2 className="text-lg font-semibold mb-4">Your Venues</h2>
-              <div className="space-y-3">
-                <VenueRow name="Main Street Location" status="active" devices={4} />
-                <VenueRow name="Downtown Branch" status="active" devices={2} />
-                <VenueRow name="Airport Kiosk" status="pending" devices={1} />
-              </div>
-              <button className="mt-4 text-cyan-400 hover:text-cyan-300 text-sm">
-                + Add New Venue
-              </button>
-            </div>
+  // Fetch commission/payment history
+  const { data: commissions } = await supabase
+    .from('monthly_commissions')
+    .select('*')
+    .eq('location_partner_id', partner.id)
+    .order('commission_month', { ascending: false })
+    .limit(12)
 
-            {/* Documents */}
-            <div className="bg-gray-900 rounded-lg p-6">
-              <h2 className="text-lg font-semibold mb-4">Documents</h2>
-              <div className="space-y-3">
-                <DocumentRow 
-                  name="Letter of Intent" 
-                  status={partner.loi_status || 'not_sent'} 
-                  date={partner.loi_signed_at}
-                />
-                <DocumentRow 
-                  name="Deployment Agreement" 
-                  status={partner.deployment_status || 'not_sent'} 
-                  date={partner.deployment_signed_at}
-                />
-                <DocumentRow 
-                  name="Contract" 
-                  status={partner.contract_status || 'not_sent'} 
-                  date={partner.contract_signed_at}
-                />
-              </div>
-            </div>
-          </div>
+  // Fetch Tipalti payment history if available
+  let payments: any[] = []
+  if (partner.tipalti_payee_id) {
+    const { data: paymentData } = await supabase
+      .from('tipalti_payments')
+      .select('*')
+      .eq('payee_id', partner.tipalti_payee_id)
+      .order('payment_date', { ascending: false })
+      .limit(10)
+    payments = paymentData || []
+  }
 
-          {/* Payment Status */}
-          <div className="mt-6 bg-gray-900 rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4">Payment Setup</h2>
-            <div className="flex items-center gap-4">
-              <div className={`w-3 h-3 rounded-full ${
-                partner.tipalti_status === 'active' ? 'bg-green-500' :
-                partner.tipalti_status === 'pending_onboarding' ? 'bg-yellow-500' :
-                'bg-gray-500'
-              }`} />
-              <span>
-                {partner.tipalti_status === 'active' ? 'Payment method verified' :
-                 partner.tipalti_status === 'pending_onboarding' ? 'Please complete payment setup' :
-                 'Payment setup not started'}
-              </span>
-              {partner.tipalti_status !== 'active' && (
-                <button className="ml-auto bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded-md text-sm">
-                  Complete Setup
-                </button>
-              )}
-            </div>
-          </div>
-        </main>
-      </div>
-    </ImpersonationAwareLayout>
-  )
-}
+  // Calculate stats
+  const activeVenues = (venues || []).filter(v => v.status === 'active')
+  const trialVenues = (venues || []).filter(v => v.status === 'trial')
+  const totalDevices = devices.length
+  const activeDevices = devices.filter(d => d.status === 'active').length
 
-function StatCard({ title, value, change }: { title: string; value: string; change: string }) {
-  return (
-    <div className="bg-gray-900 rounded-lg p-6">
-      <p className="text-gray-400 text-sm">{title}</p>
-      <p className="text-3xl font-bold mt-1">{value}</p>
-      <p className="text-sm text-gray-500 mt-1">{change}</p>
-    </div>
-  )
-}
+  // Calculate total earnings from commissions
+  const totalEarnings = (commissions || []).reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0)
+  const lastPayment = payments[0]
 
-function VenueRow({ name, status, devices }: { name: string; status: string; devices: number }) {
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
-      <div>
-        <p className="font-medium">{name}</p>
-        <p className="text-sm text-gray-400">{devices} devices</p>
-      </div>
-      <span className={`px-2 py-1 rounded text-xs ${
-        status === 'active' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'
-      }`}>
-        {status}
-      </span>
-    </div>
-  )
-}
+  // Calculate data offloaded (sum from devices or venues)
+  const totalDataGB = devices.reduce((sum, d) => sum + (parseFloat(d.data_offloaded_gb) || 0), 0)
 
-function DocumentRow({ name, status, date }: { name: string; status: string; date?: string }) {
-  const statusColors: Record<string, string> = {
-    signed: 'bg-green-900 text-green-300',
-    sent: 'bg-blue-900 text-blue-300',
-    not_sent: 'bg-gray-700 text-gray-300',
-    declined: 'bg-red-900 text-red-300',
+  // Get next payment estimate
+  const pendingCommissions = (commissions || []).filter(c => c.status === 'pending')
+  const nextPaymentAmount = pendingCommissions.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0)
+
+  // Build venue data with device counts
+  const venuesWithDevices = (venues || []).map(venue => {
+    const venueDevices = devices.filter(d => d.venue_id === venue.id)
+    const venueDataUsage = venueDevices.reduce((sum, d) => sum + (parseFloat(d.data_offloaded_gb) || 0), 0)
+    
+    return {
+      id: venue.id,
+      venue_id: venue.venue_id,
+      name: venue.venue_name,
+      address: venue.address_line_1,
+      city: venue.city,
+      state: venue.state,
+      type: venue.venue_type,
+      status: venue.status,
+      devicesInstalled: venueDevices.length,
+      activeDevices: venueDevices.filter(d => d.status === 'active').length,
+      dataUsageGB: venueDataUsage,
+      monthlyEarnings: 0, // Would need venue-level revenue data
+      trialStartDate: venue.trial_start_date,
+      trialEndDate: venue.trial_end_date,
+      trialDaysRemaining: venue.trial_end_date 
+        ? Math.max(0, Math.ceil((new Date(venue.trial_end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : null,
+      installDate: venue.install_completed_at,
+      created_at: venue.created_at,
+    }
+  })
+
+  // Prepare data for client component
+  const portalData = {
+    partner: {
+      id: partner.id,
+      partner_id: partner.partner_id,
+      company_legal_name: partner.company_legal_name,
+      dba_name: partner.dba_name,
+      contact_first_name: partner.contact_first_name,
+      contact_last_name: partner.contact_last_name,
+      contact_email: partner.contact_email,
+      contact_phone: partner.contact_phone,
+      stage: partner.stage || partner.pipeline_stage,
+      
+      // Document statuses
+      loi_status: partner.loi_status,
+      loi_signed_at: partner.loi_signed_at,
+      deployment_status: partner.deployment_status,
+      deployment_signed_at: partner.deployment_signed_at,
+      contract_status: partner.contract_status,
+      contract_signed_at: partner.contract_signed_at,
+      nda_status: partner.nda_status,
+      nda_signed_at: partner.nda_signed_at,
+      
+      // Trial info
+      trial_status: partner.trial_status,
+      trial_start_date: partner.trial_start_date,
+      trial_end_date: partner.trial_end_date,
+      trial_days_remaining: partner.trial_days_remaining,
+      
+      // Payment info
+      tipalti_payee_id: partner.tipalti_payee_id,
+      tipalti_status: partner.tipalti_status,
+      commission_type: partner.commission_type,
+      commission_percentage: partner.commission_percentage,
+      commission_flat_fee: partner.commission_flat_fee,
+      last_payment_amount: partner.last_payment_amount,
+      last_payment_date: partner.last_payment_date,
+    },
+    stats: {
+      totalVenues: (venues || []).length,
+      activeVenues: activeVenues.length,
+      trialVenues: trialVenues.length,
+      totalDevices,
+      activeDevices,
+      totalEarnings,
+      totalDataGB,
+      nextPaymentAmount,
+      lastPaymentAmount: lastPayment?.amount || partner.last_payment_amount,
+      lastPaymentDate: lastPayment?.payment_date || partner.last_payment_date,
+    },
+    venues: venuesWithDevices,
+    commissions: commissions || [],
+    payments: payments || [],
   }
 
   return (
-    <div className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
-      <div>
-        <p className="font-medium">{name}</p>
-        {date && <p className="text-sm text-gray-400">Signed {new Date(date).toLocaleDateString()}</p>}
-      </div>
-      <span className={`px-2 py-1 rounded text-xs ${statusColors[status] || statusColors.not_sent}`}>
-        {status.replace('_', ' ')}
-      </span>
-    </div>
+    <ImpersonationAwareLayout>
+      <LocationPortalClient data={portalData} />
+    </ImpersonationAwareLayout>
   )
 }
