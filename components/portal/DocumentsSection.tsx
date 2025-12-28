@@ -13,7 +13,7 @@ interface Document {
   expiresAt?: string
   downloadUrl?: string
   viewUrl?: string
-  pandadocId?: string
+  docusealId?: string
 }
 
 interface DocumentsSectionProps {

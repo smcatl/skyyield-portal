@@ -352,7 +352,7 @@ export async function sendTrialEndingEmail(partner: PartnerEmailData, daysRemain
 }
 
 // Contract Ready
-export async function sendContractReadyEmail(partner: PartnerEmailData, pandadocUrl: string) {
+export async function sendContractReadyEmail(partner: PartnerEmailData, docusealUrl: string) {
   const name = partner.contactPreferredName || partner.contactFullName.split(' ')[0]
   const company = partner.companyDBA || partner.companyLegalName
   
@@ -364,7 +364,7 @@ export async function sendContractReadyEmail(partner: PartnerEmailData, pandadoc
       `Your Deployment Contract is ready for signature. Please review the terms and sign when ready to become an official SkyYield Location Partner.`,
     ],
     ctaText: 'Review & Sign Contract',
-    ctaUrl: pandadocUrl,
+    ctaUrl: docusealUrl,
     footerNote: `Have questions about the contract? Reply to this email or call us at (555) 123-4567.`,
   })
   

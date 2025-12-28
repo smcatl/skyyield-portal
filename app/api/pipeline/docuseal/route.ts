@@ -1,6 +1,6 @@
 // API Route: DocuSeal Document Management
 // app/api/pipeline/docuseal/route.ts
-// Replaces PandaDocs - Open source document signing
+// Document signing integration - Open source document signing
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/client'

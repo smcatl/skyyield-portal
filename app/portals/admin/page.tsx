@@ -56,7 +56,7 @@ interface LocationPartner {
   updatedAt: string
   tags?: string[]
   // Follow-up tracking fields
-  waitingFor?: 'calendly_discovery' | 'calendly_install' | 'calendly_review' | 'pandadoc_loi' | 'pandadoc_contract' | 'tipalti_setup' | 'portal_setup' | 'equipment_delivery' | 'other'
+  waitingFor?: 'calendly_discovery' | 'calendly_install' | 'calendly_review' | 'docuseal_loi' | 'docuseal_contract' | 'tipalti_setup' | 'portal_setup' | 'equipment_delivery' | 'other'
   waitingForLabel?: string
   waitingSince?: string
   followUpAttempts?: FollowUpAttempt[]
@@ -140,12 +140,12 @@ const LP_PIPELINE_STAGES = [
   { id: 'discovery_scheduled', name: 'Discovery', color: 'border-purple-500', bgColor: 'bg-purple-500', waitingFor: 'calendly_discovery' },
   { id: 'discovery_complete', name: 'Post-Call', color: 'border-yellow-500', bgColor: 'bg-yellow-500', waitingFor: null },
   { id: 'venues_setup', name: 'Venues Setup', color: 'border-cyan-500', bgColor: 'bg-cyan-500', waitingFor: null },
-  { id: 'loi_sent', name: 'LOI Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'pandadoc_loi' },
+  { id: 'loi_sent', name: 'LOI Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'docuseal_loi' },
   { id: 'loi_signed', name: 'LOI Signed', color: 'border-green-500', bgColor: 'bg-green-500', waitingFor: null },
   { id: 'install_scheduled', name: 'Install', color: 'border-pink-500', bgColor: 'bg-pink-500', waitingFor: 'calendly_install' },
   { id: 'trial_active', name: 'Trial', color: 'border-indigo-500', bgColor: 'bg-indigo-500', waitingFor: null },
   { id: 'trial_ending', name: 'Trial Ending', color: 'border-amber-500', bgColor: 'bg-amber-500', waitingFor: 'calendly_review' },
-  { id: 'contract_sent', name: 'Contract Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'pandadoc_contract' },
+  { id: 'contract_sent', name: 'Contract Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'docuseal_contract' },
   { id: 'active', name: 'Active', color: 'border-green-500', bgColor: 'bg-green-500', waitingFor: null },
   { id: 'inactive', name: 'Inactive', color: 'border-gray-500', bgColor: 'bg-gray-500', waitingFor: null },
 ]
@@ -156,7 +156,7 @@ const SIMPLE_PIPELINE_STAGES = [
   { id: 'initial_review', name: 'Initial Review', color: 'border-yellow-500', bgColor: 'bg-yellow-500', waitingFor: null },
   { id: 'discovery_scheduled', name: 'Discovery', color: 'border-purple-500', bgColor: 'bg-purple-500', waitingFor: 'calendly_discovery' },
   { id: 'discovery_complete', name: 'Post-Call', color: 'border-yellow-500', bgColor: 'bg-yellow-500', waitingFor: null },
-  { id: 'agreement_sent', name: 'Agreement Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'pandadoc_agreement' },
+  { id: 'agreement_sent', name: 'Agreement Sent', color: 'border-orange-500', bgColor: 'bg-orange-500', waitingFor: 'docuseal_agreement' },
   { id: 'agreement_signed', name: 'Agreement Signed', color: 'border-green-500', bgColor: 'bg-green-500', waitingFor: null },
   { id: 'tipalti_setup', name: 'Payment Setup', color: 'border-pink-500', bgColor: 'bg-pink-500', waitingFor: 'tipalti_setup' },
   { id: 'active', name: 'Active', color: 'border-green-500', bgColor: 'bg-green-500', waitingFor: null },
@@ -178,9 +178,9 @@ const WAITING_TYPES = [
   { id: 'calendly_discovery', label: 'Waiting: Book Discovery Call', shortLabel: 'Discovery Call', icon: '📅', category: 'calendly', description: 'Partner needs to book their discovery call' },
   { id: 'calendly_install', label: 'Waiting: Book Install Appointment', shortLabel: 'Install Booking', icon: '🔧', category: 'calendly', description: 'Partner needs to schedule installation' },
   { id: 'calendly_review', label: 'Waiting: Book Review Call', shortLabel: 'Review Call', icon: '📊', category: 'calendly', description: 'Partner needs to book trial review call' },
-  { id: 'pandadoc_loi', label: 'Waiting: Sign LOI', shortLabel: 'LOI Signature', icon: '📝', category: 'pandadoc', description: 'Partner needs to sign Letter of Intent' },
-  { id: 'pandadoc_agreement', label: 'Waiting: Sign Agreement', shortLabel: 'Agreement', icon: '📝', category: 'pandadoc', description: 'Partner needs to sign partner agreement' },
-  { id: 'pandadoc_contract', label: 'Waiting: Sign Contract', shortLabel: 'Contract', icon: '📄', category: 'pandadoc', description: 'Partner needs to sign deployment contract' },
+  { id: 'docuseal_loi', label: 'Waiting: Sign LOI', shortLabel: 'LOI Signature', icon: '📝', category: 'docuseal', description: 'Partner needs to sign Letter of Intent' },
+  { id: 'docuseal_agreement', label: 'Waiting: Sign Agreement', shortLabel: 'Agreement', icon: '📝', category: 'docuseal', description: 'Partner needs to sign partner agreement' },
+  { id: 'docuseal_contract', label: 'Waiting: Sign Contract', shortLabel: 'Contract', icon: '📄', category: 'docuseal', description: 'Partner needs to sign deployment contract' },
   { id: 'tipalti_setup', label: 'Waiting: Setup Payment', shortLabel: 'Tipalti Setup', icon: '💰', category: 'tipalti', description: 'Partner needs to complete Tipalti setup' },
   { id: 'portal_setup', label: 'Waiting: Activate Portal', shortLabel: 'Portal Setup', icon: '🔐', category: 'portal', description: 'Partner needs to activate their portal' },
   { id: 'equipment_delivery', label: 'Waiting: Equipment Arrival', shortLabel: 'Equipment', icon: '📦', category: 'logistics', description: 'Equipment in transit to partner' },
@@ -260,7 +260,7 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
   {
     id: 'loiSent', name: 'LOI Sent',
     subject: '📝 Your SkyYield Letter of Intent is Ready',
-    description: 'Sent when LOI document is sent via PandaDoc',
+    description: 'Sent when LOI document is sent via DocuSeal',
     trigger: 'Venues Setup → LOI Sent', hasCalendly: false, enabled: true,
     greeting: 'Hi {{name}},',
     bodyParagraphs: [
@@ -369,7 +369,7 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
   {
     id: 'reminderDocument', name: 'Reminder: Sign Document',
     subject: '📝 Reminder: Your SkyYield Document Awaits',
-    description: 'Follow-up reminder for unsigned PandaDoc',
+    description: 'Follow-up reminder for unsigned DocuSeal',
     trigger: 'Manual / Auto Follow-up', hasCalendly: false, enabled: true,
     greeting: 'Hi {{name}},',
     bodyParagraphs: [
@@ -1048,8 +1048,8 @@ export default function AdminPortalPage() {
     if (followUpItemTypeFilter !== 'all') {
       if (followUpItemTypeFilter === 'calendly') {
         filtered = filtered.filter(item => item.waitingForCategory === 'calendly')
-      } else if (followUpItemTypeFilter === 'pandadoc') {
-        filtered = filtered.filter(item => item.waitingForCategory === 'pandadoc')
+      } else if (followUpItemTypeFilter === 'docuseal') {
+        filtered = filtered.filter(item => item.waitingForCategory === 'docuseal')
       } else if (followUpItemTypeFilter === 'tipalti') {
         filtered = filtered.filter(item => item.waitingForCategory === 'tipalti')
       } else {
@@ -3375,12 +3375,12 @@ export default function AdminPortalPage() {
                 <div className="text-[#64748B] text-xs">Need to book</div>
               </button>
               <button
-                onClick={() => { setFollowUpItemTypeFilter('pandadoc'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
-                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'pandadoc' ? 'border-orange-500' : 'border-[#2D3B5F]'
+                onClick={() => { setFollowUpItemTypeFilter('docuseal'); setFollowUpMinDays(0); setFollowUpMaxDays(999) }}
+                className={`bg-[#1A1F3A] border rounded-lg p-4 text-center transition-colors hover:bg-[#2D3B5F]/50 ${followUpItemTypeFilter === 'docuseal' ? 'border-orange-500' : 'border-[#2D3B5F]'
                   }`}
               >
-                <div className="text-2xl font-bold text-orange-400">{waitingItems.filter(w => w.waitingForCategory === 'pandadoc').length}</div>
-                <div className="text-[#64748B] text-sm">📝 PandaDoc</div>
+                <div className="text-2xl font-bold text-orange-400">{waitingItems.filter(w => w.waitingForCategory === 'docuseal').length}</div>
+                <div className="text-[#64748B] text-sm">📝 DocuSeal</div>
                 <div className="text-[#64748B] text-xs">Need to sign</div>
               </button>
               <button
@@ -3453,9 +3453,9 @@ export default function AdminPortalPage() {
                     <option value="calendly_discovery">📅 Discovery Call</option>
                     <option value="calendly_install">🔧 Install Booking</option>
                     <option value="calendly_review">📊 Review Call</option>
-                    <option value="pandadoc">📝 PandaDoc (All)</option>
-                    <option value="pandadoc_loi">📝 LOI Signature</option>
-                    <option value="pandadoc_contract">📄 Contract Signature</option>
+                    <option value="docuseal">📝 DocuSeal (All)</option>
+                    <option value="docuseal_loi">📝 LOI Signature</option>
+                    <option value="docuseal_contract">📄 Contract Signature</option>
                     <option value="tipalti">💰 Tipalti Setup</option>
                     <option value="portal_setup">🔐 Portal Activation</option>
                     <option value="venue_info">🏢 Venue Info</option>

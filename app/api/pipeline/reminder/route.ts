@@ -38,14 +38,14 @@ export async function POST(request: NextRequest) {
         body: `Hi! Your SkyYield trial is coming to an end and we'd love to review your results with you. Please schedule a quick call to discuss your earnings and next steps.`,
         sms: 'Hi! Your SkyYield trial is ending soon. Please schedule your review call to discuss results. Check your email for the link!'
       },
-      pandadoc_loi: {
+      docuseal_loi: {
         subject: '📝 Reminder: Sign Your SkyYield Letter of Intent',
-        body: `Hi! We noticed you haven't signed the Letter of Intent yet. This document outlines our trial partnership terms.\n\nPlease check your email for the PandaDoc link, or reply if you have any questions about the terms.`,
-        sms: 'Hi! SkyYield reminder: Please sign your Letter of Intent. Check your email for the PandaDoc link or reply HELP.'
+        body: `Hi! We noticed you haven't signed the Letter of Intent yet. This document outlines our trial partnership terms.\n\nPlease check your email for the DocuSeal link, or reply if you have any questions about the terms.`,
+        sms: 'Hi! SkyYield reminder: Please sign your Letter of Intent. Check your email for the DocuSeal link or reply HELP.'
       },
-      pandadoc_contract: {
+      docuseal_contract: {
         subject: '📄 Reminder: Sign Your SkyYield Deployment Contract',
-        body: `Hi! Congratulations on a successful trial! We're excited to continue our partnership.\n\nPlease sign your deployment contract to make it official. Check your email for the PandaDoc link.`,
+        body: `Hi! Congratulations on a successful trial! We're excited to continue our partnership.\n\nPlease sign your deployment contract to make it official. Check your email for the DocuSeal link.`,
         sms: 'Hi! SkyYield here. Please sign your deployment contract to continue our partnership. Check email for the link!'
       },
       tipalti_setup: {

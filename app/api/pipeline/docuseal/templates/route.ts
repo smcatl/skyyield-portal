@@ -1,4 +1,4 @@
-// DocuSeal Template Management - Full PandaDocs Migration
+// DocuSeal Template Management - Full Template Management
 // Creates all 9 SkyYield templates with exact field parity
 
 import { NextRequest, NextResponse } from 'next/server'

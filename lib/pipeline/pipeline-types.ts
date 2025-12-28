@@ -11,7 +11,7 @@ export type PipelineStage =
   | 'discovery_scheduled'   // Step 3: Calendly sent
   | 'discovery_complete'    // Step 4: After call approve/deny
   | 'venues_setup'          // Step 5: Venues/Devices form + optional Calendly
-  | 'loi_sent'              // Step 6: LOI via PandaDoc
+  | 'loi_sent'              // Step 6: LOI via DocuSeal
   | 'loi_signed'            // Step 7: LOI signed, install Calendly sent
   | 'install_scheduled'     // Step 8: Install date set, equipment PO
   | 'trial_active'          // Step 9: 60-day trial, Tipalti + Portal invites
@@ -73,12 +73,12 @@ export interface LocationPartner {
   loiStatus: DocumentStatus
   loiSentAt?: string
   loiSignedAt?: string
-  loiPandaDocId?: string
+  loiDocusealId?: string
   
   contractStatus: DocumentStatus
   contractSentAt?: string
   contractSignedAt?: string
-  contractPandaDocId?: string
+  contractDocusealId?: string
   
   // Trial tracking
   trialStartDate?: string
