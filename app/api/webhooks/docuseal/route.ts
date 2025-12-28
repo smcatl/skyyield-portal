@@ -7,6 +7,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const WEBHOOK_SECRET = process.env.DOCUSEAL_WEBHOOK_SECRET
+
 const DOC_CONFIG: Record<string, {
   table: string
   statusField: string
@@ -24,6 +26,15 @@ const DOC_CONFIG: Record<string, {
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify webhook secret if configured
+    if (WEBHOOK_SECRET) {
+      const headerSecret = request.headers.get('X-Webhook-Secret')
+      if (headerSecret !== WEBHOOK_SECRET) {
+        console.error('Invalid DocuSeal webhook secret')
+        return NextResponse.json({ error: 'Invalid webhook secret' }, { status: 401 })
+      }
+    }
+
     const body = await request.json()
     const { event_type, data } = body
     const metadata = data?.metadata || {}
