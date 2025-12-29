@@ -10,6 +10,7 @@ interface UserData {
   email: string
   user_type: string
   is_approved: boolean
+  portal_status: string
   location_partner_ids: string[]
   referral_partner_id: string | null
   contractor_id: string | null
