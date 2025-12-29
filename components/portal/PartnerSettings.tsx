@@ -19,6 +19,7 @@ interface PersonalInfo {
 
 interface CompanyInfo {
   companyName: string
+  dbaName: string
   companyWebsite: string
   companyPhone: string
   companyEmail: string
@@ -46,6 +47,70 @@ interface PartnerSettingsProps {
   showNotifications?: boolean
 }
 
+// Column name mappings per partner type
+const COLUMN_MAPPINGS: Record<string, Record<string, string>> = {
+  location_partner: {
+    firstName: 'contact_first_name',
+    lastName: 'contact_last_name',
+    email: 'contact_email',
+    phone: 'contact_phone',
+    companyName: 'company_legal_name',
+    dbaName: 'dba_name',
+    address: 'company_address',
+    city: 'company_city',
+    state: 'company_state',
+    zipCode: 'company_zip',
+  },
+  referral_partner: {
+    firstName: 'contact_first_name',
+    lastName: 'contact_last_name', 
+    email: 'contact_email',
+    phone: 'contact_phone',
+    companyName: 'company_name',
+    dbaName: 'dba_name',
+    address: 'address',
+    city: 'city',
+    state: 'state',
+    zipCode: 'zip',
+  },
+  channel_partner: {
+    firstName: 'contact_first_name',
+    lastName: 'contact_last_name',
+    email: 'contact_email',
+    phone: 'contact_phone',
+    companyName: 'company_name',
+    dbaName: 'dba_name',
+    address: 'address',
+    city: 'city',
+    state: 'state',
+    zipCode: 'zip',
+  },
+  relationship_partner: {
+    firstName: 'contact_first_name',
+    lastName: 'contact_last_name',
+    email: 'contact_email',
+    phone: 'contact_phone',
+    companyName: 'company_name',
+    dbaName: 'dba_name',
+    address: 'address',
+    city: 'city',
+    state: 'state',
+    zipCode: 'zip',
+  },
+  contractor: {
+    firstName: 'contact_first_name',
+    lastName: 'contact_last_name',
+    email: 'contact_email',
+    phone: 'contact_phone',
+    companyName: 'legal_name',
+    dbaName: 'dba_name',
+    address: 'address_line_1',
+    city: 'city',
+    state: 'state',
+    zipCode: 'zip',
+  },
+}
+
 export default function PartnerSettings({
   partnerId,
   partnerType,
@@ -70,6 +135,7 @@ export default function PartnerSettings({
 
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
     companyName: '',
+    dbaName: '',
     companyWebsite: '',
     companyPhone: '',
     companyEmail: '',
@@ -93,11 +159,13 @@ export default function PartnerSettings({
     loadSettings()
   }, [partnerId])
 
+  const getColumnMapping = () => COLUMN_MAPPINGS[partnerType] || COLUMN_MAPPINGS.referral_partner
+
   const loadSettings = async () => {
     setLoading(true)
     try {
       // Skip DB load if supabase not available (e.g., preview mode)
-      if (!isSupabaseAvailable() || !supabase) {
+      if (!isSupabaseAvailable() || !supabase || !partnerId) {
         // Use mock data for preview
         setPersonalInfo({
           firstName: user?.firstName || 'Preview',
@@ -107,6 +175,7 @@ export default function PartnerSettings({
         })
         setCompanyInfo({
           companyName: 'Preview Company LLC',
+          dbaName: '',
           companyWebsite: 'https://example.com',
           companyPhone: '(555) 987-6543',
           companyEmail: 'info@example.com',
@@ -137,25 +206,39 @@ export default function PartnerSettings({
 
       if (error) throw error
 
+      const mapping = getColumnMapping()
+
       if (data) {
+        // Handle contact_name field (some tables use combined name)
+        let firstName = data[mapping.firstName] || ''
+        let lastName = data[mapping.lastName] || ''
+        
+        // If first/last names are empty but contact_name exists, try to split it
+        if (!firstName && !lastName && data.contact_name) {
+          const parts = data.contact_name.split(' ')
+          firstName = parts[0] || ''
+          lastName = parts.slice(1).join(' ') || ''
+        }
+
         setPersonalInfo({
-          firstName: data.first_name || user?.firstName || '',
-          lastName: data.last_name || user?.lastName || '',
-          email: data.email || user?.primaryEmailAddress?.emailAddress || '',
-          phone: data.phone || '',
+          firstName: firstName || user?.firstName || '',
+          lastName: lastName || user?.lastName || '',
+          email: data[mapping.email] || data.email || user?.primaryEmailAddress?.emailAddress || '',
+          phone: data[mapping.phone] || data.phone || '',
         })
 
         setCompanyInfo({
-          companyName: data.company_name || '',
-          companyWebsite: data.company_website || '',
+          companyName: data[mapping.companyName] || data.company_name || '',
+          dbaName: data[mapping.dbaName] || data.dba_name || '',
+          companyWebsite: data.company_website || data.website || '',
           companyPhone: data.company_phone || '',
           companyEmail: data.company_email || '',
-          address: data.address || '',
-          city: data.city || '',
-          state: data.state || '',
-          zipCode: data.zip_code || '',
+          address: data[mapping.address] || data.address || '',
+          city: data[mapping.city] || data.city || '',
+          state: data[mapping.state] || data.state || '',
+          zipCode: data[mapping.zipCode] || data.zip || '',
           ein: data.ein || '',
-          businessType: data.business_type || 'llc',
+          businessType: data.business_type || data.company_type || 'llc',
         })
 
         if (data.notification_preferences) {
@@ -192,7 +275,7 @@ export default function PartnerSettings({
     setError(null)
     try {
       // Skip save if supabase not available (e.g., preview mode)
-      if (!isSupabaseAvailable() || !supabase) {
+      if (!isSupabaseAvailable() || !supabase || !partnerId) {
         // Just simulate success in preview mode
         setSaved(true)
         setTimeout(() => setSaved(false), 3000)
@@ -201,25 +284,34 @@ export default function PartnerSettings({
       }
 
       const tableName = getTableName(partnerType)
+      const mapping = getColumnMapping()
 
       const updateData: any = {
-        first_name: personalInfo.firstName,
-        last_name: personalInfo.lastName,
-        email: personalInfo.email,
-        phone: personalInfo.phone,
         updated_at: new Date().toISOString(),
       }
 
+      // Map personal info to correct columns
+      updateData[mapping.firstName] = personalInfo.firstName
+      updateData[mapping.lastName] = personalInfo.lastName
+      updateData[mapping.email] = personalInfo.email
+      updateData[mapping.phone] = personalInfo.phone
+
+      // Also update contact_name if it exists (combined name field)
+      if (personalInfo.firstName || personalInfo.lastName) {
+        updateData.contact_name = `${personalInfo.firstName} ${personalInfo.lastName}`.trim()
+      }
+
       if (showCompanyInfo) {
-        updateData.company_name = companyInfo.companyName
+        updateData[mapping.companyName] = companyInfo.companyName
+        if (mapping.dbaName) updateData[mapping.dbaName] = companyInfo.dbaName
         updateData.company_website = companyInfo.companyWebsite
         updateData.company_phone = companyInfo.companyPhone
         updateData.company_email = companyInfo.companyEmail
-        updateData.address = companyInfo.address
-        updateData.city = companyInfo.city
-        updateData.state = companyInfo.state
-        updateData.zip_code = companyInfo.zipCode
-        updateData.ein = companyInfo.ein
+        updateData[mapping.address] = companyInfo.address
+        updateData[mapping.city] = companyInfo.city
+        updateData[mapping.state] = companyInfo.state
+        updateData[mapping.zipCode] = companyInfo.zipCode
+        if (companyInfo.ein) updateData.ein = companyInfo.ein
         updateData.business_type = companyInfo.businessType
       }
 
@@ -379,6 +471,17 @@ export default function PartnerSettings({
                   </div>
                 </div>
 
+                <div className="col-span-2">
+                  <label className="block text-[#94A3B8] text-sm mb-2">DBA Name (if different)</label>
+                  <input
+                    type="text"
+                    value={companyInfo.dbaName}
+                    onChange={(e) => setCompanyInfo({ ...companyInfo, dbaName: e.target.value })}
+                    className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                    placeholder="Doing Business As..."
+                  />
+                </div>
+
                 <div>
                   <label className="block text-[#94A3B8] text-sm mb-2">Business Type</label>
                   <select
@@ -431,61 +534,55 @@ export default function PartnerSettings({
                     />
                   </div>
                 </div>
+              </div>
 
-                <div className="col-span-2">
-                  <label className="block text-[#94A3B8] text-sm mb-2">Company Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-                    <input
-                      type="email"
-                      value={companyInfo.companyEmail}
-                      onChange={(e) => setCompanyInfo({ ...companyInfo, companyEmail: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    />
-                  </div>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-[#94A3B8] text-sm mb-2">Street Address</label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-                    <input
-                      type="text"
-                      value={companyInfo.address}
-                      onChange={(e) => setCompanyInfo({ ...companyInfo, address: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-2">City</label>
-                  <input
-                    type="text"
-                    value={companyInfo.city}
-                    onChange={(e) => setCompanyInfo({ ...companyInfo, city: e.target.value })}
-                    className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+              <div className="border-t border-[#2D3B5F] pt-6">
+                <h4 className="text-white font-medium mb-4">Address</h4>
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-[#94A3B8] text-sm mb-2">State</label>
-                    <input
-                      type="text"
-                      value={companyInfo.state}
-                      onChange={(e) => setCompanyInfo({ ...companyInfo, state: e.target.value })}
-                      className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    />
+                    <label className="block text-[#94A3B8] text-sm mb-2">Street Address</label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                      <input
+                        type="text"
+                        value={companyInfo.address}
+                        onChange={(e) => setCompanyInfo({ ...companyInfo, address: e.target.value })}
+                        className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[#94A3B8] text-sm mb-2">ZIP Code</label>
-                    <input
-                      type="text"
-                      value={companyInfo.zipCode}
-                      onChange={(e) => setCompanyInfo({ ...companyInfo, zipCode: e.target.value })}
-                      className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-                    />
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[#94A3B8] text-sm mb-2">City</label>
+                      <input
+                        type="text"
+                        value={companyInfo.city}
+                        onChange={(e) => setCompanyInfo({ ...companyInfo, city: e.target.value })}
+                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#94A3B8] text-sm mb-2">State</label>
+                      <input
+                        type="text"
+                        value={companyInfo.state}
+                        onChange={(e) => setCompanyInfo({ ...companyInfo, state: e.target.value })}
+                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                        maxLength={2}
+                        placeholder="GA"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#94A3B8] text-sm mb-2">ZIP Code</label>
+                      <input
+                        type="text"
+                        value={companyInfo.zipCode}
+                        onChange={(e) => setCompanyInfo({ ...companyInfo, zipCode: e.target.value })}
+                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                        maxLength={10}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -497,36 +594,36 @@ export default function PartnerSettings({
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-semibold text-white mb-1">Notification Preferences</h3>
-                <p className="text-[#64748B] text-sm">Choose how you want to be notified</p>
+                <p className="text-[#64748B] text-sm">Manage how you receive updates</p>
               </div>
 
               <div className="space-y-4">
                 {[
                   { key: 'emailNotifications', label: 'Email Notifications', desc: 'Receive updates via email' },
                   { key: 'smsNotifications', label: 'SMS Notifications', desc: 'Receive text message alerts' },
-                  { key: 'weeklyDigest', label: 'Weekly Digest', desc: 'Summary of your activity every week' },
+                  { key: 'weeklyDigest', label: 'Weekly Digest', desc: 'Summary of your activity each week' },
                   { key: 'paymentAlerts', label: 'Payment Alerts', desc: 'Get notified when payments are processed' },
-                  { key: 'newReferralAlerts', label: 'New Referral Alerts', desc: 'Get notified when a referral signs up' },
-                ].map(item => (
-                  <div key={item.key} className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                  { key: 'newReferralAlerts', label: 'New Referral Alerts', desc: 'Know when new referrals sign up' },
+                ].map(pref => (
+                  <div key={pref.key} className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
                     <div>
-                      <div className="text-white font-medium">{item.label}</div>
-                      <div className="text-[#64748B] text-sm">{item.desc}</div>
+                      <div className="text-white font-medium">{pref.label}</div>
+                      <div className="text-[#64748B] text-sm">{pref.desc}</div>
                     </div>
                     <button
                       onClick={() => setNotificationPrefs({ 
                         ...notificationPrefs, 
-                        [item.key]: !notificationPrefs[item.key as keyof NotificationPrefs] 
+                        [pref.key]: !notificationPrefs[pref.key as keyof NotificationPrefs] 
                       })}
                       className={`w-12 h-6 rounded-full transition-colors ${
-                        notificationPrefs[item.key as keyof NotificationPrefs]
-                          ? 'bg-[#0EA5E9]'
+                        notificationPrefs[pref.key as keyof NotificationPrefs] 
+                          ? 'bg-[#0EA5E9]' 
                           : 'bg-[#2D3B5F]'
                       }`}
                     >
-                      <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                        notificationPrefs[item.key as keyof NotificationPrefs]
-                          ? 'translate-x-6'
+                      <div className={`w-5 h-5 bg-white rounded-full transform transition-transform ${
+                        notificationPrefs[pref.key as keyof NotificationPrefs] 
+                          ? 'translate-x-6' 
                           : 'translate-x-0.5'
                       }`} />
                     </button>
@@ -541,33 +638,25 @@ export default function PartnerSettings({
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-semibold text-white mb-1">Payment Settings</h3>
-                <p className="text-[#64748B] text-sm">Manage your payment information via Tipalti</p>
+                <p className="text-[#64748B] text-sm">Manage your payment preferences</p>
               </div>
 
-              <div className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg p-6">
+              <div className="bg-[#0A0F2C] rounded-lg p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
                     <CreditCard className="w-6 h-6 text-green-400" />
                   </div>
                   <div>
                     <div className="text-white font-medium">Tipalti Payment Portal</div>
-                    <div className="text-[#64748B] text-sm">Manage your payment method and tax information</div>
+                    <div className="text-[#64748B] text-sm">Manage your payment method and view history</div>
                   </div>
                 </div>
                 <button
-                  onClick={() => window.open('/payments', '_blank')}
-                  className="w-full px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
+                  onClick={() => window.open('https://suppliers.tipalti.com/skyyield', '_blank')}
+                  className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors text-sm"
                 >
                   Open Payment Portal
                 </button>
-              </div>
-
-              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                <div className="text-yellow-400 font-medium mb-1">Note</div>
-                <div className="text-[#94A3B8] text-sm">
-                  Payment method and tax information are managed through our secure Tipalti portal. 
-                  Changes made there will automatically sync with your account.
-                </div>
               </div>
             </div>
           )}
@@ -581,37 +670,31 @@ export default function PartnerSettings({
               </div>
 
               <div className="space-y-4">
-                <div className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg p-4">
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                       <Key className="w-5 h-5 text-[#64748B]" />
                       <div>
                         <div className="text-white font-medium">Password</div>
-                        <div className="text-[#64748B] text-sm">Change your account password</div>
+                        <div className="text-[#64748B] text-sm">Change your password</div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => window.open('https://accounts.clerk.dev/user/security', '_blank')}
-                      className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
-                    >
-                      Change
+                    <button className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm">
+                      Update
                     </button>
                   </div>
                 </div>
 
-                <div className="bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg p-4">
+                <div className="bg-[#0A0F2C] rounded-lg p-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                       <Shield className="w-5 h-5 text-[#64748B]" />
                       <div>
                         <div className="text-white font-medium">Two-Factor Authentication</div>
-                        <div className="text-[#64748B] text-sm">Add an extra layer of security</div>
+                        <div className="text-[#64748B] text-sm">Add extra security to your account</div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => window.open('https://accounts.clerk.dev/user/security', '_blank')}
-                      className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
-                    >
+                    <button className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm">
                       Configure
                     </button>
                   </div>
