@@ -296,16 +296,16 @@ export default function ReferralPartnerPortal() {
                   <span className="text-[#64748B] text-sm">Commission Type</span>
                   <p className="text-white font-medium mt-1 capitalize">{partnerData?.commission_type || 'Per Referral'}</p>
                 </div>
-                {partnerData?.commission_per_referral > 0 && (
+                {(partnerData?.commission_per_referral ?? 0) > 0 && (
                   <div className="bg-[#0A0F2C] rounded-lg p-4">
                     <span className="text-[#64748B] text-sm">Per Referral</span>
-                    <p className="text-emerald-400 font-bold text-xl mt-1">{formatCurrency(partnerData.commission_per_referral)}</p>
+                    <p className="text-emerald-400 font-bold text-xl mt-1">{formatCurrency(partnerData?.commission_per_referral ?? 0)}</p>
                   </div>
                 )}
-                {partnerData?.commission_percentage > 0 && (
+                {(partnerData?.commission_percentage ?? 0) > 0 && (
                   <div className="bg-[#0A0F2C] rounded-lg p-4">
                     <span className="text-[#64748B] text-sm">Revenue Share</span>
-                    <p className="text-emerald-400 font-bold text-xl mt-1">{partnerData.commission_percentage}%</p>
+                    <p className="text-emerald-400 font-bold text-xl mt-1">{partnerData?.commission_percentage ?? 0}%</p>
                   </div>
                 )}
               </div>
