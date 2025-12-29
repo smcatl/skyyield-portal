@@ -231,7 +231,7 @@ export default function LocationPortalPage() {
               <span className="text-[#94A3B8]">Partner Portal</span>
             </div>
             <div className="flex items-center gap-4">
-              <PortalSwitcher />
+              <PortalSwitcher currentPortal="location_partner" />
               <UserButton afterSignOutUrl="/" />
             </div>
           </div>

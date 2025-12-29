@@ -180,7 +180,7 @@ export default function ReferralPartnerPortal() {
               <span className="text-[#94A3B8]">Referral Partner Portal</span>
             </div>
             <div className="flex items-center gap-4">
-              <PortalSwitcher />
+              <PortalSwitcher currentPortal="referral_partner" />
               <UserButton afterSignOutUrl="/" />
             </div>
           </div>
