@@ -1,15 +1,16 @@
-// components/portal/PortalSwitcher.tsx
-// Allows users with multiple roles to switch between their portals
-
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
-import { ChevronDown, Building2, Users, Handshake, UserCircle, Wrench, Briefcase, Calculator, Shield } from 'lucide-react'
+import { 
+  ChevronDown, Building2, Users, Handshake, UserCircle, 
+  Wrench, Briefcase, Calculator, Shield, ArrowLeftRight 
+} from 'lucide-react'
 
 interface PortalSwitcherProps {
   currentPortal: string
+  variant?: 'header' | 'sidebar' | 'compact'
 }
 
 const PORTAL_CONFIG: Record<string, { label: string; path: string; icon: any; color: string }> = {
@@ -63,12 +64,13 @@ const PORTAL_CONFIG: Record<string, { label: string; path: string; icon: any; co
   },
 }
 
-export function PortalSwitcher({ currentPortal }: PortalSwitcherProps) {
+export function PortalSwitcher({ currentPortal, variant = 'header' }: PortalSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [userRoles, setUserRoles] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const { user } = useUser()
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const fetchRoles = async () => {
@@ -84,86 +86,140 @@ export function PortalSwitcher({ currentPortal }: PortalSwitcherProps) {
         setIsLoading(false)
       }
     }
+
     fetchRoles()
   }, [])
 
-  // Filter to only roles user has
-  const availablePortals = userRoles
-    .filter(role => PORTAL_CONFIG[role])
-    .map(role => ({ role, ...PORTAL_CONFIG[role] }))
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
-  // Don't show switcher if loading or user only has one role
-  if (isLoading || availablePortals.length <= 1) {
+  const handleSwitch = (portalKey: string) => {
+    const config = PORTAL_CONFIG[portalKey]
+    if (config) {
+      router.push(config.path)
+      setIsOpen(false)
+    }
+  }
+
+  // Don't show if only one role or loading
+  if (isLoading || userRoles.length <= 1) {
     return null
   }
 
   const currentConfig = PORTAL_CONFIG[currentPortal]
-  const CurrentIcon = currentConfig?.icon || Briefcase
+  const CurrentIcon = currentConfig?.icon || Building2
+  const availablePortals = userRoles.filter(role => PORTAL_CONFIG[role] && role !== currentPortal)
 
-  const handleSwitch = (path: string) => {
-    setIsOpen(false)
-    router.push(path)
+  if (availablePortals.length === 0) {
+    return null
   }
 
+  // Compact variant - just an icon button
+  if (variant === 'compact') {
+    return (
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg hover:border-[#0EA5E9] transition-colors"
+          title="Switch Portal"
+        >
+          <ArrowLeftRight className="w-4 h-4 text-[#94A3B8]" />
+        </button>
+
+        {isOpen && (
+          <div className="absolute right-0 top-full mt-2 w-56 bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl shadow-xl z-50 overflow-hidden">
+            <div className="px-3 py-2 border-b border-[#2D3B5F]">
+              <span className="text-[#64748B] text-xs uppercase tracking-wider">Switch Portal</span>
+            </div>
+            {availablePortals.map(portalKey => {
+              const config = PORTAL_CONFIG[portalKey]
+              const Icon = config.icon
+              return (
+                <button
+                  key={portalKey}
+                  onClick={() => handleSwitch(portalKey)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#0A0F2C] transition-colors"
+                >
+                  <div className={`w-8 h-8 ${config.color} rounded-lg flex items-center justify-center`}>
+                    <Icon className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-white text-sm">{config.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Header variant - full dropdown
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg hover:border-[#0EA5E9] transition-colors"
+        className="flex items-center gap-2 px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg hover:border-[#0EA5E9] transition-colors"
       >
-        <CurrentIcon className="w-4 h-4 text-[#0EA5E9]" />
-        <span className="text-white text-sm font-medium">
-          {currentConfig?.label || 'Portal'}
-        </span>
-        <ChevronDown className={`w-4 h-4 text-[#94A3B8] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <div className={`w-6 h-6 ${currentConfig?.color || 'bg-gray-500'} rounded flex items-center justify-center`}>
+          <CurrentIcon className="w-3.5 h-3.5 text-white" />
+        </div>
+        <span className="text-white text-sm hidden sm:inline">{currentConfig?.label || 'Portal'}</span>
+        <ChevronDown className={`w-4 h-4 text-[#64748B] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setIsOpen(false)}
-          />
-          
-          {/* Dropdown */}
-          <div className="absolute top-full left-0 mt-2 w-64 bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl shadow-xl z-50 overflow-hidden">
-            <div className="p-3 border-b border-[#2D3B5F]">
-              <p className="text-xs text-[#64748B] uppercase tracking-wide">Switch Portal</p>
-              {user && (
-                <p className="text-sm text-white mt-1">{user.firstName} {user.lastName}</p>
-              )}
-            </div>
-            
-            <div className="p-2">
-              {availablePortals.map(({ role, label, path, icon: Icon, color }) => {
-                const isActive = role === currentPortal
-                return (
-                  <button
-                    key={role}
-                    onClick={() => handleSwitch(path)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                      isActive 
-                        ? 'bg-[#0EA5E9]/20 text-[#0EA5E9]' 
-                        : 'text-white hover:bg-[#2D3B5F]'
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-full ${color}/20 flex items-center justify-center`}>
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-[#0EA5E9]' : 'text-white'}`} />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium">{label}</p>
-                    </div>
-                    {isActive && (
-                      <div className="w-2 h-2 rounded-full bg-[#0EA5E9]" />
-                    )}
-                  </button>
-                )
-              })}
+        <div className="absolute left-0 top-full mt-2 w-64 bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl shadow-xl z-50 overflow-hidden">
+          {/* Current Portal */}
+          <div className="px-4 py-3 border-b border-[#2D3B5F] bg-[#0A0F2C]/50">
+            <span className="text-[#64748B] text-xs uppercase tracking-wider">Current Portal</span>
+            <div className="flex items-center gap-3 mt-2">
+              <div className={`w-10 h-10 ${currentConfig?.color || 'bg-gray-500'} rounded-lg flex items-center justify-center`}>
+                <CurrentIcon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="text-white font-medium">{currentConfig?.label}</div>
+                <div className="text-[#64748B] text-xs">Active</div>
+              </div>
             </div>
           </div>
-        </>
+
+          {/* Other Portals */}
+          <div className="py-2">
+            <div className="px-4 py-1">
+              <span className="text-[#64748B] text-xs uppercase tracking-wider">Switch To</span>
+            </div>
+            {availablePortals.map(portalKey => {
+              const config = PORTAL_CONFIG[portalKey]
+              const Icon = config.icon
+              return (
+                <button
+                  key={portalKey}
+                  onClick={() => handleSwitch(portalKey)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#0A0F2C] transition-colors"
+                >
+                  <div className={`w-10 h-10 ${config.color} rounded-lg flex items-center justify-center`}>
+                    <Icon className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-white text-sm">{config.label}</div>
+                    <div className="text-[#64748B] text-xs">Click to switch</div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       )}
     </div>
   )
 }
+
+export default PortalSwitcher

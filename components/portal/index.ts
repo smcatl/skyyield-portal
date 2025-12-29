@@ -10,8 +10,12 @@ export { default as DocumentsSection } from './DocumentsSection'
 export { default as TrainingSection } from './TrainingSection'
 export { default as JobsSection } from './JobsSection'
 export { default as VenuesSection } from './VenuesSection'
+export { default as DataTable } from './DataTable'
 
 // Partner-specific Components
 export { default as PartnerSettings } from './PartnerSettings'
 export { default as PartnerAnalytics } from './PartnerAnalytics'
 export { default as PartnerPayments } from './PartnerPayments'
+
+// Portal Switching
+export { default as PortalSwitcher } from './PortalSwitcher'
