@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSignIn, useAuth, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Wifi } from 'lucide-react'
+import { Wifi, Loader2 } from 'lucide-react'
 
 export default function SignInPage() {
   const { isLoaded, signIn, setActive } = useSignIn()
@@ -16,18 +16,44 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [checkingUser, setCheckingUser] = useState(false)
 
-  // Redirect if already signed in
+  // Redirect if already signed in - check Supabase database instead of Clerk metadata
   useEffect(() => {
-    if (isSignedIn && user) {
-      const status = (user.unsafeMetadata as any)?.status
-      if (status === 'approved') {
-        router.push('/dashboard')
-      } else {
-        router.push('/pending-approval')
-      }
+    if (isSignedIn && user && !checkingUser) {
+      setCheckingUser(true)
+      
+      // Check user status from Supabase database
+      fetch('/api/users/me')
+        .then(res => {
+          if (!res.ok) {
+            // User not in database yet - send to pending
+            router.push('/pending-approval')
+            return null
+          }
+          return res.json()
+        })
+        .then(data => {
+          if (!data) return
+          
+          // Check approval status from Supabase
+          const isApproved = data.is_approved === true || 
+                            data.portal_status === 'account_active' ||
+                            data.is_admin === true
+          
+          if (isApproved) {
+            // Route to dashboard which will determine correct portal
+            router.push('/dashboard')
+          } else {
+            router.push('/pending-approval')
+          }
+        })
+        .catch(err => {
+          console.error('Error checking user:', err)
+          router.push('/pending-approval')
+        })
     }
-  }, [isSignedIn, user, router])
+  }, [isSignedIn, user, router, checkingUser])
 
   if (!isLoaded) {
     return (
@@ -37,13 +63,13 @@ export default function SignInPage() {
     )
   }
 
-  // Show loading while redirecting
-  if (isSignedIn) {
+  // Show loading while checking user and redirecting
+  if (isSignedIn || checkingUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center pt-20">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white">Redirecting...</p>
+          <Loader2 className="w-12 h-12 text-[#0EA5E9] animate-spin mx-auto mb-4" />
+          <p className="text-white">Checking your account...</p>
         </div>
       </div>
     )
@@ -74,7 +100,7 @@ export default function SignInPage() {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
-        // The useEffect will handle the redirect based on approval status
+        // The useEffect will handle the redirect based on Supabase approval status
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Invalid email or password')

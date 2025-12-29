@@ -45,18 +45,22 @@ export default function DashboardPage() {
 
         const data: UserData = await res.json()
 
-        if (!data.is_approved) {
+        // Check approval - is_admin bypasses approval requirement
+        if (!data.is_approved && !data.is_admin && data.portal_status !== 'account_active') {
           setError('Your account is pending approval. Please check back later.')
           setLoading(false)
           return
         }
 
-        // Route based on user_type
+        // Route based on is_admin first, then user_type
+        // Admins are employees with is_admin=true - they go to admin portal
+        if (data.is_admin) {
+          router.push('/portals/admin')
+          return
+        }
+
+        // Route based on user_type for non-admins
         switch (data.user_type) {
-          case 'admin':
-          case 'super_admin':
-            router.push('/portals/admin')
-            break
           case 'employee':
             router.push('/portals/employee')
             break
@@ -76,7 +80,8 @@ export default function DashboardPage() {
             router.push('/portals/contractor')
             break
           default:
-            setError(`Unknown user type: ${data.user_type}`)
+            // If no recognized user_type, show error
+            setError(`Unknown user type: ${data.user_type}. Please contact support.`)
             setLoading(false)
         }
       } catch (err) {
