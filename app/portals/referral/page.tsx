@@ -1,43 +1,46 @@
 'use client'
 
-import { useUser, UserButton } from '@clerk/nextjs'
-import { useState, useEffect } from 'react'
+import { useUser } from '@clerk/nextjs'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { 
-  Users, DollarSign, Link as LinkIcon, Copy, 
-  TrendingUp, Clock, CheckCircle, AlertCircle,
-  ExternalLink, RefreshCw, Share2, Wifi, Plus,
-  FileText, Settings, HelpCircle, UserPlus,
-  Megaphone, Calendar, ChevronRight, Download
+  Users, DollarSign, Link as LinkIcon, Copy, FileText,
+  Settings, TrendingUp, Clock, CheckCircle, AlertCircle,
+  RefreshCw, Share2, Wifi, Megaphone, HelpCircle, UserPlus
 } from 'lucide-react'
+import {
+  ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
+  TrainingSection, PartnerSettings, PartnerPayments,
+} from '@/components/portal'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
+
+type TabType = 'overview' | 'referrals' | 'earnings' | 'marketing' | 'documents' | 'settings'
 
 interface PartnerData {
   id: string
   partner_id: string
   company_name: string
-  contact_name: string
+  contact_first_name: string
+  contact_last_name: string
   contact_email: string
   contact_phone: string
   pipeline_stage: string
   referral_code: string
-  referral_tracking_url: string
   commission_type: string
   commission_percentage: number
-  commission_flat_fee: number
   commission_per_referral: number
   total_referrals: number
   active_referrals: number
   pending_referrals: number
   total_earned: number
-  tipalti_payee_id: string
   tipalti_status: string
+  agreement_status: string
 }
 
 interface Referral {
   id: string
-  partner_id: string
-  company_name: string
+  business_name: string
   contact_name: string
   contact_email: string
   status: string
@@ -46,118 +49,139 @@ interface Referral {
   commission_earned: number
 }
 
-interface Commission {
-  id: string
-  commission_month: string
-  commission_amount: number
-  payment_status: string
-  payment_date: string
-  calculation_details: string
+interface Stats {
+  totalReferrals: number
+  activeReferrals: number
+  pendingReferrals: number
+  totalEarned: number
+  pendingPayment: number
+  conversionRate: number
 }
 
-export default function ReferralPartnerPortal() {
+function ReferralPartnerPortalContent() {
   const { user, isLoaded } = useUser()
-  const [partnerData, setPartnerData] = useState<PartnerData | null>(null)
-  const [referrals, setReferrals] = useState<Referral[]>([])
-  const [commissions, setCommissions] = useState<Commission[]>([])
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const isPreviewMode = searchParams.get('preview') === 'true'
+  
+  const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [partnerData, setPartnerData] = useState<PartnerData | null>(null)
+  const [referrals, setReferrals] = useState<Referral[]>([])
+  const [stats, setStats] = useState<Stats>({
+    totalReferrals: 0, activeReferrals: 0, pendingReferrals: 0,
+    totalEarned: 0, pendingPayment: 0, conversionRate: 0
+  })
+  const [documents, setDocuments] = useState<any[]>([])
+  const [materials, setMaterials] = useState<any[]>([])
   const [copied, setCopied] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: Users, enabled: true },
-    { id: 'referrals', label: 'My Referrals', icon: UserPlus, enabled: true },
-    { id: 'earnings', label: 'Earnings', icon: DollarSign, enabled: true },
-    { id: 'marketing', label: 'Marketing', icon: Megaphone, enabled: true },
-    { id: 'documents', label: 'Documents', icon: FileText, enabled: true },
-    { id: 'settings', label: 'Settings', icon: Settings, enabled: true },
+    { id: 'overview', label: 'Overview', icon: Users },
+    { id: 'referrals', label: 'My Referrals', icon: UserPlus },
+    { id: 'earnings', label: 'Earnings', icon: DollarSign },
+    { id: 'marketing', label: 'Marketing', icon: Megaphone },
+    { id: 'documents', label: 'Documents', icon: FileText },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ]
 
   useEffect(() => {
-    if (isLoaded && user) {
-      loadPartnerData()
+    if (!isLoaded) return
+    if (!user && !isPreviewMode) {
+      router.push('/sign-in')
+      return
     }
-  }, [isLoaded, user])
+    loadData()
+  }, [isLoaded, user, router, isPreviewMode])
 
-  const loadPartnerData = async () => {
+  const loadData = async () => {
+    setLoading(true)
+    setError(null)
     try {
-      setLoading(true)
-      setError(null)
-
       const res = await fetch('/api/portal/referral-partner')
       const data = await res.json()
 
       if (data.success) {
         setPartnerData(data.partner)
         setReferrals(data.referrals || [])
-        setCommissions(data.commissions || [])
+        
+        const totalReferrals = data.referrals?.length || 0
+        const activeReferrals = data.referrals?.filter((r: any) => r.status === 'active').length || 0
+        const pendingReferrals = data.referrals?.filter((r: any) => r.status === 'pending').length || 0
+        
+        setStats({
+          totalReferrals,
+          activeReferrals,
+          pendingReferrals,
+          totalEarned: data.partner?.total_earned || 0,
+          pendingPayment: data.stats?.pendingPayment || 0,
+          conversionRate: totalReferrals > 0 ? (activeReferrals / totalReferrals) * 100 : 0,
+        })
+        
+        // Transform documents for DocumentsSection
+        const docs = []
+        if (data.partner?.agreement_status) {
+          docs.push({
+            id: 'agreement',
+            name: 'Referral Partner Agreement',
+            type: 'agreement',
+            status: data.partner.agreement_status === 'signed' ? 'signed' : 'pending',
+            createdAt: new Date().toISOString(),
+            signedAt: data.partner.agreement_status === 'signed' ? new Date().toISOString() : undefined,
+            downloadUrl: data.partner.agreement_document_url,
+          })
+        }
+        setDocuments(docs)
+        
+        // Marketing materials
+        setMaterials([
+          { id: '1', name: 'Partner Brochure', type: 'pdf', size: '2.4 MB', url: '#' },
+          { id: '2', name: 'Sales Deck', type: 'pptx', size: '5.1 MB', url: '#' },
+          { id: '3', name: 'Email Templates', type: 'docx', size: '156 KB', url: '#' },
+        ])
       } else {
         setError(data.error || 'Failed to load data')
       }
     } catch (err) {
-      setError('Failed to connect to server')
+      console.error('Error loading data:', err)
+      setError('Failed to load partner data')
     } finally {
       setLoading(false)
     }
   }
 
   const copyReferralLink = () => {
-    if (partnerData?.referral_tracking_url) {
-      navigator.clipboard.writeText(partnerData.referral_tracking_url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
+    const link = `https://skyyield.io/partners/location?ref=${partnerData?.partner_id || ''}`
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const copyReferralCode = () => {
-    if (partnerData?.referral_code) {
-      navigator.clipboard.writeText(partnerData.referral_code)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  // Helper functions
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0)
-  }
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'N/A'
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
-
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      'active': 'bg-emerald-400/20 text-emerald-400',
-      'trial_active': 'bg-cyan-400/20 text-cyan-400',
-      'pending': 'bg-yellow-400/20 text-yellow-400',
-      'approved': 'bg-emerald-400/20 text-emerald-400',
-      'inactive': 'bg-gray-400/20 text-gray-400',
-    }
-    return colors[status] || 'bg-gray-400/20 text-gray-400'
+    navigator.clipboard.writeText(partnerData?.referral_code || '')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   if (!isLoaded || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#0EA5E9] mx-auto mb-4" />
-          <p className="text-[#94A3B8]">Loading your dashboard...</p>
-        </div>
+        <div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center p-4">
-        <div className="bg-[#1A1F3A] border border-red-500/50 rounded-xl p-8 max-w-md text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">Access Error</h2>
+      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
+        <div className="bg-[#1A1F3A] border border-red-500/30 rounded-xl p-8 max-w-md text-center">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-400" />
+          </div>
+          <h1 className="text-xl font-bold text-white mb-2">Access Error</h1>
           <p className="text-[#94A3B8] mb-4">{error}</p>
-          <button onClick={loadPartnerData} className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
+          <button onClick={loadData} className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
             Try Again
           </button>
         </div>
@@ -165,202 +189,229 @@ export default function ReferralPartnerPortal() {
     )
   }
 
+  const firstName = partnerData?.contact_first_name || user?.firstName || 'Partner'
+  const companyName = partnerData?.company_name || 'Your Company'
+  const referralLink = `https://skyyield.io/partners/location?ref=${partnerData?.partner_id || ''}`
+  const commissionDisplay = partnerData?.commission_per_referral 
+    ? `$${partnerData.commission_per_referral.toFixed(2)} per referral`
+    : partnerData?.commission_percentage 
+      ? `${partnerData.commission_percentage}% commission`
+      : 'Contact for rates'
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28]">
       {/* Header */}
-      <header className="bg-[#0A0F2C]/80 backdrop-blur-xl border-b border-[#2D3B5F] sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+      <header className="bg-[#0A0F2C]/80 backdrop-blur-sm border-b border-[#2D3B5F] sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex items-center gap-2">
                 <Wifi className="w-8 h-8 text-[#0EA5E9]" />
                 <span className="text-xl font-bold text-white">SkyYield</span>
               </Link>
-              <div className="h-6 w-px bg-[#2D3B5F]" />
+              <span className="text-[#64748B]">|</span>
               <span className="text-[#94A3B8]">Referral Partner Portal</span>
             </div>
             <div className="flex items-center gap-4">
               <PortalSwitcher currentPortal="referral_partner" />
-              <UserButton afterSignOutUrl="/" />
+              <button onClick={loadData} className="p-2 text-[#64748B] hover:text-white">
+                <RefreshCw className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">
-            Welcome back, {partnerData?.contact_name?.split(' ')[0] || 'Partner'}!
-          </h1>
-          <p className="text-[#94A3B8]">{partnerData?.company_name || 'Referral Partner'}</p>
+          <h1 className="text-3xl font-bold text-white">Welcome back, {firstName}!</h1>
+          <p className="text-[#94A3B8] mt-1">{companyName}</p>
         </div>
 
-        {/* Tab Navigation */}
+        {/* Tabs */}
         <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
-          {tabs.filter(t => t.enabled).map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-                activeTab === tab.id
-                  ? 'bg-[#0EA5E9] text-white'
-                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map(tab => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-[#0EA5E9] text-white'
+                    : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1F3A]'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
 
-        {/* ==================== OVERVIEW TAB ==================== */}
+        {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Referral Link Card - Most Important */}
-            <div className="bg-gradient-to-r from-[#0EA5E9]/20 to-purple-500/20 border border-[#0EA5E9]/30 rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Your Referral Link</h3>
-                  <p className="text-[#94A3B8] text-sm">Share this link to earn commissions</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded-full text-sm font-mono">
-                    {partnerData?.referral_code || 'CODE'}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Referral Link Card */}
+              <div className="bg-gradient-to-br from-[#0EA5E9]/20 to-[#06B6D4]/10 border border-[#0EA5E9]/30 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Your Referral Link</h3>
+                    <p className="text-[#94A3B8] text-sm">Share this link to earn commissions</p>
+                  </div>
+                  <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
+                    {commissionDisplay}
                   </span>
                 </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-[#0A0F2C] rounded-lg p-3 font-mono text-sm text-[#94A3B8] overflow-x-auto">
-                  {partnerData?.referral_tracking_url || 'https://skyyield.io/r/YOUR-CODE'}
-                </div>
-                <button
-                  onClick={copyReferralLink}
-                  className="flex items-center gap-2 px-4 py-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 whitespace-nowrap"
-                >
-                  {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? 'Copied!' : 'Copy Link'}
-                </button>
-              </div>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-[#0EA5E9]/20 rounded-lg">
-                    <UserPlus className="w-5 h-5 text-[#0EA5E9]" />
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#0A0F2C] rounded-lg px-4 py-3 border border-[#2D3B5F]">
+                    <code className="text-[#0EA5E9] text-sm break-all">{referralLink}</code>
                   </div>
-                  <span className="text-[#94A3B8] text-sm">Total Referrals</span>
+                  <button
+                    onClick={copyReferralLink}
+                    className="px-4 py-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors flex items-center gap-2"
+                  >
+                    <Copy className="w-4 h-4" />
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
                 </div>
-                <p className="text-3xl font-bold text-white">{partnerData?.total_referrals || 0}</p>
-              </div>
-
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-emerald-400/20 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <span className="text-[#94A3B8] text-sm">Active</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{partnerData?.active_referrals || 0}</p>
-              </div>
-
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-yellow-400/20 rounded-lg">
-                    <Clock className="w-5 h-5 text-yellow-400" />
-                  </div>
-                  <span className="text-[#94A3B8] text-sm">Pending</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{partnerData?.pending_referrals || 0}</p>
-              </div>
-
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-purple-400/20 rounded-lg">
-                    <DollarSign className="w-5 h-5 text-purple-400" />
-                  </div>
-                  <span className="text-[#94A3B8] text-sm">Total Earned</span>
-                </div>
-                <p className="text-3xl font-bold text-emerald-400">{formatCurrency(partnerData?.total_earned || 0)}</p>
-              </div>
-            </div>
-
-            {/* Commission Structure */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Your Commission Structure</h3>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="bg-[#0A0F2C] rounded-lg p-4">
-                  <span className="text-[#64748B] text-sm">Commission Type</span>
-                  <p className="text-white font-medium mt-1 capitalize">{partnerData?.commission_type || 'Per Referral'}</p>
-                </div>
-                {(partnerData?.commission_per_referral ?? 0) > 0 && (
-                  <div className="bg-[#0A0F2C] rounded-lg p-4">
-                    <span className="text-[#64748B] text-sm">Per Referral</span>
-                    <p className="text-emerald-400 font-bold text-xl mt-1">{formatCurrency(partnerData?.commission_per_referral ?? 0)}</p>
-                  </div>
-                )}
-                {(partnerData?.commission_percentage ?? 0) > 0 && (
-                  <div className="bg-[#0A0F2C] rounded-lg p-4">
-                    <span className="text-[#64748B] text-sm">Revenue Share</span>
-                    <p className="text-emerald-400 font-bold text-xl mt-1">{partnerData?.commission_percentage ?? 0}%</p>
+                {partnerData?.referral_code && (
+                  <div className="mt-4 flex items-center gap-4">
+                    <span className="text-[#64748B] text-sm">Code:</span>
+                    <span className="text-[#0EA5E9] font-mono font-bold">{partnerData.referral_code}</span>
+                    <button onClick={copyReferralCode} className="text-[#64748B] hover:text-white">
+                      <Copy className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* Recent Referrals */}
-            {referrals.length > 0 && (
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <DashboardCard 
+                  title="Total Referrals" 
+                  value={stats.totalReferrals} 
+                  icon={<Users className="w-5 h-5 text-[#0EA5E9]" />} 
+                  iconBgColor="bg-[#0EA5E9]/20" 
+                />
+                <DashboardCard 
+                  title="Active" 
+                  value={stats.activeReferrals} 
+                  icon={<CheckCircle className="w-5 h-5 text-green-400" />} 
+                  iconBgColor="bg-green-500/20" 
+                />
+                <DashboardCard 
+                  title="Pending" 
+                  value={stats.pendingReferrals} 
+                  icon={<Clock className="w-5 h-5 text-yellow-400" />} 
+                  iconBgColor="bg-yellow-500/20" 
+                />
+                <DashboardCard 
+                  title="Total Earned" 
+                  value={`$${stats.totalEarned.toFixed(2)}`} 
+                  icon={<DollarSign className="w-5 h-5 text-green-400" />} 
+                  iconBgColor="bg-green-500/20" 
+                />
+              </div>
+
+              {/* Recent Referrals */}
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-white">Recent Referrals</h3>
-                  <button 
-                    onClick={() => setActiveTab('referrals')}
-                    className="text-[#0EA5E9] text-sm hover:underline flex items-center gap-1"
-                  >
-                    View All <ChevronRight className="w-4 h-4" />
+                  <button onClick={() => setActiveTab('referrals')} className="text-[#0EA5E9] text-sm hover:underline">
+                    View All
                   </button>
                 </div>
-                <div className="space-y-3">
-                  {referrals.slice(0, 5).map(ref => (
-                    <div key={ref.id} className="flex items-center justify-between py-3 border-b border-[#2D3B5F] last:border-0">
-                      <div>
-                        <p className="text-white font-medium">{ref.company_name || ref.contact_name}</p>
-                        <p className="text-[#64748B] text-sm">{formatDate(ref.created_at)}</p>
+                {referrals.length === 0 ? (
+                  <div className="text-center py-8 text-[#64748B]">
+                    <UserPlus className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No referrals yet</p>
+                    <p className="text-sm mt-1">Share your link to start earning!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {referrals.slice(0, 5).map(referral => (
+                      <div key={referral.id} className="flex items-center justify-between py-3 border-b border-[#2D3B5F] last:border-0">
+                        <div>
+                          <div className="text-white font-medium">{referral.business_name}</div>
+                          <div className="text-[#64748B] text-sm">{referral.contact_name}</div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                            referral.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                            referral.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {referral.status}
+                          </span>
+                          {referral.commission_earned > 0 && (
+                            <div className="text-green-400 text-sm mt-1">${referral.commission_earned.toFixed(2)}</div>
+                          )}
+                        </div>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ref.status || ref.pipeline_stage)}`}>
-                        {ref.status || ref.pipeline_stage?.replace(/_/g, ' ')}
-                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Commission Structure */}
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Your Commission</h3>
+                <div className="space-y-4">
+                  {partnerData?.commission_per_referral && partnerData.commission_per_referral > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Per Referral</span>
+                      <span className="text-2xl font-bold text-green-400">${partnerData.commission_per_referral}</span>
                     </div>
-                  ))}
+                  )}
+                  {partnerData?.commission_percentage && partnerData.commission_percentage > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Revenue Share</span>
+                      <span className="text-2xl font-bold text-[#0EA5E9]">{partnerData.commission_percentage}%</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+              
+              <DocumentsSection documents={documents} loading={loading} title="Documents" />
+              <ContactCard 
+                calendlyUrl="https://calendly.com/scohen-skyyield" 
+                supportEmail="support@skyyield.io" 
+                showTicketForm={false} 
+              />
+            </div>
           </div>
         )}
 
-        {/* ==================== REFERRALS TAB ==================== */}
         {activeTab === 'referrals' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">My Referrals</h2>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="text-emerald-400">{partnerData?.active_referrals || 0} Active</span>
-                <span className="text-[#64748B]">•</span>
-                <span className="text-yellow-400">{partnerData?.pending_referrals || 0} Pending</span>
+              <div>
+                <h2 className="text-xl font-semibold text-white">My Referrals</h2>
+                <p className="text-[#94A3B8] text-sm">{stats.activeReferrals} active • {stats.pendingReferrals} pending</p>
               </div>
+              <button 
+                onClick={copyReferralLink}
+                className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 flex items-center gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Share Link
+              </button>
             </div>
 
             {referrals.length === 0 ? (
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
-                <UserPlus className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
-                <h3 className="text-white font-medium mb-2">No Referrals Yet</h3>
-                <p className="text-[#94A3B8] text-sm mb-4">Share your referral link to start earning!</p>
-                <button
+                <UserPlus className="w-16 h-16 text-[#64748B] mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-2">No Referrals Yet</h3>
+                <p className="text-[#94A3B8] mb-6">Share your referral link to start earning commissions</p>
+                <button 
                   onClick={copyReferralLink}
-                  className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                  className="px-6 py-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
                 >
                   Copy Referral Link
                 </button>
@@ -368,109 +419,46 @@ export default function ReferralPartnerPortal() {
             ) : (
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-[#0A0F2C]">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase">Business</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase">Contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase">Status</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-[#64748B] uppercase">Commission</th>
+                  <thead>
+                    <tr className="border-b border-[#2D3B5F]">
+                      <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Business</th>
+                      <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Contact</th>
+                      <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Status</th>
+                      <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Stage</th>
+                      <th className="text-right px-6 py-3 text-[#64748B] text-sm font-medium">Commission</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#2D3B5F]">
-                    {referrals.map(ref => (
-                      <tr key={ref.id} className="hover:bg-[#2D3B5F]/30">
+                  <tbody>
+                    {referrals.map(referral => (
+                      <tr key={referral.id} className="border-b border-[#2D3B5F] hover:bg-[#0A0F2C]/50">
                         <td className="px-6 py-4">
-                          <p className="text-white font-medium">{ref.company_name || 'N/A'}</p>
+                          <div className="text-white font-medium">{referral.business_name}</div>
+                          <div className="text-[#64748B] text-xs">
+                            {new Date(referral.created_at).toLocaleDateString()}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
-                          <p className="text-white">{ref.contact_name}</p>
-                          <p className="text-[#64748B] text-xs">{ref.contact_email}</p>
+                          <div className="text-[#94A3B8]">{referral.contact_name}</div>
+                          <div className="text-[#64748B] text-xs">{referral.contact_email}</div>
                         </td>
-                        <td className="px-6 py-4 text-[#94A3B8]">{formatDate(ref.created_at)}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ref.status || ref.pipeline_stage)}`}>
-                            {ref.status || ref.pipeline_stage?.replace(/_/g, ' ')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right text-emerald-400 font-medium">
-                          {ref.commission_earned > 0 ? formatCurrency(ref.commission_earned) : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ==================== EARNINGS TAB ==================== */}
-        {activeTab === 'earnings' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Earnings History</h2>
-              {partnerData?.tipalti_status !== 'payable' && (
-                <a
-                  href="#"
-                  className="flex items-center gap-2 px-4 py-2 bg-yellow-400/20 text-yellow-400 rounded-lg hover:bg-yellow-400/30"
-                >
-                  <AlertCircle className="w-4 h-4" />
-                  Complete Payment Setup
-                </a>
-              )}
-            </div>
-
-            {/* Earnings Summary */}
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <span className="text-[#64748B] text-sm">Total Earnings</span>
-                <p className="text-2xl font-bold text-emerald-400 mt-1">{formatCurrency(partnerData?.total_earned || 0)}</p>
-              </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <span className="text-[#64748B] text-sm">Active Referrals</span>
-                <p className="text-2xl font-bold text-white mt-1">{partnerData?.active_referrals || 0}</p>
-              </div>
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <span className="text-[#64748B] text-sm">Payment Status</span>
-                <p className="text-2xl font-bold text-white mt-1 capitalize">{partnerData?.tipalti_status || 'Pending'}</p>
-              </div>
-            </div>
-
-            {/* Commission History */}
-            {commissions.length === 0 ? (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-12 text-center">
-                <DollarSign className="w-12 h-12 text-[#64748B] mx-auto mb-4" />
-                <h3 className="text-white font-medium mb-2">No Earnings Yet</h3>
-                <p className="text-[#94A3B8] text-sm">Your commission history will appear here.</p>
-              </div>
-            ) : (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-[#0A0F2C]">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase">Period</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-[#64748B] uppercase">Payment Date</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-[#64748B] uppercase">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#2D3B5F]">
-                    {commissions.map(comm => (
-                      <tr key={comm.id} className="hover:bg-[#2D3B5F]/30">
-                        <td className="px-6 py-4 text-white font-medium">{formatDate(comm.commission_month)}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            comm.payment_status === 'paid' ? 'bg-emerald-400/20 text-emerald-400' :
-                            comm.payment_status === 'pending' ? 'bg-yellow-400/20 text-yellow-400' :
-                            'bg-gray-400/20 text-gray-400'
+                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                            referral.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                            referral.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-gray-500/20 text-gray-400'
                           }`}>
-                            {comm.payment_status}
+                            {referral.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-[#94A3B8]">{formatDate(comm.payment_date)}</td>
-                        <td className="px-6 py-4 text-right text-emerald-400 font-semibold">
-                          {formatCurrency(comm.commission_amount)}
+                        <td className="px-6 py-4 text-[#94A3B8] text-sm">
+                          {referral.pipeline_stage || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {referral.commission_earned > 0 ? (
+                            <span className="text-green-400 font-medium">${referral.commission_earned.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-[#64748B]">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -481,144 +469,91 @@ export default function ReferralPartnerPortal() {
           </div>
         )}
 
-        {/* ==================== MARKETING TAB ==================== */}
+        {activeTab === 'earnings' && (
+          <PartnerPayments partnerId={partnerData?.id || ''} partnerType="referral_partner" />
+        )}
+
         {activeTab === 'marketing' && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-white">Marketing Materials</h2>
-
-            {/* Share Tools */}
+            {/* Quick Share */}
             <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-white font-medium mb-4">Quick Share</h3>
-              <div className="grid md:grid-cols-2 gap-4">
+              <h3 className="text-lg font-semibold text-white mb-4">Quick Share</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[#64748B] text-sm mb-2">Your Referral Code</label>
+                  <label className="block text-[#94A3B8] text-sm mb-2">Your Referral Code</label>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-[#0A0F2C] rounded-lg p-3 font-mono text-lg text-[#0EA5E9]">
-                      {partnerData?.referral_code || 'CODE'}
+                    <div className="flex-1 bg-[#0A0F2C] rounded-lg px-4 py-3 border border-[#2D3B5F]">
+                      <code className="text-[#0EA5E9] font-mono font-bold">{partnerData?.referral_code}</code>
                     </div>
-                    <button
-                      onClick={copyReferralCode}
-                      className="p-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
-                    >
-                      <Copy className="w-5 h-5" />
+                    <button onClick={copyReferralCode} className="p-3 bg-[#2D3B5F] rounded-lg hover:bg-[#3D4B6F] transition-colors">
+                      <Copy className="w-5 h-5 text-white" />
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[#64748B] text-sm mb-2">Your Tracking URL</label>
+                  <label className="block text-[#94A3B8] text-sm mb-2">Your Tracking URL</label>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-[#0A0F2C] rounded-lg p-3 font-mono text-sm text-[#94A3B8] truncate">
-                      {partnerData?.referral_tracking_url || 'https://skyyield.io/r/CODE'}
+                    <div className="flex-1 bg-[#0A0F2C] rounded-lg px-4 py-3 border border-[#2D3B5F] overflow-hidden">
+                      <code className="text-[#0EA5E9] text-sm truncate block">{referralLink}</code>
                     </div>
-                    <button
-                      onClick={copyReferralLink}
-                      className="p-3 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
-                    >
-                      <Copy className="w-5 h-5" />
+                    <button onClick={copyReferralLink} className="p-3 bg-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
+                      <Copy className="w-5 h-5 text-white" />
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Downloadable Materials */}
+            {/* Downloadable Resources */}
             <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-white font-medium mb-4">Downloadable Resources</h3>
-              <div className="grid md:grid-cols-3 gap-4">
-                <a href="#" className="flex items-center gap-3 p-4 bg-[#0A0F2C] rounded-lg hover:bg-[#2D3B5F]/50">
-                  <FileText className="w-8 h-8 text-[#0EA5E9]" />
-                  <div>
-                    <p className="text-white font-medium">Partner Brochure</p>
-                    <p className="text-[#64748B] text-xs">PDF • 2.4 MB</p>
-                  </div>
-                  <Download className="w-4 h-4 text-[#64748B] ml-auto" />
-                </a>
-                <a href="#" className="flex items-center gap-3 p-4 bg-[#0A0F2C] rounded-lg hover:bg-[#2D3B5F]/50">
-                  <FileText className="w-8 h-8 text-purple-400" />
-                  <div>
-                    <p className="text-white font-medium">Sales Deck</p>
-                    <p className="text-[#64748B] text-xs">PPTX • 5.1 MB</p>
-                  </div>
-                  <Download className="w-4 h-4 text-[#64748B] ml-auto" />
-                </a>
-                <a href="#" className="flex items-center gap-3 p-4 bg-[#0A0F2C] rounded-lg hover:bg-[#2D3B5F]/50">
-                  <FileText className="w-8 h-8 text-emerald-400" />
-                  <div>
-                    <p className="text-white font-medium">Email Templates</p>
-                    <p className="text-[#64748B] text-xs">DOCX • 156 KB</p>
-                  </div>
-                  <Download className="w-4 h-4 text-[#64748B] ml-auto" />
-                </a>
+              <h3 className="text-lg font-semibold text-white mb-4">Downloadable Resources</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {materials.map(material => (
+                  <a 
+                    key={material.id}
+                    href={material.url}
+                    className="flex items-center gap-4 p-4 bg-[#0A0F2C] rounded-lg hover:bg-[#2D3B5F] transition-colors"
+                  >
+                    <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-[#0EA5E9]" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-white font-medium">{material.name}</div>
+                      <div className="text-[#64748B] text-sm">{material.type.toUpperCase()} • {material.size}</div>
+                    </div>
+                  </a>
+                ))}
               </div>
             </div>
           </div>
         )}
 
-        {/* ==================== DOCUMENTS TAB ==================== */}
         {activeTab === 'documents' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-white">Documents</h2>
-
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <FileText className="w-8 h-8 text-[#0EA5E9]" />
-                <div>
-                  <h3 className="text-white font-medium">Referral Partner Agreement</h3>
-                  <p className="text-[#64748B] text-sm">Signed and active</p>
-                </div>
-                <button className="ml-auto p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded-lg">
-                  <Download className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <DocumentsSection documents={documents} loading={loading} title="Your Documents" />
         )}
 
-        {/* ==================== SETTINGS TAB ==================== */}
         {activeTab === 'settings' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-white">Settings</h2>
-
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-white font-medium mb-4">Account Information</h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[#64748B] text-sm mb-1">Company Name</label>
-                  <p className="text-white">{partnerData?.company_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="block text-[#64748B] text-sm mb-1">Partner ID</label>
-                  <p className="text-white font-mono">{partnerData?.partner_id || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="block text-[#64748B] text-sm mb-1">Contact Name</label>
-                  <p className="text-white">{partnerData?.contact_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="block text-[#64748B] text-sm mb-1">Contact Email</label>
-                  <p className="text-white">{partnerData?.contact_email || 'N/A'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment Settings */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-white font-medium mb-4">Payment Settings</h3>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white">Tipalti Payment Status</p>
-                  <p className="text-[#64748B] text-sm capitalize">{partnerData?.tipalti_status || 'Not Set Up'}</p>
-                </div>
-                {partnerData?.tipalti_status !== 'payable' && (
-                  <button className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
-                    Complete Setup
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+          <PartnerSettings 
+            partnerId={partnerData?.id || ''} 
+            partnerType="referral_partner"
+            showCompanyInfo={true}
+            showPaymentSettings={true}
+            showNotifications={true}
+          />
         )}
       </div>
     </div>
+  )
+}
+
+export default function ReferralPartnerPortal() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" />
+      </div>
+    }>
+      <ReferralPartnerPortalContent />
+    </Suspense>
   )
 }
