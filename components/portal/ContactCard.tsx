@@ -6,8 +6,8 @@ import { Calendar, MessageSquare, Send, Mail, ExternalLink } from 'lucide-react'
 interface ContactCardProps {
   calendlyUrl?: string
   supportEmail?: string
-  showTicketForm?: boolean  // Keep for backward compatibility
-  showTicket?: boolean      // New prop name
+  showTicketForm?: boolean
+  showTicket?: boolean
   userName?: string
   userEmail?: string
   title?: string
@@ -16,13 +16,12 @@ interface ContactCardProps {
 export default function ContactCard({
   calendlyUrl = 'https://calendly.com/scohen-skyyield',
   supportEmail = 'support@skyyield.io',
-  showTicketForm = true,  // Default true for backward compatibility
-  showTicket,             // Can override showTicketForm
+  showTicketForm = true,
+  showTicket,
   userName = '',
   userEmail = '',
   title = 'Need Help?',
 }: ContactCardProps) {
-  // Support both prop names - showTicket takes precedence if provided
   const shouldShowTicket = showTicket !== undefined ? showTicket : showTicketForm
   
   const [showTicketPanel, setShowTicketPanel] = useState(false)
@@ -36,7 +35,6 @@ export default function ContactCard({
     
     setSubmitting(true)
     try {
-      // Send via mailto for now - can connect to actual ticket API later
       const mailtoUrl = `mailto:${supportEmail}?subject=${encodeURIComponent(ticketSubject)}&body=${encodeURIComponent(ticketMessage)}`
       window.open(mailtoUrl, '_blank')
       
@@ -59,7 +57,6 @@ export default function ContactCard({
       <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
       
       <div className="space-y-3">
-        {/* Schedule Call - Calendly */}
         <a
           href={calendlyUrl}
           target="_blank"
@@ -78,7 +75,6 @@ export default function ContactCard({
           <ExternalLink className="w-4 h-4 text-[#64748B] group-hover:text-[#0EA5E9]" />
         </a>
 
-        {/* Submit Ticket */}
         {shouldShowTicket && (
           <button
             onClick={() => setShowTicketPanel(!showTicketPanel)}
@@ -96,7 +92,6 @@ export default function ContactCard({
           </button>
         )}
 
-        {/* Ticket Form */}
         {showTicketPanel && (
           <div className="bg-[#0A0F2C] rounded-lg p-4 space-y-3 border border-[#2D3B5F]">
             {submitted ? (
@@ -133,10 +128,9 @@ export default function ContactCard({
           </div>
         )}
 
-        {/* Email Only - No Call Button */}
         <div className="pt-2">
           <a
-            href={\`mailto:\${supportEmail}\`}
+            href={`mailto:${supportEmail}`}
             className="flex items-center justify-center gap-2 w-full p-2 bg-[#0A0F2C] rounded-lg text-[#94A3B8] hover:text-white hover:bg-[#2D3B5F] transition-colors text-sm"
           >
             <Mail className="w-4 h-4" />
