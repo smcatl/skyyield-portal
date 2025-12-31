@@ -1,5 +1,3 @@
-// app/api/admin/settings/route.ts
-// Admin Settings API - Manage Calendly links, dropdowns, email templates, portal visibility
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@clerk/nextjs/server'
@@ -9,119 +7,125 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// GET - Get all settings
+// GET - Fetch all settings
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type') // 'calendly', 'dropdowns', 'emails', 'visibility', 'all'
+    const type = searchParams.get('type') // calendly, dropdown, email, visibility, or all
 
-    const results: Record<string, any> = {}
+    const response: Record<string, any> = {}
 
-    // Calendly links
-    if (!type || type === 'all' || type === 'calendly') {
-      const { data: calendlyLinks } = await supabase
+    // Fetch Calendly links
+    if (!type || type === 'calendly' || type === 'all') {
+      const { data: calendlyLinks, error: calendlyError } = await supabase
         .from('calendly_links')
         .select('*')
         .order('display_order', { ascending: true })
-      results.calendlyLinks = calendlyLinks || []
+
+      if (calendlyError) console.error('Calendly fetch error:', calendlyError)
+      response.calendlyLinks = calendlyLinks || []
     }
 
-    // Dropdowns
-    if (!type || type === 'all' || type === 'dropdowns') {
-      const { data: dropdowns } = await supabase
+    // Fetch Dropdowns
+    if (!type || type === 'dropdown' || type === 'all') {
+      const { data: dropdowns, error: dropdownError } = await supabase
         .from('dropdowns')
         .select('*')
         .order('name', { ascending: true })
-      results.dropdowns = dropdowns || []
+
+      if (dropdownError) console.error('Dropdown fetch error:', dropdownError)
+      response.dropdowns = dropdowns || []
     }
 
-    // Email templates
-    if (!type || type === 'all' || type === 'emails') {
-      const { data: emailTemplates } = await supabase
+    // Fetch Email Templates
+    if (!type || type === 'email' || type === 'all') {
+      const { data: emailTemplates, error: emailError } = await supabase
         .from('email_templates')
         .select('*')
-        .order('trigger', { ascending: true })
-      results.emailTemplates = emailTemplates || []
+        .order('name', { ascending: true })
+
+      if (emailError) console.error('Email template fetch error:', emailError)
+      response.emailTemplates = emailTemplates || []
     }
 
-    // Portal visibility settings
-    if (!type || type === 'all' || type === 'visibility') {
-      const { data: portalVisibility } = await supabase
+    // Fetch Portal Visibility
+    if (!type || type === 'visibility' || type === 'all') {
+      const { data: visibility, error: visibilityError } = await supabase
         .from('portal_visibility')
         .select('*')
-        .order('tab_name', { ascending: true })
-      results.portalVisibility = portalVisibility || []
+        .order('display_order', { ascending: true })
+
+      if (visibilityError) console.error('Portal visibility fetch error:', visibilityError)
+      response.portalVisibility = visibility || []
     }
 
-    return NextResponse.json({ success: true, ...results })
-  } catch (error: any) {
-    console.error('Settings GET error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(response)
+
+  } catch (error) {
+    console.error('Error fetching settings:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch settings' },
+      { status: 500 }
+    )
   }
 }
 
 // POST - Create new setting item
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await request.json()
+    const { userId } = await auth()
     const { type, ...data } = body
 
+    if (!type) {
+      return NextResponse.json(
+        { error: 'Type is required (calendly, dropdown, email, visibility)' },
+        { status: 400 }
+      )
+    }
+
     let result
-    let tableName
+    let tableName: string
 
     switch (type) {
       case 'calendly':
         tableName = 'calendly_links'
-        const { data: calendly, error: calError } = await supabase
+        result = await supabase
           .from('calendly_links')
           .insert({
             name: data.name,
             slug: data.slug,
             url: data.url,
-            duration: data.duration,
+            duration: data.duration || 30,
             description: data.description,
             active: data.active ?? true,
             color: data.color || '#0EA5E9',
             pipeline_stage: data.pipeline_stage,
             trigger_action: data.trigger_action,
-            display_order: data.display_order || 0,
+            display_order: data.display_order || 0
           })
           .select()
           .single()
-        if (calError) throw calError
-        result = calendly
         break
 
       case 'dropdown':
         tableName = 'dropdowns'
-        const { data: dropdown, error: dropError } = await supabase
+        result = await supabase
           .from('dropdowns')
           .insert({
             key: data.key,
             name: data.name,
             options: data.options || [],
             allow_custom: data.allow_custom ?? false,
-            used_in_forms: data.used_in_forms || [],
+            used_in_forms: data.used_in_forms || []
           })
           .select()
           .single()
-        if (dropError) throw dropError
-        result = dropdown
         break
 
       case 'email':
         tableName = 'email_templates'
-        const { data: email, error: emailError } = await supabase
+        result = await supabase
           .from('email_templates')
           .insert({
             name: data.name,
@@ -138,68 +142,72 @@ export async function POST(request: NextRequest) {
             cta_type: data.cta_type || 'none',
             cta_url: data.cta_url,
             footer_text: data.footer_text,
-            reminder_days: data.reminder_days,
+            reminder_days: data.reminder_days || []
           })
           .select()
           .single()
-        if (emailError) throw emailError
-        result = email
         break
 
       case 'visibility':
         tableName = 'portal_visibility'
-        const { data: visibility, error: visError } = await supabase
+        result = await supabase
           .from('portal_visibility')
           .insert({
             tab_name: data.tab_name,
             tab_id: data.tab_id,
             user_types: data.user_types || [],
             enabled: data.enabled ?? true,
+            display_order: data.display_order || 0,
+            icon: data.icon
           })
           .select()
           .single()
-        if (visError) throw visError
-        result = visibility
         break
 
       default:
-        return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'Invalid type' },
+          { status: 400 }
+        )
     }
+
+    if (result.error) throw result.error
 
     // Log activity
     await supabase.from('activity_log').insert({
-      entity_type: 'settings',
-      entity_id: result.id,
-      entity_name: result.name || result.tab_name || result.key,
-      action: `${type}_created`,
-      action_category: 'admin',
+      actor_id: userId,
+      action: `${type}_setting_created`,
+      entity_type: tableName,
+      entity_id: result.data?.id,
+      details: data
     })
 
-    return NextResponse.json({ success: true, [type]: result }, { status: 201 })
-  } catch (error: any) {
-    console.error('Settings POST error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ item: result.data })
+
+  } catch (error) {
+    console.error('Error creating setting:', error)
+    return NextResponse.json(
+      { error: 'Failed to create setting' },
+      { status: 500 }
+    )
   }
 }
 
 // PUT - Update setting item
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await request.json()
+    const { userId } = await auth()
     const { type, id, ...updates } = body
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID required' }, { status: 400 })
+    if (!type || !id) {
+      return NextResponse.json(
+        { error: 'Type and ID are required' },
+        { status: 400 }
+      )
     }
 
-    updates.updated_at = new Date().toISOString()
-
-    let tableName
+    let tableName: string
     switch (type) {
       case 'calendly':
         tableName = 'calendly_links'
@@ -214,55 +222,57 @@ export async function PUT(request: NextRequest) {
         tableName = 'portal_visibility'
         break
       default:
-        return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'Invalid type' },
+          { status: 400 }
+        )
     }
 
-    const { data: result, error } = await supabase
+    const { data, error } = await supabase
       .from(tableName)
       .update(updates)
       .eq('id', id)
       .select()
       .single()
 
-    if (error) {
-      console.error(`Error updating ${type}:`, error)
-      return NextResponse.json({ error: `Failed to update ${type}` }, { status: 500 })
-    }
+    if (error) throw error
 
     // Log activity
     await supabase.from('activity_log').insert({
-      entity_type: 'settings',
+      actor_id: userId,
+      action: `${type}_setting_updated`,
+      entity_type: tableName,
       entity_id: id,
-      entity_name: result.name || result.tab_name || result.key,
-      action: `${type}_updated`,
-      action_category: 'admin',
-      new_values: updates,
+      details: updates
     })
 
-    return NextResponse.json({ success: true, [type]: result })
-  } catch (error: any) {
-    console.error('Settings PUT error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ item: data })
+
+  } catch (error) {
+    console.error('Error updating setting:', error)
+    return NextResponse.json(
+      { error: 'Failed to update setting' },
+      { status: 500 }
+    )
   }
 }
 
 // DELETE - Delete setting item
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
     const id = searchParams.get('id')
+    const { userId } = await auth()
 
     if (!type || !id) {
-      return NextResponse.json({ error: 'Type and ID required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Type and ID are required' },
+        { status: 400 }
+      )
     }
 
-    let tableName
+    let tableName: string
     switch (type) {
       case 'calendly':
         tableName = 'calendly_links'
@@ -277,38 +287,35 @@ export async function DELETE(request: NextRequest) {
         tableName = 'portal_visibility'
         break
       default:
-        return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'Invalid type' },
+          { status: 400 }
+        )
     }
-
-    // Get item for logging
-    const { data: item } = await supabase
-      .from(tableName)
-      .select('*')
-      .eq('id', id)
-      .single()
 
     const { error } = await supabase
       .from(tableName)
       .delete()
       .eq('id', id)
 
-    if (error) {
-      console.error(`Error deleting ${type}:`, error)
-      return NextResponse.json({ error: `Failed to delete ${type}` }, { status: 500 })
-    }
+    if (error) throw error
 
     // Log activity
     await supabase.from('activity_log').insert({
-      entity_type: 'settings',
+      actor_id: userId,
+      action: `${type}_setting_deleted`,
+      entity_type: tableName,
       entity_id: id,
-      entity_name: item?.name || item?.tab_name || item?.key,
-      action: `${type}_deleted`,
-      action_category: 'admin',
+      details: {}
     })
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error('Settings DELETE error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+
+  } catch (error) {
+    console.error('Error deleting setting:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete setting' },
+      { status: 500 }
+    )
   }
 }

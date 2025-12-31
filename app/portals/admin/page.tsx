@@ -11,8 +11,6 @@ import AdminPayments from '@/components/admin/AdminPayments'
 import { AddRoleModal } from '@/components/admin/AddRoleModal'
 import AdminBlog from '@/components/admin/AdminBlog'
 import CommissionManagement from '@/components/admin/CommissionManagement'
-import VenuesTab from '@/components/admin/VenuesTab'
-import DevicesTab from '@/components/admin/DevicesTab'
 import {
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
   CheckCircle, Clock, Package, TrendingUp,
@@ -24,7 +22,7 @@ import {
   GripVertical, Phone, MoreVertical, Filter, UserPlus,
   CreditCard, Wallet, PieChart, MessageSquare, Bell,
   SkipForward, AlertTriangle, Pause, Play, Archive, History,
-  Key, Shield, User, BookOpen, Video, Cpu
+  Key, Shield, User, BookOpen, Video
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
@@ -601,8 +599,8 @@ export default function AdminPortalPage() {
     { id: 'crm', label: 'CRM', icon: Target },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
     { id: 'followups', label: 'Follow-Ups', icon: Bell },
-    { id: 'venues', label: 'Venues', icon: MapPin },
-    { id: 'devices', label: 'Devices', icon: Cpu },
+    { id: 'venues', label: 'Venues', icon: Building2 },
+    { id: 'devices', label: 'Devices', icon: Activity },
     { id: 'device-purchases', label: 'Device Purchases', icon: Package },
     { id: 'products', label: 'Store Products', icon: ShoppingBag },
     { id: 'approved-products', label: 'Approved Products', icon: Star },
@@ -691,6 +689,18 @@ export default function AdminPortalPage() {
   const [usersLoading, setUsersLoading] = useState(false)
   const [userSearch, setUserSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+
+  // Venues state
+  const [venues, setVenues] = useState<any[]>([])
+  const [venuesLoading, setVenuesLoading] = useState(false)
+  const [venueStats, setVenueStats] = useState({ total: 0, active: 0, trial: 0, pending: 0, inactive: 0 })
+  const [venueSearch, setVenueSearch] = useState('')
+
+  // Devices state
+  const [devices, setDevices] = useState<any[]>([])
+  const [devicesLoading, setDevicesLoading] = useState(false)
+  const [deviceStats, setDeviceStats] = useState({ total: 0, active: 0, offline: 0, pending: 0, unassigned: 0 })
+  const [deviceSearch, setDeviceSearch] = useState('')
 
   // Products state
   const [products, setProducts] = useState<Product[]>([])
@@ -919,6 +929,48 @@ export default function AdminPortalPage() {
       setProducts([])
     } finally {
       setProductsLoading(false)
+    }
+  }
+
+  // Fetch venues
+  const fetchVenues = async () => {
+    setVenuesLoading(true)
+    try {
+      const res = await fetch('/api/admin/venues')
+      if (res.ok) {
+        const data = await res.json()
+        setVenues(data.venues || [])
+        setVenueStats(data.stats || { total: 0, active: 0, trial: 0, pending: 0, inactive: 0 })
+      } else {
+        console.error('Venues API returned:', res.status)
+        setVenues([])
+      }
+    } catch (err) {
+      console.error('Error fetching venues:', err)
+      setVenues([])
+    } finally {
+      setVenuesLoading(false)
+    }
+  }
+
+  // Fetch devices
+  const fetchDevices = async () => {
+    setDevicesLoading(true)
+    try {
+      const res = await fetch('/api/admin/devices')
+      if (res.ok) {
+        const data = await res.json()
+        setDevices(data.devices || [])
+        setDeviceStats(data.stats || { total: 0, active: 0, offline: 0, pending: 0, unassigned: 0 })
+      } else {
+        console.error('Devices API returned:', res.status)
+        setDevices([])
+      }
+    } catch (err) {
+      console.error('Error fetching devices:', err)
+      setDevices([])
+    } finally {
+      setDevicesLoading(false)
     }
   }
 
@@ -1311,6 +1363,14 @@ export default function AdminPortalPage() {
       fetchUsers()
       fetchProducts()
       fetchPipeline()
+      fetchVenues()
+      fetchDevices()
+    }
+    if (activeTab === 'venues') {
+      fetchVenues()
+    }
+    if (activeTab === 'devices') {
+      fetchDevices()
     }
   }, [activeTab])
 
@@ -1575,8 +1635,8 @@ export default function AdminPortalPage() {
             {/* Crypto Prices */}
             <CryptoPriceHeader />
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Stats Grid - 6 cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
@@ -1589,22 +1649,44 @@ export default function AdminPortalPage() {
 
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-yellow-400" />
-                  </div>
-                  <span className="text-[#94A3B8] text-sm">Pending Approvals</span>
-                </div>
-                <div className="text-3xl font-bold text-yellow-400">{pendingUsers}</div>
-              </div>
-
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
                     <CheckCircle className="w-5 h-5 text-green-400" />
                   </div>
                   <span className="text-[#94A3B8] text-sm">Active Users</span>
                 </div>
                 <div className="text-3xl font-bold text-green-400">{approvedUsers}</div>
+              </div>
+
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-yellow-400" />
+                  </div>
+                  <span className="text-[#94A3B8] text-sm">In Pipeline</span>
+                </div>
+                <div className="text-3xl font-bold text-yellow-400">{pendingUsers}</div>
+              </div>
+
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-cyan-500/20 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <span className="text-[#94A3B8] text-sm">Total Venues</span>
+                </div>
+                <div className="text-3xl font-bold text-cyan-400">{venueStats.total}</div>
+                <div className="text-xs text-[#64748B] mt-1">{venueStats.active} active</div>
+              </div>
+
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                    <Activity className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <span className="text-[#94A3B8] text-sm">Total Devices</span>
+                </div>
+                <div className="text-3xl font-bold text-indigo-400">{deviceStats.total}</div>
+                <div className="text-xs text-[#64748B] mt-1">{deviceStats.active} online</div>
               </div>
 
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
@@ -3359,7 +3441,6 @@ export default function AdminPortalPage() {
               </button>
             </div>
 
-            {/* Venues Tab */}
             {/* Summary Stats - Clickable to filter */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <button
@@ -3732,12 +3813,6 @@ export default function AdminPortalPage() {
           </div>
         )}
 
-        {/* Venues Tab */}
-        {activeTab === 'venues' && <VenuesTab />}
-
-        {/* Devices Tab */}
-        {activeTab === 'devices' && <DevicesTab />}
-
         {/* Payments Tab */}
         {activeTab === 'payments' && (
           <AdminPayments />
@@ -4028,6 +4103,170 @@ export default function AdminPortalPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Venues Tab */}
+        {activeTab === 'venues' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Venues</h2>
+                <p className="text-[#94A3B8] text-sm">Manage partner venues and locations</p>
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
+                <Plus className="w-4 h-4" />
+                Add Venue
+              </button>
+            </div>
+
+            {/* Venue Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Total</div>
+                <div className="text-2xl font-bold text-white">{venueStats.total}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Active</div>
+                <div className="text-2xl font-bold text-green-400">{venueStats.active}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Trial</div>
+                <div className="text-2xl font-bold text-yellow-400">{venueStats.trial}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Pending</div>
+                <div className="text-2xl font-bold text-orange-400">{venueStats.pending}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Inactive</div>
+                <div className="text-2xl font-bold text-gray-400">{venueStats.inactive}</div>
+              </div>
+            </div>
+
+            {/* Venue Search */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+                <input type="text" placeholder="Search venues..." value={venueSearch} onChange={(e) => setVenueSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]" />
+              </div>
+            </div>
+
+            {/* Venues Table */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+              {venuesLoading ? (
+                <div className="p-8 text-center"><RefreshCw className="w-8 h-8 text-[#0EA5E9] animate-spin mx-auto mb-2" /><p className="text-[#94A3B8]">Loading venues...</p></div>
+              ) : venues.length === 0 ? (
+                <div className="p-8 text-center"><Building2 className="w-12 h-12 text-[#64748B] mx-auto mb-3" /><p className="text-[#94A3B8]">No venues found</p></div>
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-[#0A0F2C]">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Venue</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Partner</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Location</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Devices</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Status</th>
+                      <th className="px-4 py-3 text-right text-[#94A3B8] text-sm font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2D3B5F]">
+                    {venues.filter(v => venueSearch === '' || v.name?.toLowerCase().includes(venueSearch.toLowerCase()) || v.city?.toLowerCase().includes(venueSearch.toLowerCase())).map(venue => (
+                      <tr key={venue.id} className="hover:bg-[#0A0F2C]/50">
+                        <td className="px-4 py-3"><div className="text-white font-medium">{venue.name}</div><div className="text-[#64748B] text-xs">{venue.venue_id}</div></td>
+                        <td className="px-4 py-3"><div className="text-white">{venue.location_partner?.company_legal_name || 'N/A'}</div></td>
+                        <td className="px-4 py-3"><div className="text-[#94A3B8]">{venue.city}, {venue.state}</div></td>
+                        <td className="px-4 py-3"><div className="text-white">{venue.deviceCount || 0}</div></td>
+                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs font-medium ${venue.status === 'active' ? 'bg-green-500/20 text-green-400' : venue.status === 'trial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'}`}>{venue.status || 'Unknown'}</span></td>
+                        <td className="px-4 py-3 text-right"><button className="p-1 text-[#64748B] hover:text-white"><Edit className="w-4 h-4" /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Devices Tab */}
+        {activeTab === 'devices' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Devices</h2>
+                <p className="text-[#94A3B8] text-sm">Manage deployed network devices</p>
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
+                <Plus className="w-4 h-4" />
+                Add Device
+              </button>
+            </div>
+
+            {/* Device Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Total</div>
+                <div className="text-2xl font-bold text-white">{deviceStats.total}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Online</div>
+                <div className="text-2xl font-bold text-green-400">{deviceStats.active}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Offline</div>
+                <div className="text-2xl font-bold text-red-400">{deviceStats.offline}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Pending</div>
+                <div className="text-2xl font-bold text-orange-400">{deviceStats.pending}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Unassigned</div>
+                <div className="text-2xl font-bold text-gray-400">{deviceStats.unassigned}</div>
+              </div>
+            </div>
+
+            {/* Device Search */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+                <input type="text" placeholder="Search devices..." value={deviceSearch} onChange={(e) => setDeviceSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]" />
+              </div>
+            </div>
+
+            {/* Devices Table */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+              {devicesLoading ? (
+                <div className="p-8 text-center"><RefreshCw className="w-8 h-8 text-[#0EA5E9] animate-spin mx-auto mb-2" /><p className="text-[#94A3B8]">Loading devices...</p></div>
+              ) : devices.length === 0 ? (
+                <div className="p-8 text-center"><Activity className="w-12 h-12 text-[#64748B] mx-auto mb-3" /><p className="text-[#94A3B8]">No devices found</p></div>
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-[#0A0F2C]">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Device</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Serial / MAC</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Venue</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Partner</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Status</th>
+                      <th className="px-4 py-3 text-right text-[#94A3B8] text-sm font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2D3B5F]">
+                    {devices.filter(d => deviceSearch === '' || d.serial_number?.toLowerCase().includes(deviceSearch.toLowerCase()) || d.mac_address?.toLowerCase().includes(deviceSearch.toLowerCase()) || d.venue?.name?.toLowerCase().includes(deviceSearch.toLowerCase())).map(device => (
+                      <tr key={device.id} className="hover:bg-[#0A0F2C]/50">
+                        <td className="px-4 py-3"><div className="text-white font-medium">{device.device_type || device.product?.name || 'Device'}</div><div className="text-[#64748B] text-xs">{device.device_id}</div></td>
+                        <td className="px-4 py-3"><div className="text-white font-mono text-sm">{device.serial_number}</div><div className="text-[#64748B] text-xs font-mono">{device.mac_address}</div></td>
+                        <td className="px-4 py-3"><div className="text-white">{device.venue?.name || 'Unassigned'}</div><div className="text-[#64748B] text-xs">{device.venue?.city}, {device.venue?.state}</div></td>
+                        <td className="px-4 py-3"><div className="text-[#94A3B8]">{device.venue?.location_partner?.company_legal_name || 'N/A'}</div></td>
+                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs font-medium ${device.status === 'active' || device.status === 'online' ? 'bg-green-500/20 text-green-400' : device.status === 'offline' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'}`}>{device.status || 'Unknown'}</span></td>
+                        <td className="px-4 py-3 text-right"><button className="p-1 text-[#64748B] hover:text-white"><Edit className="w-4 h-4" /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         )}
 
