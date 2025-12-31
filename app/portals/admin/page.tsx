@@ -10,7 +10,7 @@ import { PreviewPortalDropdown } from '@/components/admin/PreviewPortalDropdown'
 import AdminPayments from '@/components/admin/AdminPayments'
 import { AddRoleModal } from '@/components/admin/AddRoleModal'
 import AdminBlog from '@/components/admin/AdminBlog'
-import { VenuesTab, DevicesTab } from '@/components/admin'
+import { VenuesTab, DevicesTab, AnalyticsTab } from '@/components/admin'
 import CommissionManagement from '@/components/admin/CommissionManagement'
 import {
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
@@ -4155,146 +4155,8 @@ export default function AdminPortalPage() {
         )}
 
         {/* Analytics Tab */}
-        {activeTab === 'analytics' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-white">Analytics Dashboard</h2>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[#94A3B8] text-sm">Total Revenue</p>
-                    <p className="text-3xl font-bold text-white mt-1">$124,500</p>
-                  </div>
-                  <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-xl flex items-center justify-center">
-                    <DollarSign className="w-6 h-6 text-[#0EA5E9]" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm">
-                  <span className="text-green-400 flex items-center gap-1">
-                    <TrendingUp className="w-4 h-4" /> +18%
-                  </span>
-                  <span className="text-[#64748B]">vs last month</span>
-                </div>
-              </div>
-
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[#94A3B8] text-sm">Data Offloaded</p>
-                    <p className="text-3xl font-bold text-white mt-1">2.4 TB</p>
-                  </div>
-                  <div className="w-12 h-12 bg-cyan-500/20 rounded-xl flex items-center justify-center">
-                    <Activity className="w-6 h-6 text-cyan-400" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm">
-                  <span className="text-green-400 flex items-center gap-1">
-                    <TrendingUp className="w-4 h-4" /> +24%
-                  </span>
-                  <span className="text-[#64748B]">vs last month</span>
-                </div>
-              </div>
-
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[#94A3B8] text-sm">Active Locations</p>
-                    <p className="text-3xl font-bold text-white mt-1">87</p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                    <MapPin className="w-6 h-6 text-purple-400" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm">
-                  <span className="text-green-400 flex items-center gap-1">
-                    <TrendingUp className="w-4 h-4" /> +5
-                  </span>
-                  <span className="text-[#64748B]">new this month</span>
-                </div>
-              </div>
-
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[#94A3B8] text-sm">Conversion Rate</p>
-                    <p className="text-3xl font-bold text-white mt-1">34%</p>
-                  </div>
-                  <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center">
-                    <BarChart3 className="w-6 h-6 text-yellow-400" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm">
-                  <span className="text-green-400 flex items-center gap-1">
-                    <TrendingUp className="w-4 h-4" /> +2%
-                  </span>
-                  <span className="text-[#64748B]">vs last month</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Revenue and Pipeline Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Revenue by Partner Type */}
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Revenue by Partner Type</h3>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[#94A3B8]">Location Partners</span>
-                      <span className="text-white font-medium">$78,500.00</span>
-                    </div>
-                    <div className="w-full bg-[#2D3B5F] rounded-full h-2">
-                      <div className="bg-gradient-to-r from-[#0EA5E9] to-cyan-400 h-2 rounded-full" style={{ width: '63%' }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[#94A3B8]">Channel Partners</span>
-                      <span className="text-white font-medium">$32,000.00</span>
-                    </div>
-                    <div className="w-full bg-[#2D3B5F] rounded-full h-2">
-                      <div className="bg-gradient-to-r from-[#0EA5E9] to-cyan-400 h-2 rounded-full" style={{ width: '26%' }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[#94A3B8]">Referral Partners</span>
-                      <span className="text-white font-medium">$14,000.00</span>
-                    </div>
-                    <div className="w-full bg-[#2D3B5F] rounded-full h-2">
-                      <div className="bg-gradient-to-r from-[#0EA5E9] to-cyan-400 h-2 rounded-full" style={{ width: '11%' }}></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Pipeline Overview */}
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Pipeline Overview</h3>
-                <div className="space-y-3">
-                  {[
-                    { name: 'Application', count: partners.filter(p => p.stage === 'application').length || 0 },
-                    { name: 'Initial Review', count: partners.filter(p => p.stage === 'initial_review').length || 1 },
-                    { name: 'Discovery', count: partners.filter(p => p.stage === 'discovery').length || 1 },
-                    { name: 'Post-Call', count: partners.filter(p => p.stage === 'post_call').length || 0 },
-                    { name: 'Venues Setup', count: partners.filter(p => p.stage === 'venues_setup').length || 0 },
-                    { name: 'LOI Sent', count: partners.filter(p => p.stage === 'loi_sent').length || 1 },
-                  ].map((stage) => (
-                    <div key={stage.name} className="flex items-center gap-3">
-                      <span className="text-[#94A3B8] flex-1">{stage.name}</span>
-                      <span className="text-white font-medium w-8 text-right">{stage.count}</span>
-                      <div className="w-24 bg-[#2D3B5F] rounded-full h-1.5">
-                        <div className="bg-cyan-400 h-1.5 rounded-full" style={{ width: `${Math.min(stage.count * 20, 100)}%` }}></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && <AnalyticsTab />}
 
       </div>
 

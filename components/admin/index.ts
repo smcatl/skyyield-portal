@@ -1,5 +1,5 @@
-// components/admin/index.ts
 export { default as VenuesTab } from './VenuesTab'
 export { default as DevicesTab } from './DevicesTab'
+export { default as AnalyticsTab } from './AnalyticsTab'
 export { default as DynamicForm, FormModal } from './DynamicForm'
 export type { FormField, FormSettings, Form, DynamicFormProps } from './DynamicForm'
