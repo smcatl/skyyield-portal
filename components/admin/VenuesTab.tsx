@@ -1,325 +1,184 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import {
-  MapPin, Search, RefreshCw, Plus, Edit, Trash2, Eye,
-  Building2, Wifi, ChevronDown, ExternalLink, Filter,
-  CheckCircle, Clock, AlertCircle, X
-} from 'lucide-react'
+import { Building2, MapPin, Plus, Search, Edit2, Trash2, X, Loader2 } from 'lucide-react'
 
 interface Venue {
   id: string
   venue_id: string
   venue_name: string
   venue_type: string
-  address_line_1: string
-  address_line_2?: string
   city: string
   state: string
-  zip: string
   status: string
-  square_footage?: number
-  monthly_visitors?: number
-  deviceCount: number
-  activeDeviceCount: number
-  location_partner?: {
+  device_count?: number
+  location_partner_id?: string
+  location_partners?: {
     id: string
     partner_id: string
     company_legal_name: string
-    dba_name?: string
-    contact_email: string
+    contact_first_name: string
+    contact_last_name: string
   }
-  created_at: string
-}
-
-interface VenueStats {
-  total: number
-  active: number
-  trial: number
-  pending: number
-  inactive: number
 }
 
 export default function VenuesTab() {
   const [venues, setVenues] = useState<Venue[]>([])
-  const [stats, setStats] = useState<VenueStats>({ total: 0, active: 0, trial: 0, pending: 0, inactive: 0 })
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null)
   const [showModal, setShowModal] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [editingVenue, setEditingVenue] = useState<Venue | null>(null)
+  const [saving, setSaving] = useState(false)
+  
+  const [formData, setFormData] = useState({
+    venue_name: '',
+    venue_type: '',
+    address_line_1: '',
+    city: '',
+    state: '',
+    zip: '',
+    location_partner_id: '',
+  })
 
-  useEffect(() => {
-    fetchVenues()
-  }, [statusFilter])
+  useEffect(() => { fetchVenues() }, [])
 
   const fetchVenues = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (statusFilter !== 'all') params.append('status', statusFilter)
-      if (search) params.append('search', search)
-
-      const res = await fetch(`/api/admin/venues?${params}`)
+      const res = await fetch('/api/admin/venues')
       const data = await res.json()
-      
-      if (data.success) {
-        setVenues(data.venues || [])
-        setStats(data.stats || { total: 0, active: 0, trial: 0, pending: 0, inactive: 0 })
-      }
-    } catch (error) {
-      console.error('Error fetching venues:', error)
-    } finally {
-      setLoading(false)
-    }
+      if (data.venues) setVenues(data.venues)
+    } catch (err) { console.error('Failed to fetch venues:', err) }
+    finally { setLoading(false) }
   }
 
-  const handleSearch = () => {
-    fetchVenues()
+  const stats = {
+    total: venues.length,
+    active: venues.filter(v => v.status === 'active').length,
+    trial: venues.filter(v => v.status === 'trial').length,
+    pending: venues.filter(v => v.status === 'pending').length,
+    inactive: venues.filter(v => v.status === 'inactive').length,
   }
 
-  const handleDelete = async (id: string) => {
+  const filteredVenues = venues.filter(v => 
+    v.venue_name?.toLowerCase().includes(search.toLowerCase()) ||
+    v.city?.toLowerCase().includes(search.toLowerCase()) ||
+    v.venue_id?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const openAddModal = () => {
+    setEditingVenue(null)
+    setFormData({ venue_name: '', venue_type: '', address_line_1: '', city: '', state: '', zip: '', location_partner_id: '' })
+    setShowModal(true)
+  }
+
+  const openEditModal = (venue: Venue) => {
+    setEditingVenue(venue)
+    setFormData({ venue_name: venue.venue_name || '', venue_type: venue.venue_type || '', address_line_1: '', city: venue.city || '', state: venue.state || '', zip: '', location_partner_id: venue.location_partner_id || '' })
+    setShowModal(true)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
     try {
-      const res = await fetch(`/api/admin/venues?id=${id}`, { method: 'DELETE' })
-      const data = await res.json()
-      
-      if (data.success) {
-        setVenues(venues.filter(v => v.id !== id))
-        setShowDeleteConfirm(null)
-      } else {
-        alert(data.error || 'Failed to delete venue')
-      }
-    } catch (error) {
-      console.error('Error deleting venue:', error)
-    }
+      const method = editingVenue ? 'PUT' : 'POST'
+      const body = editingVenue ? { id: editingVenue.id, ...formData } : formData
+      const res = await fetch('/api/admin/venues', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (res.ok) { setShowModal(false); fetchVenues() }
+    } catch (err) { console.error('Save failed:', err) }
+    finally { setSaving(false) }
   }
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      active: 'bg-green-500/20 text-green-400',
-      trial: 'bg-blue-500/20 text-blue-400',
-      pending: 'bg-yellow-500/20 text-yellow-400',
-      inactive: 'bg-gray-500/20 text-gray-400',
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-500/20 text-green-400'
+      case 'trial': return 'bg-blue-500/20 text-blue-400'
+      case 'pending': return 'bg-yellow-500/20 text-yellow-400'
+      default: return 'bg-gray-500/20 text-gray-400'
     }
-    return styles[status] || 'bg-gray-500/20 text-gray-400'
   }
-
-  const filteredVenues = venues.filter(v => {
-    if (!search) return true
-    const searchLower = search.toLowerCase()
-    return (
-      v.venue_name?.toLowerCase().includes(searchLower) ||
-      v.city?.toLowerCase().includes(searchLower) ||
-      v.location_partner?.company_legal_name?.toLowerCase().includes(searchLower)
-    )
-  })
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-white">Venues</h2>
-          <p className="text-[#94A3B8] text-sm">Manage all partner venues and locations</p>
+          <p className="text-[#94A3B8] text-sm">Manage partner venues and locations</p>
         </div>
-        <button
-          onClick={() => { setSelectedVenue(null); setShowModal(true) }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Venue
+        <button onClick={openAddModal} className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
+          <Plus className="w-4 h-4" />Add Venue
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Building2 className="w-4 h-4 text-[#94A3B8]" />
-            <span className="text-[#94A3B8] text-sm">Total</span>
+      <div className="grid grid-cols-5 gap-4">
+        {[
+          { label: 'Total', value: stats.total, color: 'text-white' },
+          { label: 'Active', value: stats.active, color: 'text-green-400' },
+          { label: 'Trial', value: stats.trial, color: 'text-blue-400' },
+          { label: 'Pending', value: stats.pending, color: 'text-yellow-400' },
+          { label: 'Inactive', value: stats.inactive, color: 'text-gray-400' },
+        ].map(s => (
+          <div key={s.label} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg p-4">
+            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+            <div className="text-[#64748B] text-sm">{s.label}</div>
           </div>
-          <div className="text-2xl font-bold text-white">{stats.total}</div>
-        </div>
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="w-4 h-4 text-green-400" />
-            <span className="text-[#94A3B8] text-sm">Active</span>
-          </div>
-          <div className="text-2xl font-bold text-green-400">{stats.active}</div>
-        </div>
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Wifi className="w-4 h-4 text-blue-400" />
-            <span className="text-[#94A3B8] text-sm">In Trial</span>
-          </div>
-          <div className="text-2xl font-bold text-blue-400">{stats.trial}</div>
-        </div>
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4 text-yellow-400" />
-            <span className="text-[#94A3B8] text-sm">Pending</span>
-          </div>
-          <div className="text-2xl font-bold text-yellow-400">{stats.pending}</div>
-        </div>
-        <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertCircle className="w-4 h-4 text-gray-400" />
-            <span className="text-[#94A3B8] text-sm">Inactive</span>
-          </div>
-          <div className="text-2xl font-bold text-gray-400">{stats.inactive}</div>
-        </div>
+        ))}
       </div>
 
-      {/* Filters */}
-      <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
-            <input
-              type="text"
-              placeholder="Search venues, cities, partners..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="trial">In Trial</option>
-            <option value="pending">Pending</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <button
-            onClick={fetchVenues}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+        <input type="text" placeholder="Search venues..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]" />
       </div>
 
-      {/* Venues Table */}
       <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#2D3B5F]">
-                <th className="text-left px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Venue</th>
-                <th className="text-left px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Partner</th>
-                <th className="text-left px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Location</th>
-                <th className="text-center px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Devices</th>
-                <th className="text-center px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Status</th>
-                <th className="text-right px-4 py-4 text-sm font-medium text-[#94A3B8] uppercase">Actions</th>
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-[#2D3B5F]">
+              <th className="text-left px-6 py-4 text-[#64748B] text-sm font-medium">Venue</th>
+              <th className="text-left px-6 py-4 text-[#64748B] text-sm font-medium">Partner</th>
+              <th className="text-left px-6 py-4 text-[#64748B] text-sm font-medium">Location</th>
+              <th className="text-left px-6 py-4 text-[#64748B] text-sm font-medium">Devices</th>
+              <th className="text-left px-6 py-4 text-[#64748B] text-sm font-medium">Status</th>
+              <th className="text-right px-6 py-4 text-[#64748B] text-sm font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} className="px-6 py-12 text-center"><Loader2 className="w-8 h-8 text-[#0EA5E9] animate-spin mx-auto" /></td></tr>
+            ) : filteredVenues.length === 0 ? (
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">No venues found</td></tr>
+            ) : filteredVenues.map((venue) => (
+              <tr key={venue.id} className="border-b border-[#2D3B5F] hover:bg-[#0A0F2C]/50">
+                <td className="px-6 py-4"><div className="text-white font-medium">{venue.venue_name}</div><div className="text-[#64748B] text-xs">{venue.venue_id}</div></td>
+                <td className="px-6 py-4 text-[#94A3B8]">{venue.location_partners?.company_legal_name || 'N/A'}</td>
+                <td className="px-6 py-4 text-[#94A3B8]">{venue.city}, {venue.state}</td>
+                <td className="px-6 py-4 text-[#94A3B8]">{venue.device_count || 0}</td>
+                <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(venue.status)}`}>{venue.status}</span></td>
+                <td className="px-6 py-4 text-right"><button onClick={() => openEditModal(venue)} className="p-2 text-[#64748B] hover:text-white hover:bg-[#2D3B5F] rounded"><Edit2 className="w-4 h-4" /></button></td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">
-                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                    Loading venues...
-                  </td>
-                </tr>
-              ) : filteredVenues.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">
-                    <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>No venues found</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredVenues.map((venue) => (
-                  <tr key={venue.id} className="border-b border-[#2D3B5F] hover:bg-[#2D3B5F]/30">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
-                          <MapPin className="w-5 h-5 text-[#0EA5E9]" />
-                        </div>
-                        <div>
-                          <div className="text-white font-medium">{venue.venue_name}</div>
-                          <div className="text-[#64748B] text-xs">{venue.venue_id} • {venue.venue_type}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      {venue.location_partner ? (
-                        <div>
-                          <div className="text-white text-sm">{venue.location_partner.dba_name || venue.location_partner.company_legal_name}</div>
-                          <div className="text-[#64748B] text-xs">{venue.location_partner.partner_id}</div>
-                        </div>
-                      ) : (
-                        <span className="text-[#64748B] text-sm">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="text-white text-sm">{venue.city}, {venue.state}</div>
-                      <div className="text-[#64748B] text-xs">{venue.address_line_1}</div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="text-white font-medium">{venue.activeDeviceCount}/{venue.deviceCount}</div>
-                      <div className="text-[#64748B] text-xs">active/total</div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusBadge(venue.status)}`}>
-                        {venue.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => { setSelectedVenue(venue); setShowModal(true) }}
-                          className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
-                          title="View/Edit"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(venue.id)}
-                          className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-white mb-4">Delete Venue?</h3>
-            <p className="text-[#94A3B8] mb-6">
-              Are you sure you want to delete this venue? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(showDeleteConfirm)}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-              >
-                Delete
-              </button>
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-[#2D3B5F]">
+              <h3 className="text-lg font-semibold text-white">{editingVenue ? 'Edit Venue' : 'Add Venue'}</h3>
+              <button onClick={() => setShowModal(false)} className="text-[#64748B] hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div><label className="block text-sm text-[#94A3B8] mb-1">Venue Name *</label><input type="text" value={formData.venue_name} onChange={(e) => setFormData({ ...formData, venue_name: e.target.value })} className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]" /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm text-[#94A3B8] mb-1">City *</label><input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]" /></div>
+                <div><label className="block text-sm text-[#94A3B8] mb-1">State *</label><input type="text" value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]" /></div>
+              </div>
+              <div><label className="block text-sm text-[#94A3B8] mb-1">Venue Type</label><select value={formData.venue_type} onChange={(e) => setFormData({ ...formData, venue_type: e.target.value })} className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"><option value="">Select type...</option><option value="salon">Salon Suite</option><option value="cafe">Cafe/Coffee Shop</option><option value="restaurant">Restaurant</option><option value="retail">Retail</option><option value="gym">Gym/Fitness</option><option value="office">Office</option><option value="other">Other</option></select></div>
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t border-[#2D3B5F]">
+              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-[#94A3B8] hover:text-white">Cancel</button>
+              <button onClick={handleSave} disabled={saving || !formData.venue_name || !formData.city || !formData.state} className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </div>
         </div>
