@@ -22,21 +22,16 @@ export async function GET(request: NextRequest) {
         venue:venues(
           id,
           venue_id,
-          name,
+          venue_name,
           city,
           state,
+          location_partner_id,
           location_partner:location_partners(
             id,
             partner_id,
             contact_full_name,
             company_legal_name
           )
-        ),
-        product:products(
-          id,
-          name,
-          sku,
-          category
         )
       `)
       .order('created_at', { ascending: false })
@@ -56,20 +51,30 @@ export async function GET(request: NextRequest) {
     let filteredDevices = devices
     if (partnerId) {
       filteredDevices = devices?.filter(d => 
+        d.venue?.location_partner_id === partnerId ||
         d.venue?.location_partner?.id === partnerId
       )
     }
 
+    // Normalize venue name for frontend
+    const normalizedDevices = filteredDevices?.map(d => ({
+      ...d,
+      venue: d.venue ? {
+        ...d.venue,
+        name: d.venue.venue_name // Map venue_name to name
+      } : null
+    }))
+
     // Calculate stats
     const stats = {
-      total: filteredDevices?.length || 0,
-      active: filteredDevices?.filter(d => d.status === 'active' || d.status === 'online').length || 0,
-      offline: filteredDevices?.filter(d => d.status === 'offline').length || 0,
-      pending: filteredDevices?.filter(d => d.status === 'pending').length || 0,
-      unassigned: filteredDevices?.filter(d => !d.venue_id).length || 0
+      total: normalizedDevices?.length || 0,
+      active: normalizedDevices?.filter(d => d.status === 'active' || d.status === 'online' || d.status === 'installed').length || 0,
+      offline: normalizedDevices?.filter(d => d.status === 'offline').length || 0,
+      pending: normalizedDevices?.filter(d => d.status === 'pending' || d.status === 'ordered' || d.status === 'shipped').length || 0,
+      unassigned: normalizedDevices?.filter(d => !d.venue_id).length || 0
     }
 
-    return NextResponse.json({ devices: filteredDevices, stats })
+    return NextResponse.json({ devices: normalizedDevices, stats })
 
   } catch (error) {
     console.error('Error fetching devices:', error)
@@ -92,15 +97,18 @@ export async function POST(request: NextRequest) {
       serial_number,
       mac_address,
       device_type,
+      device_name,
+      manufacturer,
+      model,
       status = 'pending',
       ownership = 'skyyield',
       notes
     } = body
 
     // Validate required fields
-    if (!serial_number || !mac_address) {
+    if (!serial_number) {
       return NextResponse.json(
-        { error: 'Missing required fields: serial_number, mac_address' },
+        { error: 'Missing required field: serial_number' },
         { status: 400 }
       )
     }
@@ -117,6 +125,9 @@ export async function POST(request: NextRequest) {
         serial_number,
         mac_address,
         device_type,
+        device_name,
+        manufacturer,
+        model,
         status,
         ownership,
         notes
@@ -133,7 +144,7 @@ export async function POST(request: NextRequest) {
       entity_type: 'device',
       entity_id: device.id,
       details: { device_id: deviceId, serial_number, venue_id }
-    })
+    }).catch(() => {})
 
     return NextResponse.json({ device })
 
@@ -176,7 +187,7 @@ export async function PUT(request: NextRequest) {
       entity_type: 'device',
       entity_id: id,
       details: { updates }
-    })
+    }).catch(() => {})
 
     return NextResponse.json({ device })
 
@@ -217,7 +228,7 @@ export async function DELETE(request: NextRequest) {
       entity_type: 'device',
       entity_id: id,
       details: {}
-    })
+    }).catch(() => {})
 
     return NextResponse.json({ success: true })
 
@@ -259,7 +270,7 @@ export async function PATCH(request: NextRequest) {
       entity_type: 'device',
       entity_id: deviceIds[0],
       details: { deviceIds, updates }
-    })
+    }).catch(() => {})
 
     return NextResponse.json({ devices, updated: devices?.length || 0 })
 

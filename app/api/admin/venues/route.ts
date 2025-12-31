@@ -49,12 +49,16 @@ export async function GET(request: NextRequest) {
 
     const deviceCountMap: Record<string, number> = {}
     deviceCounts?.forEach(d => {
-      deviceCountMap[d.venue_id] = (deviceCountMap[d.venue_id] || 0) + 1
+      if (d.venue_id) {
+        deviceCountMap[d.venue_id] = (deviceCountMap[d.venue_id] || 0) + 1
+      }
     })
 
-    // Add device count to venues
+    // Add device count and normalize field names for frontend
     const venuesWithCounts = venues?.map(v => ({
       ...v,
+      // Map venue_name to name for frontend compatibility
+      name: v.venue_name,
       deviceCount: deviceCountMap[v.id] || 0
     }))
 
@@ -62,7 +66,7 @@ export async function GET(request: NextRequest) {
     const stats = {
       total: venues?.length || 0,
       active: venues?.filter(v => v.status === 'active').length || 0,
-      trial: venues?.filter(v => v.status === 'trial').length || 0,
+      trial: venues?.filter(v => v.status === 'trial' || v.trial_status === 'active').length || 0,
       pending: venues?.filter(v => v.status === 'pending').length || 0,
       inactive: venues?.filter(v => v.status === 'inactive').length || 0
     }
@@ -86,22 +90,22 @@ export async function POST(request: NextRequest) {
 
     const {
       location_partner_id,
-      name,
-      address_line1,
-      address_line2,
+      venue_name,
+      address_line_1,
+      address_line_2,
       city,
       state,
-      zip_code,
+      zip,
       venue_type,
       square_footage,
-      expected_daily_visitors,
+      monthly_visitors,
       status = 'pending'
     } = body
 
     // Validate required fields
-    if (!location_partner_id || !name || !city || !state) {
+    if (!venue_name || !city || !state) {
       return NextResponse.json(
-        { error: 'Missing required fields: location_partner_id, name, city, state' },
+        { error: 'Missing required fields: venue_name, city, state' },
         { status: 400 }
       )
     }
@@ -114,15 +118,15 @@ export async function POST(request: NextRequest) {
       .insert({
         venue_id: venueId,
         location_partner_id,
-        name,
-        address_line1,
-        address_line2,
+        venue_name,
+        address_line_1,
+        address_line_2,
         city,
         state,
-        zip_code,
+        zip,
         venue_type,
         square_footage,
-        expected_daily_visitors,
+        monthly_visitors,
         status
       })
       .select()
@@ -136,8 +140,8 @@ export async function POST(request: NextRequest) {
       action: 'venue_created',
       entity_type: 'venue',
       entity_id: venue.id,
-      details: { venue_id: venueId, name, location_partner_id }
-    })
+      details: { venue_id: venueId, venue_name, location_partner_id }
+    }).catch(() => {}) // Don't fail if activity log fails
 
     return NextResponse.json({ venue })
 
@@ -180,7 +184,7 @@ export async function PUT(request: NextRequest) {
       entity_type: 'venue',
       entity_id: id,
       details: { updates }
-    })
+    }).catch(() => {})
 
     return NextResponse.json({ venue })
 
@@ -234,7 +238,7 @@ export async function DELETE(request: NextRequest) {
       entity_type: 'venue',
       entity_id: id,
       details: {}
-    })
+    }).catch(() => {})
 
     return NextResponse.json({ success: true })
 
