@@ -23,7 +23,7 @@ import {
   GripVertical, Phone, MoreVertical, Filter, UserPlus,
   CreditCard, Wallet, PieChart, MessageSquare, Bell,
   SkipForward, AlertTriangle, Pause, Play, Archive, History,
-  Key, Shield, User, BookOpen, Video
+  Key, Shield, User, BookOpen, Video, Wifi
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
@@ -940,8 +940,16 @@ export default function AdminPortalPage() {
       const res = await fetch('/api/admin/venues')
       if (res.ok) {
         const data = await res.json()
-        setVenues(data.venues || [])
-        setVenueStats(data.stats || { total: 0, active: 0, trial: 0, pending: 0, inactive: 0 })
+        const venueList = data.venues || []
+        setVenues(venueList)
+        // Calculate stats from venues
+        setVenueStats({
+          total: venueList.length,
+          active: venueList.filter((v: any) => v.status === 'active').length,
+          trial: venueList.filter((v: any) => v.status === 'trial').length,
+          pending: venueList.filter((v: any) => v.status === 'pending').length,
+          inactive: venueList.filter((v: any) => v.status === 'inactive').length,
+        })
       } else {
         console.error('Venues API returned:', res.status)
         setVenues([])
@@ -961,8 +969,16 @@ export default function AdminPortalPage() {
       const res = await fetch('/api/admin/devices')
       if (res.ok) {
         const data = await res.json()
-        setDevices(data.devices || [])
-        setDeviceStats(data.stats || { total: 0, active: 0, offline: 0, pending: 0, unassigned: 0 })
+        const deviceList = data.devices || []
+        setDevices(deviceList)
+        // Calculate stats from devices
+        setDeviceStats({
+          total: deviceList.length,
+          active: deviceList.filter((d: any) => d.status === 'online' || d.status === 'active').length,
+          offline: deviceList.filter((d: any) => d.status === 'offline').length,
+          pending: deviceList.filter((d: any) => d.status === 'pending').length,
+          unassigned: deviceList.filter((d: any) => !d.venue_id).length,
+        })
       } else {
         console.error('Devices API returned:', res.status)
         setDevices([])
@@ -4109,7 +4125,88 @@ export default function AdminPortalPage() {
 
         {activeTab === 'venues' && <VenuesTab />}
 
-        {activeTab === 'devices' && <DevicesTab />}
+
+        {/* Devices Tab */}
+        {activeTab === 'devices' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Devices</h2>
+                <p className="text-[#94A3B8] text-sm">Manage deployed network devices</p>
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
+                <Plus className="w-4 h-4" />
+                Add Device
+              </button>
+            </div>
+
+            {/* Device Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Total</div>
+                <div className="text-2xl font-bold text-white">{deviceStats.total}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Online</div>
+                <div className="text-2xl font-bold text-green-400">{deviceStats.active}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Offline</div>
+                <div className="text-2xl font-bold text-red-400">{deviceStats.offline}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Pending</div>
+                <div className="text-2xl font-bold text-orange-400">{deviceStats.pending}</div>
+              </div>
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                <div className="text-[#94A3B8] text-sm">Unassigned</div>
+                <div className="text-2xl font-bold text-gray-400">{deviceStats.unassigned}</div>
+              </div>
+            </div>
+
+            {/* Device Search */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+                <input type="text" placeholder="Search devices..." value={deviceSearch} onChange={(e) => setDeviceSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white placeholder-[#64748B] focus:outline-none focus:border-[#0EA5E9]" />
+              </div>
+            </div>
+
+            {/* Devices Table */}
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+              {devicesLoading ? (
+                <div className="p-8 text-center"><RefreshCw className="w-8 h-8 text-[#0EA5E9] animate-spin mx-auto mb-2" /><p className="text-[#94A3B8]">Loading devices...</p></div>
+              ) : devices.length === 0 ? (
+                <div className="p-8 text-center"><Activity className="w-12 h-12 text-[#64748B] mx-auto mb-3" /><p className="text-[#94A3B8]">No devices found</p></div>
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-[#0A0F2C]">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Device</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Serial / MAC</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Venue</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Partner</th>
+                      <th className="px-4 py-3 text-left text-[#94A3B8] text-sm font-medium">Status</th>
+                      <th className="px-4 py-3 text-right text-[#94A3B8] text-sm font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2D3B5F]">
+                    {devices.filter(d => deviceSearch === '' || d.serial_number?.toLowerCase().includes(deviceSearch.toLowerCase()) || d.mac_address?.toLowerCase().includes(deviceSearch.toLowerCase()) || d.venue?.name?.toLowerCase().includes(deviceSearch.toLowerCase())).map(device => (
+                      <tr key={device.id} className="hover:bg-[#0A0F2C]/50">
+                        <td className="px-4 py-3"><div className="text-white font-medium">{device.device_type || device.product?.name || 'Device'}</div><div className="text-[#64748B] text-xs">{device.device_id}</div></td>
+                        <td className="px-4 py-3"><div className="text-white font-mono text-sm">{device.serial_number}</div><div className="text-[#64748B] text-xs font-mono">{device.mac_address}</div></td>
+                        <td className="px-4 py-3"><div className="text-white">{device.venue?.name || 'Unassigned'}</div><div className="text-[#64748B] text-xs">{device.venue?.city}, {device.venue?.state}</div></td>
+                        <td className="px-4 py-3"><div className="text-[#94A3B8]">{device.venue?.location_partner?.company_legal_name || 'N/A'}</div></td>
+                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs font-medium ${device.status === 'active' || device.status === 'online' ? 'bg-green-500/20 text-green-400' : device.status === 'offline' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'}`}>{device.status || 'Unknown'}</span></td>
+                        <td className="px-4 py-3 text-right"><button className="p-1 text-[#64748B] hover:text-white"><Edit className="w-4 h-4" /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Device Purchases Tab */}
         {activeTab === 'device-purchases' && (
