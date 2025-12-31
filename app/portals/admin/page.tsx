@@ -11,6 +11,8 @@ import AdminPayments from '@/components/admin/AdminPayments'
 import { AddRoleModal } from '@/components/admin/AddRoleModal'
 import AdminBlog from '@/components/admin/AdminBlog'
 import CommissionManagement from '@/components/admin/CommissionManagement'
+import VenuesTab from '@/components/admin/VenuesTab'
+import DevicesTab from '@/components/admin/DevicesTab'
 import {
   ArrowLeft, Users, FileText, ShoppingBag, BarChart3,
   CheckCircle, Clock, Package, TrendingUp,
@@ -22,11 +24,11 @@ import {
   GripVertical, Phone, MoreVertical, Filter, UserPlus,
   CreditCard, Wallet, PieChart, MessageSquare, Bell,
   SkipForward, AlertTriangle, Pause, Play, Archive, History,
-  Key, Shield, User, BookOpen, Video
+  Key, Shield, User, BookOpen, Video, Cpu
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
-type TabType = 'overview' | 'users' | 'crm' | 'pipeline' | 'followups' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'materials' | 'calculators' | 'payments' | 'commissions' | 'settings' | 'analytics'
+type TabType = 'overview' | 'users' | 'crm' | 'pipeline' | 'followups' | 'venues' | 'devices' | 'device-purchases' | 'products' | 'approved-products' | 'blog' | 'forms' | 'materials' | 'calculators' | 'payments' | 'commissions' | 'settings' | 'analytics'
 
 // Pipeline and Settings types
 interface FollowUpAttempt {
@@ -599,6 +601,8 @@ export default function AdminPortalPage() {
     { id: 'crm', label: 'CRM', icon: Target },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
     { id: 'followups', label: 'Follow-Ups', icon: Bell },
+    { id: 'venues', label: 'Venues', icon: MapPin },
+    { id: 'devices', label: 'Devices', icon: Cpu },
     { id: 'device-purchases', label: 'Device Purchases', icon: Package },
     { id: 'products', label: 'Store Products', icon: ShoppingBag },
     { id: 'approved-products', label: 'Approved Products', icon: Star },
@@ -3355,6 +3359,7 @@ export default function AdminPortalPage() {
               </button>
             </div>
 
+            {/* Venues Tab */}
             {/* Summary Stats - Clickable to filter */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <button
@@ -3726,6 +3731,12 @@ export default function AdminPortalPage() {
             </div>
           </div>
         )}
+
+        {/* Venues Tab */}
+        {activeTab === 'venues' && <VenuesTab />}
+
+        {/* Devices Tab */}
+        {activeTab === 'devices' && <DevicesTab />}
 
         {/* Payments Tab */}
         {activeTab === 'payments' && (
