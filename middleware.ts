@@ -34,6 +34,7 @@ const isPublicRoute = createRouteMatcher([
   '/api/crypto-prices(.*)',
   '/api/pipeline/docuseal(.*)', // <-- ADD THIS for DocuSeal API
   '/api/tipalti(.*)',
+  '/api/admin/sync-earnings(.*)',
   '/api/webhooks/tipalti(.*)',
 ])
 
