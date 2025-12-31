@@ -137,14 +137,14 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    // Log activity
-    await supabase.from('activity_log').insert({
+    // Log activity (don't await, fire and forget)
+    supabase.from('activity_log').insert({
       actor_id: userId,
       action: 'device_created',
       entity_type: 'device',
       entity_id: device.id,
       details: { device_id: deviceId, serial_number, venue_id }
-    }).catch(() => {})
+    })
 
     return NextResponse.json({ device })
 
@@ -180,14 +180,14 @@ export async function PUT(request: NextRequest) {
 
     if (error) throw error
 
-    // Log activity
-    await supabase.from('activity_log').insert({
+    // Log activity (fire and forget)
+    supabase.from('activity_log').insert({
       actor_id: userId,
       action: 'device_updated',
       entity_type: 'device',
       entity_id: id,
       details: { updates }
-    }).catch(() => {})
+    })
 
     return NextResponse.json({ device })
 
@@ -221,14 +221,14 @@ export async function DELETE(request: NextRequest) {
 
     if (error) throw error
 
-    // Log activity
-    await supabase.from('activity_log').insert({
+    // Log activity (fire and forget)
+    supabase.from('activity_log').insert({
       actor_id: userId,
       action: 'device_deleted',
       entity_type: 'device',
       entity_id: id,
       details: {}
-    }).catch(() => {})
+    })
 
     return NextResponse.json({ success: true })
 
@@ -263,14 +263,14 @@ export async function PATCH(request: NextRequest) {
 
     if (error) throw error
 
-    // Log activity
-    await supabase.from('activity_log').insert({
+    // Log activity (fire and forget)
+    supabase.from('activity_log').insert({
       actor_id: userId,
       action: 'devices_bulk_updated',
       entity_type: 'device',
       entity_id: deviceIds[0],
       details: { deviceIds, updates }
-    }).catch(() => {})
+    })
 
     return NextResponse.json({ devices, updated: devices?.length || 0 })
 

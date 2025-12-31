@@ -134,14 +134,14 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    // Log activity
-    await supabase.from('activity_log').insert({
+    // Log activity (fire and forget)
+    supabase.from('activity_log').insert({
       actor_id: userId,
       action: 'venue_created',
       entity_type: 'venue',
       entity_id: venue.id,
       details: { venue_id: venueId, venue_name, location_partner_id }
-    }).catch(() => {}) // Don't fail if activity log fails
+    })
 
     return NextResponse.json({ venue })
 
@@ -177,14 +177,14 @@ export async function PUT(request: NextRequest) {
 
     if (error) throw error
 
-    // Log activity
-    await supabase.from('activity_log').insert({
+    // Log activity (fire and forget)
+    supabase.from('activity_log').insert({
       actor_id: userId,
       action: 'venue_updated',
       entity_type: 'venue',
       entity_id: id,
       details: { updates }
-    }).catch(() => {})
+    })
 
     return NextResponse.json({ venue })
 
@@ -231,14 +231,14 @@ export async function DELETE(request: NextRequest) {
 
     if (error) throw error
 
-    // Log activity
-    await supabase.from('activity_log').insert({
+    // Log activity (fire and forget)
+    supabase.from('activity_log').insert({
       actor_id: userId,
       action: 'venue_deleted',
       entity_type: 'venue',
       entity_id: id,
       details: {}
-    }).catch(() => {})
+    })
 
     return NextResponse.json({ success: true })
 
