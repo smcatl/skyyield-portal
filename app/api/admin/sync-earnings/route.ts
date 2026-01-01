@@ -12,7 +12,6 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
-  // Check API key
   const apiKey = request.headers.get('x-api-key')
   if (apiKey !== SYNC_API_KEY) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -30,7 +29,6 @@ export async function POST(request: NextRequest) {
 
     if (type === 'helium') {
       for (const record of records) {
-        // Skip empty records
         if (!record.MaC && !record.mac_address) continue
         
         const data = {
@@ -113,6 +111,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (type === 'unifi') {
+      for (const record of records) {
+        if (!record['MAC Address'] && !record.mac_address) continue
+        
+        const data = {
+          site: record.Site || record.site || null,
+          ssid: record.SSID || record.ssid || null,
+          device_name: record['Device Name'] || record.device_name || null,
+          mac_address: record['MAC Address'] || record.mac_address,
+          ip_address: record['IP Address'] || record.ip_address || null,
+          connection: record.Connection || record.connection || null,
+          signal_strength: parseInt(record.Signal || record.signal_strength || 0),
+          download_gb: parseFloat(record['Download (GB)'] || record.download_gb || 0),
+          upload_gb: parseFloat(record['Upload (GB)'] || record.upload_gb || 0),
+          total_gb: parseFloat(record['Total (GB)'] || record.total_gb || 0),
+          first_seen: parseExcelDateTime(record['First Seen'] || record.first_seen),
+          last_seen: parseExcelDateTime(record['Last Seen'] || record.last_seen),
+          mac_no_colon: record.MAC_No_Colon || record.mac_no_colon || (record['MAC Address'] || '').replace(/:/g, ''),
+          data_pull_date: parseExcelDate(record.Data_Pull_Date || record.data_pull_date),
+        }
+
+        const { error } = await supabase.from('unifi_data').upsert(data, { onConflict: 'mac_address,data_pull_date' })
+        if (error) results.errors.push(`UniFi ${data.mac_address}: ${error.message}`)
+        else results.inserted++
+      }
+    }
+
     return NextResponse.json({ success: true, type, ...results })
   } catch (error) {
     console.error('Sync error:', error)
@@ -128,23 +153,28 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ success: true, message: 'Earnings sync API ready' })
 }
 
-// Helper to parse Excel serial dates or ISO dates
 function parseExcelDate(value: any): string | null {
   if (!value) return null
-  
-  // If it's already a date string
-  if (typeof value === 'string' && value.includes('-')) {
-    return value.split('T')[0]
-  }
-  
-  // If it's an Excel serial number (number of days since 1900-01-01)
+  if (typeof value === 'string' && value.includes('-')) return value.split('T')[0]
   if (typeof value === 'number' || !isNaN(Number(value))) {
     const num = Number(value)
-    if (num > 40000 && num < 50000) { // Valid Excel date range
+    if (num > 40000 && num < 50000) {
       const date = new Date((num - 25569) * 86400 * 1000)
       return date.toISOString().split('T')[0]
     }
   }
-  
+  return null
+}
+
+function parseExcelDateTime(value: any): string | null {
+  if (!value) return null
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || !isNaN(Number(value))) {
+    const num = Number(value)
+    if (num > 40000 && num < 50000) {
+      const date = new Date((num - 25569) * 86400 * 1000)
+      return date.toISOString()
+    }
+  }
   return null
 }
