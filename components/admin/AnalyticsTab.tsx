@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { DollarSign, Activity, Calendar, RefreshCw, ChevronDown } from 'lucide-react'
 
 interface AnalyticsData {
@@ -20,7 +20,32 @@ export default function AnalyticsTab() {
   const [customEnd, setCustomEnd] = useState('')
   const [showCustomRange, setShowCustomRange] = useState(false)
 
+  const periodRef = useRef(period)
+  const customStartRef = useRef(customStart)
+  const customEndRef = useRef(customEnd)
+
+  useEffect(() => {
+    periodRef.current = period
+    customStartRef.current = customStart
+    customEndRef.current = customEnd
+  })
+
   useEffect(() => { if (period !== 'custom') fetchAnalytics() }, [period])
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        let url = `/api/admin/analytics?period=${periodRef.current}`
+        if (periodRef.current === 'custom' && customStartRef.current && customEndRef.current) {
+          url = `/api/admin/analytics?startDate=${customStartRef.current}&endDate=${customEndRef.current}`
+        }
+        const res = await fetch(url)
+        const result = await res.json()
+        if (result.success) setData(result)
+      } catch (err) { console.error('Auto-refresh failed:', err) }
+    }, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const fetchAnalytics = async (startDate?: string, endDate?: string) => {
     setLoading(true)
