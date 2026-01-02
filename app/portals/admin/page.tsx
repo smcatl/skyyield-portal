@@ -849,6 +849,13 @@ export default function AdminPortalPage() {
   const [calendlyLoading, setCalendlyLoading] = useState(false)
   const [calendlyError, setCalendlyError] = useState<string | null>(null)
 
+  // Pipeline Stages settings state
+  const [dbPipelineStages, setDbPipelineStages] = useState<any[]>([])
+  const [stagesLoading, setStagesLoading] = useState(false)
+  const [editingStage, setEditingStage] = useState<any | null>(null)
+  const [showStageModal, setShowStageModal] = useState(false)
+  const [stagesPartnerTypeFilter, setStagesPartnerTypeFilter] = useState<string>('all')
+
   // Payments state
   const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
 
@@ -1310,6 +1317,50 @@ export default function AdminPortalPage() {
     }
   }
 
+  // Fetch pipeline stages from database
+  const fetchPipelineStages = async () => {
+    setStagesLoading(true)
+    try {
+      const res = await fetch('/api/admin/settings/pipeline-stages')
+      const data = await res.json()
+      setDbPipelineStages(data.stages || [])
+    } catch (err) {
+      console.error('Error fetching pipeline stages:', err)
+    } finally {
+      setStagesLoading(false)
+    }
+  }
+
+  // Save pipeline stage
+  const savePipelineStage = async (stage: any) => {
+    try {
+      const method = stage.id ? 'PUT' : 'POST'
+      const res = await fetch('/api/admin/settings/pipeline-stages', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(stage),
+      })
+      if (res.ok) {
+        fetchPipelineStages()
+        setShowStageModal(false)
+        setEditingStage(null)
+      }
+    } catch (err) {
+      console.error('Error saving pipeline stage:', err)
+    }
+  }
+
+  // Delete pipeline stage
+  const deletePipelineStage = async (id: string) => {
+    if (!confirm('Delete this pipeline stage?')) return
+    try {
+      await fetch(`/api/admin/settings/pipeline-stages?id=${id}`, { method: 'DELETE' })
+      fetchPipelineStages()
+    } catch (err) {
+      console.error('Error deleting pipeline stage:', err)
+    }
+  }
+
   // Send user invite
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return
@@ -1375,6 +1426,7 @@ export default function AdminPortalPage() {
     if (activeTab === 'settings') {
       fetchDropdowns()
       fetchCalendlyLinks()
+      fetchPipelineStages()
     }
     if (activeTab === 'overview') {
       fetchUsers()
@@ -4105,19 +4157,239 @@ export default function AdminPortalPage() {
 
             {/* Pipeline Stages */}
             {settingsTab === 'stages' && (
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="space-y-3">
-                  {PIPELINE_STAGES.map((stage, index) => (
-                    <div key={stage.id} className={`flex items-center gap-4 p-3 bg-[#0A0F2C] rounded-lg border-l-4 ${stage.color}`}>
-                      <GripVertical className="w-5 h-5 text-[#64748B]" />
-                      <div className="flex-1">
-                        <div className="text-white font-medium">{stage.name}</div>
-                        <div className="text-[#64748B] text-xs">{stage.id}</div>
-                      </div>
-                      <span className="text-[#64748B] text-sm">Stage {index + 1}</span>
-                    </div>
-                  ))}
+              <div className="space-y-4">
+                {/* Header with filter and add button */}
+                <div className="flex items-center justify-between">
+                  <select
+                    value={stagesPartnerTypeFilter}
+                    onChange={e => setStagesPartnerTypeFilter(e.target.value)}
+                    className="px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white"
+                  >
+                    <option value="all">All Partner Types</option>
+                    <option value="location_partner">Location Partner</option>
+                    <option value="referral_partner">Referral Partner</option>
+                    <option value="channel_partner">Channel Partner</option>
+                    <option value="contractor">Contractor</option>
+                  </select>
+                  <button
+                    onClick={() => {
+                      setEditingStage({ name: '', slug: '', color: 'border-blue-500', partner_type: stagesPartnerTypeFilter === 'all' ? 'location_partner' : stagesPartnerTypeFilter, description: '', action_type: '', email_template_id: '', calendly_link_id: '' })
+                      setShowStageModal(true)
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                  >
+                    <Plus className="w-4 h-4" /> Add Stage
+                  </button>
                 </div>
+
+                {/* Loading state */}
+                {stagesLoading && (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <RefreshCw className="w-6 h-6 mx-auto mb-2 text-[#0EA5E9] animate-spin" />
+                    <p className="text-[#94A3B8]">Loading stages...</p>
+                  </div>
+                )}
+
+                {/* Database stages grouped by partner type */}
+                {!stagesLoading && dbPipelineStages.length > 0 && (
+                  <div className="space-y-6">
+                    {['location_partner', 'referral_partner', 'channel_partner', 'contractor']
+                      .filter(pt => stagesPartnerTypeFilter === 'all' || stagesPartnerTypeFilter === pt)
+                      .map(partnerType => {
+                        const stagesForType = dbPipelineStages.filter(s => s.partner_type === partnerType)
+                        if (stagesForType.length === 0) return null
+                        return (
+                          <div key={partnerType} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                            <div className="px-6 py-3 bg-[#0A0F2C] border-b border-[#2D3B5F]">
+                              <h4 className="text-white font-medium capitalize">{partnerType.replace(/_/g, ' ')} Stages</h4>
+                            </div>
+                            <div className="p-4 space-y-2">
+                              {stagesForType.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).map((stage, index) => (
+                                <div key={stage.id} className={`flex items-center gap-4 p-3 bg-[#0A0F2C] rounded-lg border-l-4 ${stage.color || 'border-blue-500'}`}>
+                                  <GripVertical className="w-5 h-5 text-[#64748B] cursor-move" />
+                                  <div className="flex-1">
+                                    <div className="text-white font-medium">{stage.name}</div>
+                                    <div className="text-[#64748B] text-xs">{stage.slug} {stage.description && `• ${stage.description}`}</div>
+                                    {stage.action_type && (
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs px-2 py-0.5 bg-[#2D3B5F] text-[#0EA5E9] rounded">Action: {stage.action_type}</span>
+                                        {stage.email_template_id && <span className="text-xs text-[#64748B]">Email linked</span>}
+                                        {stage.calendly_link_id && <span className="text-xs text-[#64748B]">Calendly linked</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-[#64748B] text-sm">#{index + 1}</span>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => { setEditingStage(stage); setShowStageModal(true) }}
+                                      className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => deletePipelineStage(stage.id)}
+                                      className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+
+                {/* Fallback: Show hardcoded PIPELINE_STAGES when no database stages */}
+                {!stagesLoading && dbPipelineStages.length === 0 && (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-[#94A3B8] text-sm">No custom stages in database. Showing default stages:</p>
+                    </div>
+                    <div className="space-y-3">
+                      {PIPELINE_STAGES.map((stage, index) => (
+                        <div key={stage.id} className={`flex items-center gap-4 p-3 bg-[#0A0F2C] rounded-lg border-l-4 ${stage.color}`}>
+                          <GripVertical className="w-5 h-5 text-[#64748B]" />
+                          <div className="flex-1">
+                            <div className="text-white font-medium">{stage.name}</div>
+                            <div className="text-[#64748B] text-xs">{stage.id}</div>
+                          </div>
+                          <span className="text-[#64748B] text-sm">Stage {index + 1}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit Stage Modal */}
+                {showStageModal && editingStage && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-lg">
+                      <h3 className="text-lg font-semibold text-white mb-4">{editingStage.id ? 'Edit Stage' : 'Add Stage'}</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Stage Name</label>
+                          <input
+                            type="text"
+                            value={editingStage.name}
+                            onChange={e => setEditingStage({ ...editingStage, name: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Slug</label>
+                            <input
+                              type="text"
+                              value={editingStage.slug}
+                              onChange={e => setEditingStage({ ...editingStage, slug: e.target.value })}
+                              placeholder="auto-generated"
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Partner Type</label>
+                            <select
+                              value={editingStage.partner_type}
+                              onChange={e => setEditingStage({ ...editingStage, partner_type: e.target.value })}
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            >
+                              <option value="location_partner">Location Partner</option>
+                              <option value="referral_partner">Referral Partner</option>
+                              <option value="channel_partner">Channel Partner</option>
+                              <option value="contractor">Contractor</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Color</label>
+                          <select
+                            value={editingStage.color}
+                            onChange={e => setEditingStage({ ...editingStage, color: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          >
+                            <option value="border-blue-500">Blue</option>
+                            <option value="border-green-500">Green</option>
+                            <option value="border-yellow-500">Yellow</option>
+                            <option value="border-orange-500">Orange</option>
+                            <option value="border-purple-500">Purple</option>
+                            <option value="border-pink-500">Pink</option>
+                            <option value="border-cyan-500">Cyan</option>
+                            <option value="border-red-500">Red</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Description</label>
+                          <textarea
+                            value={editingStage.description || ''}
+                            onChange={e => setEditingStage({ ...editingStage, description: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-20"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Auto Action</label>
+                          <select
+                            value={editingStage.action_type || ''}
+                            onChange={e => setEditingStage({ ...editingStage, action_type: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          >
+                            <option value="">None</option>
+                            <option value="send_email">Send Email</option>
+                            <option value="schedule_call">Schedule Call</option>
+                            <option value="send_agreement">Send Agreement</option>
+                            <option value="create_task">Create Task</option>
+                          </select>
+                        </div>
+                        {editingStage.action_type === 'send_email' && (
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Email Template</label>
+                            <select
+                              value={editingStage.email_template_id || ''}
+                              onChange={e => setEditingStage({ ...editingStage, email_template_id: e.target.value })}
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            >
+                              <option value="">Select template...</option>
+                              {emailTemplates.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {editingStage.action_type === 'schedule_call' && (
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Calendly Link</label>
+                            <select
+                              value={editingStage.calendly_link_id || ''}
+                              onChange={e => setEditingStage({ ...editingStage, calendly_link_id: e.target.value })}
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            >
+                              <option value="">Select link...</option>
+                              {calendlyLinks.map(l => (
+                                <option key={l.id} value={l.id}>{l.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex justify-end gap-3 mt-6">
+                        <button
+                          onClick={() => { setShowStageModal(false); setEditingStage(null) }}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => savePipelineStage(editingStage)}
+                          className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
