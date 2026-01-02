@@ -4,21 +4,19 @@ import { useUser } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { 
-  ArrowLeft, DollarSign, BarChart3, MapPin, Wifi,
-  Activity, Calculator, FileText, TrendingUp, Settings, 
-  Wallet, Target, Building2, Cpu, X
+import {
+  ArrowLeft, BarChart3, FileText, Settings, MapPin, Wifi, Activity,
+  Wallet, Building2, X, ChevronDown, ChevronRight, CheckCircle, Clock, Target
 } from 'lucide-react'
-import FullCalculator from '@/components/portal/FullCalculator'
 import {
   ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
-  TrainingSection, VenuesSection, PartnerSettings, PartnerAnalytics, PartnerPayments,
+  PartnerSettings, PartnerPayments,
 } from '@/components/portal'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import CRMTab from '@/components/admin/crm/CRMTab'
 import { useRolePermissions } from '@/hooks/useRolePermissions'
 
-type TabType = 'overview' | 'clients' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
+type TabType = 'overview' | 'clients' | 'earnings' | 'documents' | 'settings'
 
 interface Client {
   id: string
@@ -30,17 +28,6 @@ interface Client {
   totalDataGB: number
 }
 
-interface Device {
-  id: string
-  name: string
-  type: string
-  clientName: string
-  venueName: string
-  status: 'online' | 'offline'
-  dataUsageGB: number
-  lastSeen: string
-}
-
 function ChannelPartnerPortalContent() {
   const { user, isLoaded } = useUser()
   const router = useRouter()
@@ -48,12 +35,10 @@ function ChannelPartnerPortalContent() {
   const isPreviewMode = searchParams.get('preview') === 'true'
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [loading, setLoading] = useState(true)
+  const [showOnboarding, setShowOnboarding] = useState(true)
   const [partnerId, setPartnerId] = useState<string>('')
   const [clients, setClients] = useState<Client[]>([])
-  const [venues, setVenues] = useState<any[]>([])
-  const [devices, setDevices] = useState<Device[]>([])
   const [documents, setDocuments] = useState<any[]>([])
-  const [materials, setMaterials] = useState<any[]>([])
   const [stats, setStats] = useState({
     totalClients: 0, activeClients: 0, totalVenues: 0, activeVenues: 0,
     totalDevices: 0, onlineDevices: 0, totalDataGB: 0, myEarnings: 0, pendingPayments: 0,
@@ -103,23 +88,6 @@ function ChannelPartnerPortalContent() {
         ])
       }
       
-      if (data.venues) {
-        setVenues(data.venues.map((v: any) => ({ ...v, clientName: v.clientName || '' })))
-      } else {
-        setVenues([
-          { id: '1', name: 'Downtown Bistro', address: '123 Main St', city: 'Atlanta', state: 'GA', type: 'Restaurant', status: 'active', clientName: 'Smith Hospitality', devicesInstalled: 2, dataUsageGB: 456.2 },
-          { id: '2', name: 'Midtown Cafe', address: '456 Oak Ave', city: 'Atlanta', state: 'GA', type: 'Cafe', status: 'active', clientName: 'Smith Hospitality', devicesInstalled: 1, dataUsageGB: 298.2 },
-        ])
-      }
-      
-      if (data.devices) {
-        setDevices(data.devices.map((d: any) => ({ ...d, clientName: d.clientName || '' })))
-      } else {
-        setDevices([
-          { id: '1', name: 'AP-Bistro-Main', type: 'UniFi U6 Pro', clientName: 'Smith Hospitality', venueName: 'Downtown Bistro', status: 'online', dataUsageGB: 234.5, lastSeen: '2024-12-14T18:30:00Z' },
-        ])
-      }
-      
       if (data.stats) {
         setStats({
           totalClients: data.stats.totalReferrals || 0,
@@ -140,34 +108,9 @@ function ChannelPartnerPortalContent() {
         { id: '1', name: 'Channel Partner Agreement', type: 'contract', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
         { id: '2', name: 'White Label Guidelines', type: 'policy', status: 'signed', createdAt: '2024-06-01', signedAt: '2024-06-05' },
       ])
-      
-      try {
-        const materialsRes = await fetch('/api/materials?partnerType=channel_partner')
-        const materialsData = await materialsRes.json()
-        if (materialsData.materials) {
-          setMaterials(materialsData.materials.map((m: any) => ({
-            id: m.id,
-            title: m.title,
-            description: m.description,
-            type: m.type,
-            category: m.category,
-            duration: m.duration,
-            url: m.url,
-            completed: false,
-            required: m.required,
-          })))
-        }
-      } catch (err) {
-        setMaterials([
-          { id: '1', title: 'Channel Partner Program Overview', description: 'Understanding the channel partner model.', type: 'video', category: 'Onboarding', duration: '15:00', url: '#', completed: true, required: true },
-          { id: '2', title: 'Client Onboarding Process', description: 'How to onboard new clients.', type: 'document', category: 'Operations', duration: '12 min', url: '#', completed: true, required: true },
-        ])
-      }
-    } catch (error) { 
+    } catch (error) {
       console.error('Error loading portal data:', error)
       setClients([])
-      setVenues([])
-      setDevices([])
       setStats({ totalClients: 0, activeClients: 0, totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0, totalDataGB: 0, myEarnings: 0, pendingPayments: 0 })
     }
     finally { setLoading(false) }
@@ -177,20 +120,15 @@ function ChannelPartnerPortalContent() {
     return <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#2D3B5F] border-t-[#0EA5E9] rounded-full animate-spin" /></div>
   }
 
-  const hasCalculatorSubscription = (user.unsafeMetadata as any)?.calculatorSubscription === true
   const referralCode = `CH-${user.id?.slice(-6).toUpperCase()}`
 
   // Define all tabs with permission keys
   const allTabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3, permKey: 'cp_dashboard' },
-    { id: 'clients', label: 'My Clients', icon: Building2, permKey: 'cp_clients' },
-    { id: 'venues', label: 'Venues', icon: MapPin, permKey: 'cp_venues' },
-    { id: 'devices', label: 'Devices', icon: Wifi, permKey: 'cp_devices' },
-    { id: 'materials', label: 'Materials', icon: FileText, permKey: 'cp_materials' },
-    { id: 'calculator', label: 'Calculator', icon: Calculator, permKey: 'cp_calculator' },
-    { id: 'payments', label: 'Payments', icon: Wallet, permKey: 'cp_earnings' },
+    { id: 'clients', label: 'Clients', icon: Building2, permKey: 'cp_clients' },
+    { id: 'earnings', label: 'Earnings', icon: Wallet, permKey: 'cp_earnings' },
+    { id: 'documents', label: 'Documents', icon: FileText, permKey: 'cp_documents' },
     { id: 'settings', label: 'Settings', icon: Settings, permKey: 'cp_settings' },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp, permKey: 'cp_analytics' },
   ]
 
   // Filter tabs based on user's role permissions
@@ -236,6 +174,55 @@ function ChannelPartnerPortalContent() {
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+              {/* Collapsible Onboarding Progress Card */}
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowOnboarding(!showOnboarding)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-[#0A0F2C]/30 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center">
+                      <Target className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-white">Onboarding Progress</h3>
+                      <p className="text-[#64748B] text-sm">Complete your account setup</p>
+                    </div>
+                  </div>
+                  {showOnboarding ? (
+                    <ChevronDown className="w-5 h-5 text-[#94A3B8]" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-[#94A3B8]" />
+                  )}
+                </button>
+                {showOnboarding && (
+                  <div className="px-4 pb-4 space-y-3">
+                    {/* Agreement Status */}
+                    <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                        <div>
+                          <div className="text-white font-medium">Agreement</div>
+                          <div className="text-[#64748B] text-sm">Channel Partner Agreement signed</div>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">Complete</span>
+                    </div>
+                    {/* Payment Setup Status */}
+                    <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Clock className="w-5 h-5 text-yellow-400" />
+                        <div>
+                          <div className="text-white font-medium">Payment Setup</div>
+                          <div className="text-[#64748B] text-sm">Configure your payout method</div>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-medium rounded-full">Pending</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <DashboardCard title="Active Clients" value={stats.activeClients} subtitle={`${stats.totalClients} total`} icon={<Building2 className="w-5 h-5 text-purple-400" />} iconBgColor="bg-purple-500/20" />
                 <DashboardCard title="Active Venues" value={stats.activeVenues} subtitle={`${stats.totalVenues} total`} icon={<MapPin className="w-5 h-5 text-green-400" />} iconBgColor="bg-green-500/20" />
@@ -264,7 +251,6 @@ function ChannelPartnerPortalContent() {
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-white">Device Status</h3>
-                  <button onClick={() => setActiveTab('devices')} className="text-[#0EA5E9] text-sm hover:underline">View All</button>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-[#0A0F2C] rounded-lg p-4 text-center">
@@ -328,49 +314,9 @@ function ChannelPartnerPortalContent() {
           </div>
         )}
 
-        {activeTab === 'venues' && <VenuesSection venues={venues} loading={loading} title="All Venues" />}
-        
-        {activeTab === 'devices' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <DashboardCard title="Total Devices" value={stats.totalDevices} icon={<Cpu className="w-5 h-5 text-purple-400" />} iconBgColor="bg-purple-500/20" />
-              <DashboardCard title="Online" value={stats.onlineDevices} icon={<Wifi className="w-5 h-5 text-green-400" />} iconBgColor="bg-green-500/20" />
-              <DashboardCard title="Offline" value={stats.totalDevices - stats.onlineDevices} icon={<Wifi className="w-5 h-5 text-red-400" />} iconBgColor="bg-red-500/20" />
-              <DashboardCard title="Total Data" value={stats.totalDataGB.toFixed(1)} suffix=" GB" icon={<Activity className="w-5 h-5 text-[#0EA5E9]" />} iconBgColor="bg-[#0EA5E9]/20" />
-            </div>
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-              <div className="p-6 border-b border-[#2D3B5F]"><h2 className="text-xl font-semibold text-white">All Devices</h2><p className="text-[#94A3B8] text-sm">Devices across all your clients</p></div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr className="border-b border-[#2D3B5F]">
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Device</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Client</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Venue</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Status</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Data</th>
-                  </tr></thead>
-                  <tbody>
-                    {devices.map(device => (
-                      <tr key={device.id} className="border-b border-[#2D3B5F] hover:bg-[#0A0F2C]/50">
-                        <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center"><Wifi className="w-5 h-5 text-purple-400" /></div><div><div className="text-white font-medium">{device.name}</div><div className="text-[#64748B] text-xs">{device.type}</div></div></div></td>
-                        <td className="px-6 py-4 text-[#94A3B8]">{device.clientName}</td>
-                        <td className="px-6 py-4 text-[#94A3B8]">{device.venueName}</td>
-                        <td className="px-6 py-4"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${device.status === 'online' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}><span className={`w-1.5 h-1.5 rounded-full ${device.status === 'online' ? 'bg-green-400' : 'bg-red-400'}`} />{device.status}</span></td>
-                        <td className="px-6 py-4 text-[#0EA5E9] font-medium">{device.dataUsageGB.toFixed(1)} GB</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'materials' && <TrainingSection items={materials} loading={loading} title="Materials & Resources" showProgress={true} />}
-        {activeTab === 'calculator' && <FullCalculator isSubscribed={hasCalculatorSubscription} />}
-        {activeTab === 'payments' && <PartnerPayments partnerId={partnerId} partnerType="channel_partner" />}
+        {activeTab === 'earnings' && <PartnerPayments partnerId={partnerId} partnerType="channel_partner" />}
+        {activeTab === 'documents' && <DocumentsSection documents={documents} loading={loading} title="Documents" />}
         {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="channel_partner" showCompanyInfo={true} showPaymentSettings={true} showNotifications={true} readOnly={!canEdit('cp_settings')} />}
-        {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="channel_partner" showReferrals={true} showDataUsage={true} />}
       </div>
     </div>
   )

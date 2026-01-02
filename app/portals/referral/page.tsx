@@ -5,18 +5,19 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import {
-  Users, DollarSign, Link as LinkIcon, Copy, FileText,
-  Settings, TrendingUp, Clock, CheckCircle, AlertCircle,
-  RefreshCw, Share2, Wifi, Megaphone, HelpCircle, UserPlus
+  Users, DollarSign, Copy, FileText,
+  Settings, Clock, CheckCircle, AlertCircle,
+  RefreshCw, Share2, Wifi, UserPlus,
+  ChevronDown, ChevronRight
 } from 'lucide-react'
 import {
-  ContactCard, ReferralCodeCard, DashboardCard, DocumentsSection,
-  TrainingSection, PartnerSettings, PartnerPayments,
+  ContactCard, DashboardCard, DocumentsSection,
+  PartnerSettings, PartnerPayments,
 } from '@/components/portal'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import { useRolePermissions } from '@/hooks/useRolePermissions'
 
-type TabType = 'overview' | 'referrals' | 'earnings' | 'marketing' | 'documents' | 'settings'
+type TabType = 'overview' | 'referrals' | 'earnings' | 'documents' | 'settings'
 
 interface PartnerData {
   id: string
@@ -75,7 +76,6 @@ function ReferralPartnerPortalContent() {
     totalEarned: 0, pendingPayment: 0, conversionRate: 0
   })
   const [documents, setDocuments] = useState<any[]>([])
-  const [materials, setMaterials] = useState<any[]>([])
   const [copied, setCopied] = useState(false)
 
   // Role permissions
@@ -83,12 +83,14 @@ function ReferralPartnerPortalContent() {
 
   const allTabs = [
     { id: 'overview', label: 'Overview', icon: Users, permKey: 'rp_dashboard' },
-    { id: 'referrals', label: 'My Referrals', icon: UserPlus, permKey: 'rp_referrals' },
+    { id: 'referrals', label: 'Referrals', icon: UserPlus, permKey: 'rp_referrals' },
     { id: 'earnings', label: 'Earnings', icon: DollarSign, permKey: 'rp_earnings' },
-    { id: 'marketing', label: 'Marketing', icon: Megaphone, permKey: 'rp_marketing' },
     { id: 'documents', label: 'Documents', icon: FileText, permKey: 'rp_documents' },
     { id: 'settings', label: 'Settings', icon: Settings, permKey: 'rp_settings' },
   ]
+
+  // Onboarding progress expansion state
+  const [showOnboarding, setShowOnboarding] = useState(true)
 
   // Filter tabs based on permissions
   const tabs = allTabs.filter(tab => canView(tab.permKey))
@@ -140,13 +142,6 @@ function ReferralPartnerPortalContent() {
           })
         }
         setDocuments(docs)
-        
-        // Marketing materials
-        setMaterials([
-          { id: '1', name: 'Partner Brochure', type: 'pdf', size: '2.4 MB', url: '#' },
-          { id: '2', name: 'Sales Deck', type: 'pptx', size: '5.1 MB', url: '#' },
-          { id: '3', name: 'Email Templates', type: 'docx', size: '156 KB', url: '#' },
-        ])
       } else {
         setError(data.error || 'Failed to load data')
       }
@@ -259,9 +254,92 @@ function ReferralPartnerPortalContent() {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              {/* Referral Link Card */}
+          <div className="space-y-6">
+            {/* Onboarding Progress - Collapsible */}
+            {partnerData && partnerData.pipeline_stage !== 'active' && (
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowOnboarding(!showOnboarding)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-[#0A0F2C]/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-[#0EA5E9]" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-white font-semibold">Onboarding Progress</h3>
+                      <p className="text-[#64748B] text-sm">Complete the steps below to activate your partnership</p>
+                    </div>
+                  </div>
+                  {showOnboarding ? (
+                    <ChevronDown className="w-5 h-5 text-[#64748B]" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-[#64748B]" />
+                  )}
+                </button>
+                {showOnboarding && (
+                  <div className="px-4 pb-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Agreement Status */}
+                      <div className={`p-4 rounded-lg border ${
+                        partnerData.agreement_status === 'signed'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : partnerData.agreement_status === 'sent'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {partnerData.agreement_status === 'signed' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : partnerData.agreement_status === 'sent' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Agreement</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          partnerData.agreement_status === 'signed' ? 'text-green-400' :
+                          partnerData.agreement_status === 'sent' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {partnerData.agreement_status || 'Pending'}
+                        </div>
+                      </div>
+
+                      {/* Payment Setup */}
+                      <div className={`p-4 rounded-lg border ${
+                        partnerData.tipalti_status === 'active'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : partnerData.tipalti_status === 'invited'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {partnerData.tipalti_status === 'active' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : partnerData.tipalti_status === 'invited' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Payment Setup</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          partnerData.tipalti_status === 'active' ? 'text-green-400' :
+                          partnerData.tipalti_status === 'invited' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {partnerData.tipalti_status || 'Pending'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                {/* Referral Link Card */}
               <div className="bg-gradient-to-br from-[#0EA5E9]/20 to-[#06B6D4]/10 border border-[#0EA5E9]/30 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -386,12 +464,13 @@ function ReferralPartnerPortalContent() {
               </div>
               
               <DocumentsSection documents={documents} loading={loading} title="Documents" />
-              <ContactCard 
-                calendlyUrl="https://calendly.com/scohen-skyyield" 
-                supportEmail="support@skyyield.io" 
-                showTicketForm={false} 
+              <ContactCard
+                calendlyUrl="https://calendly.com/scohen-skyyield"
+                supportEmail="support@skyyield.io"
+                showTicketForm={false}
               />
             </div>
+          </div>
           </div>
         )}
 
@@ -478,61 +557,6 @@ function ReferralPartnerPortalContent() {
 
         {activeTab === 'earnings' && (
           <PartnerPayments partnerId={partnerData?.id || ''} partnerType="referral_partner" />
-        )}
-
-        {activeTab === 'marketing' && (
-          <div className="space-y-6">
-            {/* Quick Share */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Share</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-2">Your Referral Code</label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-[#0A0F2C] rounded-lg px-4 py-3 border border-[#2D3B5F]">
-                      <code className="text-[#0EA5E9] font-mono font-bold">{partnerData?.referral_code}</code>
-                    </div>
-                    <button onClick={copyReferralCode} className="p-3 bg-[#2D3B5F] rounded-lg hover:bg-[#3D4B6F] transition-colors">
-                      <Copy className="w-5 h-5 text-white" />
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[#94A3B8] text-sm mb-2">Your Tracking URL</label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-[#0A0F2C] rounded-lg px-4 py-3 border border-[#2D3B5F] overflow-hidden">
-                      <code className="text-[#0EA5E9] text-sm truncate block">{referralLink}</code>
-                    </div>
-                    <button onClick={copyReferralLink} className="p-3 bg-[#0EA5E9] rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
-                      <Copy className="w-5 h-5 text-white" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Downloadable Resources */}
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Downloadable Resources</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {materials.map(material => (
-                  <a 
-                    key={material.id}
-                    href={material.url}
-                    className="flex items-center gap-4 p-4 bg-[#0A0F2C] rounded-lg hover:bg-[#2D3B5F] transition-colors"
-                  >
-                    <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
-                      <FileText className="w-6 h-6 text-[#0EA5E9]" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-white font-medium">{material.name}</div>
-                      <div className="text-[#64748B] text-sm">{material.type.toUpperCase()} • {material.size}</div>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
         )}
 
         {activeTab === 'documents' && (

@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       const response = NextResponse.json({
         success: true,
         message: 'Impersonation ended',
-        redirectTo: '/admin',
+        redirectTo: '/portals/admin',
       })
 
       // Clear all impersonation cookies
@@ -197,14 +197,14 @@ export async function GET(request: NextRequest) {
 
 function getPortalRoute(userType: string): string {
   const routes: Record<string, string> = {
-    admin: '/admin',
-    location_partner: '/portal/location',
-    referral_partner: '/portal/referral',
-    channel_partner: '/portal/channel',
-    relationship_partner: '/portal/relationship',
-    contractor: '/portal/contractor',
-    employee: '/admin',
-    calculator_user: '/calculator',
+    admin: '/portals/admin',
+    location_partner: '/portals/location',
+    referral_partner: '/portals/referral',
+    channel_partner: '/portals/channel',
+    relationship_partner: '/portals/relationship',
+    contractor: '/portals/contractor',
+    employee: '/portals/employee',
+    calculator_user: '/portals/calculator',
   }
-  return routes[userType] || '/dashboard'
+  return routes[userType] || '/portals/admin'
 }

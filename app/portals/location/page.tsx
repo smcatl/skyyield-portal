@@ -6,7 +6,8 @@ import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import {
   Building2, MapPin, Cpu, DollarSign, FileText,
-  Settings, Activity, Wifi, HelpCircle, RefreshCw, Lock
+  Settings, Activity, Wifi, RefreshCw, ChevronDown, ChevronRight,
+  CheckCircle, Clock, AlertCircle
 } from 'lucide-react'
 import {
   ContactCard, DashboardCard, DocumentsSection,
@@ -15,7 +16,7 @@ import {
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import { useRolePermissions } from '@/hooks/useRolePermissions'
 
-type TabType = 'overview' | 'venues' | 'devices' | 'earnings' | 'documents' | 'support' | 'settings'
+type TabType = 'overview' | 'venues' | 'devices' | 'earnings' | 'documents' | 'settings'
 
 interface PartnerData {
   id: string
@@ -68,7 +69,7 @@ function LocationPartnerPortalContent() {
   const [documents, setDocuments] = useState<any[]>([])
 
   // Role permissions
-  const { canView, canEdit, loading: permissionsLoading } = useRolePermissions()
+  const { canView, canEdit } = useRolePermissions()
 
   const allTabs = [
     { id: 'overview', label: 'Overview', icon: Building2, permKey: 'lp_dashboard' },
@@ -76,9 +77,11 @@ function LocationPartnerPortalContent() {
     { id: 'devices', label: 'Devices', icon: Cpu, permKey: 'lp_devices' },
     { id: 'earnings', label: 'Payments', icon: DollarSign, permKey: 'lp_earnings' },
     { id: 'documents', label: 'Documents', icon: FileText, permKey: 'lp_documents' },
-    { id: 'support', label: 'Support', icon: HelpCircle, permKey: 'lp_support' },
     { id: 'settings', label: 'Settings', icon: Settings, permKey: 'lp_settings' },
   ]
+
+  // Onboarding progress expansion state
+  const [showOnboarding, setShowOnboarding] = useState(true)
 
   // Filter tabs based on permissions
   const tabs = allTabs.filter(tab => canView(tab.permKey))
@@ -249,10 +252,147 @@ function LocationPartnerPortalContent() {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="space-y-6">
+            {/* Onboarding Progress - Collapsible */}
+            {partnerData && partnerData.pipeline_stage !== 'active' && (
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowOnboarding(!showOnboarding)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-[#0A0F2C]/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-[#0EA5E9]" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-white font-semibold">Onboarding Progress</h3>
+                      <p className="text-[#64748B] text-sm">Complete the steps below to activate your partnership</p>
+                    </div>
+                  </div>
+                  {showOnboarding ? (
+                    <ChevronDown className="w-5 h-5 text-[#64748B]" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-[#64748B]" />
+                  )}
+                </button>
+                {showOnboarding && (
+                  <div className="px-4 pb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {/* LOI Status */}
+                      <div className={`p-4 rounded-lg border ${
+                        partnerData.loi_status === 'signed'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : partnerData.loi_status === 'sent'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {partnerData.loi_status === 'signed' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : partnerData.loi_status === 'sent' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">LOI</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          partnerData.loi_status === 'signed' ? 'text-green-400' :
+                          partnerData.loi_status === 'sent' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {partnerData.loi_status || 'Pending'}
+                        </div>
+                      </div>
+
+                      {/* Trial Status */}
+                      <div className={`p-4 rounded-lg border ${
+                        partnerData.trial_status === 'active'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : partnerData.trial_status === 'pending'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {partnerData.trial_status === 'active' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : partnerData.trial_status === 'pending' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Trial</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          partnerData.trial_status === 'active' ? 'text-green-400' :
+                          partnerData.trial_status === 'pending' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {partnerData.trial_status || 'Not Started'}
+                        </div>
+                      </div>
+
+                      {/* Contract Status */}
+                      <div className={`p-4 rounded-lg border ${
+                        partnerData.contract_status === 'signed'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : partnerData.contract_status === 'sent'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {partnerData.contract_status === 'signed' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : partnerData.contract_status === 'sent' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Contract</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          partnerData.contract_status === 'signed' ? 'text-green-400' :
+                          partnerData.contract_status === 'sent' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {partnerData.contract_status || 'Pending'}
+                        </div>
+                      </div>
+
+                      {/* Payment Setup */}
+                      <div className={`p-4 rounded-lg border ${
+                        partnerData.tipalti_status === 'active'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : partnerData.tipalti_status === 'invited'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {partnerData.tipalti_status === 'active' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : partnerData.tipalti_status === 'invited' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Payments</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          partnerData.tipalti_status === 'active' ? 'text-green-400' :
+                          partnerData.tipalti_status === 'invited' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {partnerData.tipalti_status === 'active' ? 'Set Up' :
+                           partnerData.tipalti_status === 'invited' ? 'Pending' : 'Not Set Up'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Main Content Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <DashboardCard 
                   title="Active Venues" 
                   value={stats.totalVenues} 
@@ -320,14 +460,15 @@ function LocationPartnerPortalContent() {
               </div>
             </div>
 
-            {/* Sidebar */}
-            <div className="space-y-6">
-              <DocumentsSection documents={documents} loading={loading} title="Documents" />
-              <ContactCard 
-                calendlyUrl="https://calendly.com/scohen-skyyield" 
-                supportEmail="support@skyyield.io" 
-                showTicketForm={false} 
-              />
+              {/* Sidebar */}
+              <div className="space-y-6">
+                <DocumentsSection documents={documents} loading={loading} title="Documents" />
+                <ContactCard
+                  calendlyUrl="https://calendly.com/scohen-skyyield"
+                  supportEmail="support@skyyield.io"
+                  showTicketForm={false}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -418,33 +559,6 @@ function LocationPartnerPortalContent() {
 
         {activeTab === 'documents' && (
           <DocumentsSection documents={documents} loading={loading} title="Your Documents" />
-        )}
-
-        {activeTab === 'support' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ContactCard 
-              calendlyUrl="https://calendly.com/scohen-skyyield" 
-              supportEmail="support@skyyield.io" 
-              showTicketForm={true} 
-            />
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Resources</h3>
-              <div className="space-y-3">
-                <a href="#" className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg hover:bg-[#2D3B5F] transition-colors">
-                  <span className="text-white">Partner Guide</span>
-                  <span className="text-[#0EA5E9]">→</span>
-                </a>
-                <a href="#" className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg hover:bg-[#2D3B5F] transition-colors">
-                  <span className="text-white">FAQ</span>
-                  <span className="text-[#0EA5E9]">→</span>
-                </a>
-                <a href="#" className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg hover:bg-[#2D3B5F] transition-colors">
-                  <span className="text-white">Troubleshooting</span>
-                  <span className="text-[#0EA5E9]">→</span>
-                </a>
-              </div>
-            </div>
-          </div>
         )}
 
         {activeTab === 'settings' && (

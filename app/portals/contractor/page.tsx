@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import {
   Wrench, DollarSign, CheckCircle, Clock, Calendar,
   MapPin, FileText, AlertCircle, RefreshCw, Settings,
-  Briefcase, BarChart3
+  Briefcase, BarChart3, ChevronDown, ChevronRight
 } from 'lucide-react'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import { PartnerSettings } from '@/components/portal'
@@ -70,6 +70,7 @@ export default function ContractorPortalPage() {
   const [contractor, setContractor] = useState<ContractorData | null>(null)
   const [stats, setStats] = useState<Stats>({ scheduledJobs: 0, completedJobs: 0, pendingPayment: 0, totalEarned: 0 })
   const [jobs, setJobs] = useState<Job[]>([])
+  const [showOnboarding, setShowOnboarding] = useState(true)
 
   // Role permissions
   const { canView, canEdit } = useRolePermissions()
@@ -164,8 +165,8 @@ export default function ContractorPortalPage() {
       <header className="bg-[#0F1629] border-b border-[#2D3B5F] px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-              <Wrench className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-[#0EA5E9] rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">SY</span>
             </div>
             <div>
               <h1 className="text-white font-bold text-lg">Contractor Portal</h1>
@@ -209,6 +210,167 @@ export default function ContractorPortalPage() {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* Onboarding Progress - Collapsible */}
+            {contractor && contractor.pipeline_stage !== 'active' && (
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowOnboarding(!showOnboarding)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-[#0A0F2C]/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-orange-400" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-white font-semibold">Onboarding Progress</h3>
+                      <p className="text-[#64748B] text-sm">Complete the steps below to become an active contractor</p>
+                    </div>
+                  </div>
+                  {showOnboarding ? (
+                    <ChevronDown className="w-5 h-5 text-[#64748B]" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-[#64748B]" />
+                  )}
+                </button>
+                {showOnboarding && (
+                  <div className="px-4 pb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      {/* Agreement Status */}
+                      <div className={`p-4 rounded-lg border ${
+                        contractor.agreement_status === 'signed'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : contractor.agreement_status === 'sent'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {contractor.agreement_status === 'signed' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : contractor.agreement_status === 'sent' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Agreement</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          contractor.agreement_status === 'signed' ? 'text-green-400' :
+                          contractor.agreement_status === 'sent' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {contractor.agreement_status || 'Pending'}
+                        </div>
+                      </div>
+
+                      {/* W9 Status */}
+                      <div className={`p-4 rounded-lg border ${
+                        contractor.w9_status === 'received' || contractor.w9_status === 'approved'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : contractor.w9_status === 'sent' || contractor.w9_status === 'pending'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {contractor.w9_status === 'received' || contractor.w9_status === 'approved' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : contractor.w9_status === 'sent' || contractor.w9_status === 'pending' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">W-9</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          contractor.w9_status === 'received' || contractor.w9_status === 'approved' ? 'text-green-400' :
+                          contractor.w9_status === 'sent' || contractor.w9_status === 'pending' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {contractor.w9_status || 'Pending'}
+                        </div>
+                      </div>
+
+                      {/* Insurance Status */}
+                      <div className={`p-4 rounded-lg border ${
+                        contractor.insurance_status === 'verified' || contractor.insurance_status === 'approved'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : contractor.insurance_status === 'pending' || contractor.insurance_status === 'submitted'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {contractor.insurance_status === 'verified' || contractor.insurance_status === 'approved' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : contractor.insurance_status === 'pending' || contractor.insurance_status === 'submitted' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Insurance</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          contractor.insurance_status === 'verified' || contractor.insurance_status === 'approved' ? 'text-green-400' :
+                          contractor.insurance_status === 'pending' || contractor.insurance_status === 'submitted' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {contractor.insurance_status || 'Pending'}
+                        </div>
+                      </div>
+
+                      {/* Background Check Status */}
+                      <div className={`p-4 rounded-lg border ${
+                        contractor.background_check_status === 'passed' || contractor.background_check_status === 'cleared'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : contractor.background_check_status === 'pending' || contractor.background_check_status === 'in_progress'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {contractor.background_check_status === 'passed' || contractor.background_check_status === 'cleared' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : contractor.background_check_status === 'pending' || contractor.background_check_status === 'in_progress' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Background</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          contractor.background_check_status === 'passed' || contractor.background_check_status === 'cleared' ? 'text-green-400' :
+                          contractor.background_check_status === 'pending' || contractor.background_check_status === 'in_progress' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {contractor.background_check_status || 'Pending'}
+                        </div>
+                      </div>
+
+                      {/* Payment Setup (Tipalti) */}
+                      <div className={`p-4 rounded-lg border ${
+                        contractor.tipalti_status === 'active' || contractor.tipalti_status === 'payable'
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : contractor.tipalti_status === 'invited' || contractor.tipalti_status === 'pending'
+                          ? 'bg-yellow-500/10 border-yellow-500/30'
+                          : 'bg-[#0A0F2C] border-[#2D3B5F]'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {contractor.tipalti_status === 'active' || contractor.tipalti_status === 'payable' ? (
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                          ) : contractor.tipalti_status === 'invited' || contractor.tipalti_status === 'pending' ? (
+                            <Clock className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-[#64748B]" />
+                          )}
+                          <span className="text-[#94A3B8] text-sm">Payment</span>
+                        </div>
+                        <div className={`font-medium capitalize ${
+                          contractor.tipalti_status === 'active' || contractor.tipalti_status === 'payable' ? 'text-green-400' :
+                          contractor.tipalti_status === 'invited' || contractor.tipalti_status === 'pending' ? 'text-yellow-400' : 'text-[#64748B]'
+                        }`}>
+                          {contractor.tipalti_status === 'active' || contractor.tipalti_status === 'payable' ? 'Set Up' :
+                           contractor.tipalti_status === 'invited' || contractor.tipalti_status === 'pending' ? 'Pending' : 'Not Set Up'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-3">

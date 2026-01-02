@@ -4,10 +4,11 @@ import { useUser } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { 
+import {
   ArrowLeft, DollarSign, BarChart3, MapPin, Wifi,
-  Activity, Calculator, FileText, TrendingUp, Settings, 
-  Wallet, Target, Users, Handshake, Heart, Building2, Cpu, X
+  Activity, Calculator, FileText, TrendingUp, Settings,
+  Wallet, Target, Users, Handshake, Heart, Building2, Cpu, X,
+  ChevronDown, ChevronRight, CheckCircle, Clock, AlertCircle
 } from 'lucide-react'
 import FullCalculator from '@/components/portal/FullCalculator'
 import {
@@ -18,7 +19,7 @@ import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import CRMTab from '@/components/admin/crm/CRMTab'
 import { useRolePermissions } from '@/hooks/useRolePermissions'
 
-type TabType = 'overview' | 'introductions' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
+type TabType = 'overview' | 'introductions' | 'earnings' | 'documents' | 'settings'
 
 interface Introduction {
   id: string
@@ -58,6 +59,7 @@ function RelationshipPartnerPortalContent() {
     totalIntroductions: 0, convertedIntroductions: 0, pendingIntroductions: 0,
     totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0, totalDataGB: 0,
   })
+  const [showOnboarding, setShowOnboarding] = useState(true)
 
   // Role permissions
   const { canView, canEdit } = useRolePermissions()
@@ -184,13 +186,9 @@ function RelationshipPartnerPortalContent() {
   const allTabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3, permKey: 'relp_dashboard' },
     { id: 'introductions', label: 'Introductions', icon: Handshake, permKey: 'relp_introductions' },
-    { id: 'venues', label: 'Venues', icon: MapPin, permKey: 'relp_venues' },
-    { id: 'devices', label: 'Devices', icon: Wifi, permKey: 'relp_devices' },
-    { id: 'materials', label: 'Materials', icon: FileText, permKey: 'relp_materials' },
-    { id: 'calculator', label: 'Calculator', icon: Calculator, permKey: 'relp_calculator' },
-    { id: 'payments', label: 'Payments', icon: Wallet, permKey: 'relp_earnings' },
+    { id: 'earnings', label: 'Earnings', icon: Wallet, permKey: 'relp_earnings' },
+    { id: 'documents', label: 'Documents', icon: FileText, permKey: 'relp_documents' },
     { id: 'settings', label: 'Settings', icon: Settings, permKey: 'relp_settings' },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp, permKey: 'relp_analytics' },
   ]
 
   // Filter tabs based on user's role permissions
@@ -255,6 +253,60 @@ function RelationshipPartnerPortalContent() {
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+              {/* Onboarding Progress Card */}
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowOnboarding(!showOnboarding)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-[#0A0F2C]/30 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-pink-500/20 rounded-full flex items-center justify-center">
+                      <Target className="w-5 h-5 text-pink-400" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-white">Onboarding Progress</h3>
+                      <p className="text-[#64748B] text-sm">Complete your setup to start earning</p>
+                    </div>
+                  </div>
+                  {showOnboarding ? (
+                    <ChevronDown className="w-5 h-5 text-[#94A3B8]" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-[#94A3B8]" />
+                  )}
+                </button>
+                {showOnboarding && (
+                  <div className="px-4 pb-4 space-y-3">
+                    {/* Agreement Status */}
+                    <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                        <div>
+                          <div className="text-white font-medium">Agreement Signed</div>
+                          <div className="text-[#64748B] text-sm">Partner agreement completed</div>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-medium">Complete</span>
+                    </div>
+                    {/* Payment Setup Status */}
+                    <div className="flex items-center justify-between p-3 bg-[#0A0F2C] rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Clock className="w-5 h-5 text-yellow-400" />
+                        <div>
+                          <div className="text-white font-medium">Payment Setup</div>
+                          <div className="text-[#64748B] text-sm">Add your payment details</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('settings')}
+                        className="px-3 py-1 bg-pink-500 hover:bg-pink-600 text-white rounded-full text-xs font-medium transition-colors"
+                      >
+                        Set Up
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <DashboardCard title="Introductions" value={stats.totalIntroductions} subtitle={`${stats.convertedIntroductions} converted`} icon={<Handshake className="w-5 h-5 text-pink-400" />} iconBgColor="bg-pink-500/20" />
                 <DashboardCard title="Active Venues" value={stats.activeVenues} subtitle={`${stats.totalVenues} total`} icon={<MapPin className="w-5 h-5 text-green-400" />} iconBgColor="bg-green-500/20" />
@@ -280,18 +332,6 @@ function RelationshipPartnerPortalContent() {
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Device Status</h3>
-                  <button onClick={() => setActiveTab('devices')} className="text-[#0EA5E9] text-sm hover:underline">View All</button>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center"><div className="text-2xl font-bold text-white">{stats.totalDevices}</div><div className="text-[#64748B] text-sm">Total</div></div>
-                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center"><div className="text-2xl font-bold text-green-400">{stats.onlineDevices}</div><div className="text-[#64748B] text-sm">Online</div></div>
-                  <div className="bg-[#0A0F2C] rounded-lg p-4 text-center"><div className="text-2xl font-bold text-[#0EA5E9]">{stats.totalDataGB.toFixed(0)}</div><div className="text-[#64748B] text-sm">GB Total</div></div>
                 </div>
               </div>
             </div>
@@ -334,49 +374,9 @@ function RelationshipPartnerPortalContent() {
           </div>
         )}
 
-        {activeTab === 'venues' && <VenuesSection venues={venues} loading={loading} title="Venues from Introductions" />}
-        
-        {activeTab === 'devices' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <DashboardCard title="Total Devices" value={stats.totalDevices} icon={<Cpu className="w-5 h-5 text-purple-400" />} iconBgColor="bg-purple-500/20" />
-              <DashboardCard title="Online" value={stats.onlineDevices} icon={<Wifi className="w-5 h-5 text-green-400" />} iconBgColor="bg-green-500/20" />
-              <DashboardCard title="Offline" value={stats.totalDevices - stats.onlineDevices} icon={<Wifi className="w-5 h-5 text-red-400" />} iconBgColor="bg-red-500/20" />
-              <DashboardCard title="Total Data" value={stats.totalDataGB.toFixed(1)} suffix=" GB" icon={<Activity className="w-5 h-5 text-[#0EA5E9]" />} iconBgColor="bg-[#0EA5E9]/20" />
-            </div>
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-              <div className="p-6 border-b border-[#2D3B5F]"><h2 className="text-xl font-semibold text-white">All Devices</h2><p className="text-[#94A3B8] text-sm">Devices from introduced venues</p></div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr className="border-b border-[#2D3B5F]">
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Device</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Venue</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Status</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Data</th>
-                    <th className="text-left px-6 py-3 text-[#64748B] text-sm font-medium">Last Seen</th>
-                  </tr></thead>
-                  <tbody>
-                    {devices.map(device => (
-                      <tr key={device.id} className="border-b border-[#2D3B5F] hover:bg-[#0A0F2C]/50">
-                        <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center"><Wifi className="w-5 h-5 text-purple-400" /></div><div><div className="text-white font-medium">{device.name}</div><div className="text-[#64748B] text-xs">{device.type}</div></div></div></td>
-                        <td className="px-6 py-4 text-[#94A3B8]">{device.venueName}</td>
-                        <td className="px-6 py-4"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${device.status === 'online' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}><span className={`w-1.5 h-1.5 rounded-full ${device.status === 'online' ? 'bg-green-400' : 'bg-red-400'}`} />{device.status}</span></td>
-                        <td className="px-6 py-4 text-[#0EA5E9] font-medium">{device.dataUsageGB.toFixed(1)} GB</td>
-                        <td className="px-6 py-4 text-[#64748B] text-sm">{new Date(device.lastSeen).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'materials' && <TrainingSection items={materials} loading={loading} title="Materials & Resources" showProgress={true} />}
-        {activeTab === 'calculator' && <FullCalculator isSubscribed={hasCalculatorSubscription} />}
-        {activeTab === 'payments' && <PartnerPayments partnerId={partnerId} partnerType="relationship_partner" />}
+        {activeTab === 'earnings' && <PartnerPayments partnerId={partnerId} partnerType="relationship_partner" />}
+        {activeTab === 'documents' && <DocumentsSection documents={documents} loading={loading} title="Documents" />}
         {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="relationship_partner" showCompanyInfo={false} showPaymentSettings={true} showNotifications={true} readOnly={!canEdit('relp_settings')} />}
-        {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="relationship_partner" showReferrals={true} showDataUsage={true} />}
       </div>
     </div>
   )

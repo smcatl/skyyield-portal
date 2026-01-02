@@ -3,17 +3,16 @@
 import { useUser, UserButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import {
   Users, FileText, Settings, BarChart3, Calendar,
   Briefcase, CheckCircle, Clock, AlertCircle, RefreshCw,
-  ClipboardList, Building2, Shield
+  ClipboardList, DollarSign, ChevronDown, ChevronRight
 } from 'lucide-react'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import { PartnerSettings } from '@/components/portal'
 import { useRolePermissions } from '@/hooks/useRolePermissions'
 
-type TabType = 'overview' | 'tasks' | 'schedule' | 'documents' | 'directory' | 'admin' | 'settings'
+type TabType = 'overview' | 'tasks' | 'schedule' | 'payroll' | 'documents' | 'settings'
 
 interface EmployeeData {
   id: string
@@ -54,6 +53,7 @@ export default function EmployeePortalPage() {
   const [employee, setEmployee] = useState<EmployeeData | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [manager, setManager] = useState<any>(null)
+  const [showOnboarding, setShowOnboarding] = useState(true)
 
   // Role permissions
   const { canView, canEdit } = useRolePermissions()
@@ -61,11 +61,10 @@ export default function EmployeePortalPage() {
   // Define all tabs with permission keys
   const allTabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3, permKey: 'emp_dashboard' },
-    { id: 'tasks', label: 'My Tasks', icon: ClipboardList, permKey: 'emp_tasks' },
+    { id: 'tasks', label: 'Tasks', icon: ClipboardList, permKey: 'emp_tasks' },
     { id: 'schedule', label: 'Schedule', icon: Calendar, permKey: 'emp_schedule' },
+    { id: 'payroll', label: 'Payroll', icon: DollarSign, permKey: 'emp_payroll' },
     { id: 'documents', label: 'Documents', icon: FileText, permKey: 'emp_documents' },
-    { id: 'directory', label: 'Directory', icon: Users, permKey: 'emp_directory' },
-    { id: 'admin', label: 'Admin Access', icon: Shield, permKey: 'emp_admin' },
     { id: 'settings', label: 'Settings', icon: Settings, permKey: 'emp_settings' },
   ]
 
@@ -148,8 +147,8 @@ export default function EmployeePortalPage() {
       <header className="bg-[#0F1629] border-b border-[#2D3B5F] px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-              <Briefcase className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-[#0EA5E9] rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">SY</span>
             </div>
             <div>
               <h1 className="text-white font-bold text-lg">Employee Portal</h1>
@@ -198,6 +197,73 @@ export default function EmployeePortalPage() {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* Onboarding Progress - Only show if status !== 'active' */}
+            {employee?.status?.toLowerCase() !== 'active' && (
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setShowOnboarding(!showOnboarding)}
+                  className="w-full flex items-center justify-between p-6 hover:bg-[#1A1F3A]/80 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
+                      <ClipboardList className="w-5 h-5 text-[#0EA5E9]" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-lg font-semibold text-white">Onboarding Progress</h3>
+                      <p className="text-[#94A3B8] text-sm">Complete your onboarding documents</p>
+                    </div>
+                  </div>
+                  {showOnboarding ? (
+                    <ChevronDown className="w-5 h-5 text-[#94A3B8]" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-[#94A3B8]" />
+                  )}
+                </button>
+                {showOnboarding && (
+                  <div className="px-6 pb-6 border-t border-[#2D3B5F]">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                      <div className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-[#64748B]" />
+                          <div>
+                            <p className="text-white font-medium">Offer Letter</p>
+                            <p className="text-[#64748B] text-sm">Employment offer</p>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${getStatusColor(employee?.offer_letter_status || '')}`}>
+                          {employee?.offer_letter_status?.toUpperCase() || 'PENDING'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-[#64748B]" />
+                          <div>
+                            <p className="text-white font-medium">Non-Compete</p>
+                            <p className="text-[#64748B] text-sm">Agreement</p>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${getStatusColor(employee?.non_compete_status || '')}`}>
+                          {employee?.non_compete_status?.toUpperCase() || 'PENDING'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-[#64748B]" />
+                          <div>
+                            <p className="text-white font-medium">NDA</p>
+                            <p className="text-[#64748B] text-sm">Non-disclosure</p>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${getStatusColor(employee?.nda_status || '')}`}>
+                          {employee?.nda_status?.toUpperCase() || 'PENDING'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
@@ -374,6 +440,47 @@ export default function EmployeePortalPage() {
           </div>
         )}
 
+        {/* Payroll Tab */}
+        {activeTab === 'payroll' && (
+          <div className="space-y-6">
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Payroll Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-4 bg-[#0A0F2C] rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                      <DollarSign className="w-5 h-5 text-green-400" />
+                    </div>
+                    <span className="text-[#94A3B8] text-sm">Salary</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white">
+                    {employee?.salary ? `$${employee.salary.toLocaleString()}` : 'Not set'}
+                  </p>
+                </div>
+                <div className="p-4 bg-[#0A0F2C] rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-[#0EA5E9]" />
+                    </div>
+                    <span className="text-[#94A3B8] text-sm">Pay Frequency</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white capitalize">
+                    {employee?.pay_frequency || 'Not set'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Recent Pay Stubs</h3>
+              <div className="text-center py-12 text-[#64748B]">
+                <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>Pay stubs coming soon</p>
+                <p className="text-sm mt-1">Your pay history and statements will appear here.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Documents Tab */}
         {activeTab === 'documents' && (
           <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
@@ -414,80 +521,6 @@ export default function EmployeePortalPage() {
                 <span className={`px-2 py-1 rounded text-xs ${getStatusColor(employee?.nda_status || '')}`}>
                   {employee?.nda_status?.toUpperCase() || 'PENDING'}
                 </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Directory Tab */}
-        {activeTab === 'directory' && (
-          <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Company Directory</h3>
-            {manager ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 p-4 bg-[#0A0F2C] rounded-lg">
-                  <div className="w-12 h-12 bg-[#0EA5E9]/20 rounded-full flex items-center justify-center">
-                    <Users className="w-6 h-6 text-[#0EA5E9]" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-white font-medium">{manager.first_name} {manager.last_name}</p>
-                    <p className="text-[#94A3B8] text-sm">{manager.job_title}</p>
-                  </div>
-                  <span className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-400">Manager</span>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-[#64748B]">
-                <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Directory coming soon</p>
-                <p className="text-sm mt-1">Team members will be listed here.</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Admin Access Tab */}
-        {activeTab === 'admin' && (
-          <div className="space-y-6">
-            <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Admin Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Link
-                  href="/portals/admin"
-                  className="flex items-center gap-4 p-4 bg-[#0A0F2C] rounded-lg hover:bg-[#0A0F2C]/80 transition-colors"
-                >
-                  <div className="w-10 h-10 bg-[#0EA5E9]/20 rounded-lg flex items-center justify-center">
-                    <Settings className="w-5 h-5 text-[#0EA5E9]" />
-                  </div>
-                  <div>
-                    <p className="text-white font-medium">Admin Dashboard</p>
-                    <p className="text-[#64748B] text-sm">Access admin controls</p>
-                  </div>
-                </Link>
-                <Link
-                  href="/admin/users"
-                  className="flex items-center gap-4 p-4 bg-[#0A0F2C] rounded-lg hover:bg-[#0A0F2C]/80 transition-colors"
-                >
-                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                    <Users className="w-5 h-5 text-green-400" />
-                  </div>
-                  <div>
-                    <p className="text-white font-medium">User Management</p>
-                    <p className="text-[#64748B] text-sm">Manage user accounts</p>
-                  </div>
-                </Link>
-                <Link
-                  href="/admin/blog"
-                  className="flex items-center gap-4 p-4 bg-[#0A0F2C] rounded-lg hover:bg-[#0A0F2C]/80 transition-colors"
-                >
-                  <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-white font-medium">Blog Management</p>
-                    <p className="text-[#64748B] text-sm">Create and manage posts</p>
-                  </div>
-                </Link>
               </div>
             </div>
           </div>
