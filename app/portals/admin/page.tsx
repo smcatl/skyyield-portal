@@ -868,6 +868,13 @@ export default function AdminPortalPage() {
   const [editingCalendly, setEditingCalendly] = useState<any | null>(null)
   const [showCalendlyModal, setShowCalendlyModal] = useState(false)
 
+  // Database Dropdowns state
+  const [dbDropdowns, setDbDropdowns] = useState<any[]>([])
+  const [dropdownsLoading, setDropdownsLoading] = useState(false)
+  const [editingDropdown, setEditingDropdown] = useState<any | null>(null)
+  const [showDropdownModal, setShowDropdownModal] = useState(false)
+  const [newOptionLabel, setNewOptionLabel] = useState('')
+
   // Payments state
   const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
 
@@ -1461,6 +1468,83 @@ export default function AdminPortalPage() {
     }
   }
 
+  // Fetch dropdowns from database
+  const fetchDbDropdowns = async () => {
+    setDropdownsLoading(true)
+    try {
+      const res = await fetch('/api/admin/settings/dropdowns?includeItems=true')
+      const data = await res.json()
+      setDbDropdowns(data.dropdowns || [])
+    } catch (err) {
+      console.error('Error fetching dropdowns:', err)
+    } finally {
+      setDropdownsLoading(false)
+    }
+  }
+
+  // Save dropdown
+  const saveDropdown = async (dropdown: any) => {
+    try {
+      const method = dropdown.id ? 'PUT' : 'POST'
+      const res = await fetch('/api/admin/settings/dropdowns', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dropdown),
+      })
+      if (res.ok) {
+        fetchDbDropdowns()
+        setShowDropdownModal(false)
+        setEditingDropdown(null)
+      }
+    } catch (err) {
+      console.error('Error saving dropdown:', err)
+    }
+  }
+
+  // Add dropdown item
+  const addDropdownItem = async (dropdownId: string, label: string) => {
+    if (!label.trim()) return
+    try {
+      const res = await fetch('/api/admin/settings/dropdowns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dropdown_id: dropdownId,
+          label: label.trim(),
+          value: label.trim().toLowerCase().replace(/\s+/g, '_'),
+        }),
+      })
+      if (res.ok) {
+        fetchDbDropdowns()
+        setNewOptionLabel('')
+      }
+    } catch (err) {
+      console.error('Error adding dropdown item:', err)
+    }
+  }
+
+  // Delete dropdown item
+  const deleteDropdownItem = async (itemId: string) => {
+    if (!confirm('Delete this option?')) return
+    try {
+      await fetch(`/api/admin/settings/dropdowns?itemId=${itemId}`, { method: 'DELETE' })
+      fetchDbDropdowns()
+    } catch (err) {
+      console.error('Error deleting dropdown item:', err)
+    }
+  }
+
+  // Delete dropdown
+  const deleteDropdown = async (id: string) => {
+    if (!confirm('Delete this dropdown and all its options?')) return
+    try {
+      await fetch(`/api/admin/settings/dropdowns?id=${id}`, { method: 'DELETE' })
+      fetchDbDropdowns()
+    } catch (err) {
+      console.error('Error deleting dropdown:', err)
+    }
+  }
+
   // Send user invite
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return
@@ -1529,6 +1613,7 @@ export default function AdminPortalPage() {
       fetchPipelineStages()
       fetchEmailTemplates()
       fetchDbCalendlyLinks()
+      fetchDbDropdowns()
     }
     if (activeTab === 'overview') {
       fetchUsers()
@@ -4357,34 +4442,189 @@ export default function AdminPortalPage() {
             {/* Dropdowns */}
             {settingsTab === 'dropdowns' && (
               <div className="space-y-4">
-                {dropdowns.length === 0 ? (
+                {/* Header with Add button */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      setEditingDropdown({ name: '', slug: '', category: 'general', description: '' })
+                      setShowDropdownModal(true)
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                  >
+                    <Plus className="w-4 h-4" /> Add Dropdown
+                  </button>
+                </div>
+
+                {/* Loading state */}
+                {dropdownsLoading && (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <RefreshCw className="w-6 h-6 mx-auto mb-2 text-[#0EA5E9] animate-spin" />
+                    <p className="text-[#94A3B8]">Loading dropdowns...</p>
+                  </div>
+                )}
+
+                {/* Database dropdowns */}
+                {!dropdownsLoading && dbDropdowns.length > 0 && (
+                  <div className="space-y-4">
+                    {dbDropdowns.map(dropdown => (
+                      <div key={dropdown.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="text-white font-medium">{dropdown.name}</h3>
+                            <p className="text-[#64748B] text-sm">{dropdown.slug} • {dropdown.category || 'general'} • {(dropdown.items || []).length} options</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setEditingDropdown(dropdown); setShowDropdownModal(true) }}
+                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteDropdown(dropdown.id)}
+                              className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        {/* Options list with delete */}
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {(dropdown.items || []).map((item: any) => (
+                            <span key={item.id} className="flex items-center gap-1 px-2 py-1 bg-[#0A0F2C] text-[#94A3B8] rounded text-xs group">
+                              {item.label}
+                              <button
+                                onClick={() => deleteDropdownItem(item.id)}
+                                className="text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 ml-1"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        {/* Add new option inline */}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="New option"
+                            value={editingDropdown?.id === dropdown.id ? newOptionLabel : ''}
+                            onChange={e => { setEditingDropdown(dropdown); setNewOptionLabel(e.target.value) }}
+                            onKeyDown={e => { if (e.key === 'Enter' && newOptionLabel) addDropdownItem(dropdown.id, newOptionLabel) }}
+                            className="flex-1 px-3 py-1 bg-[#0A0F2C] border border-[#2D3B5F] rounded text-white text-sm"
+                          />
+                          <button
+                            onClick={() => { if (newOptionLabel) addDropdownItem(dropdown.id, newOptionLabel) }}
+                            className="px-3 py-1 bg-[#0EA5E9] text-white rounded text-sm"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Fallback: Show old dropdowns when no database dropdowns */}
+                {!dropdownsLoading && dbDropdowns.length === 0 && dropdowns.length > 0 && (
+                  <div className="space-y-4">
+                    <p className="text-[#94A3B8] text-sm">Showing dropdowns from API:</p>
+                    {dropdowns.map(dropdown => (
+                      <div key={dropdown.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="text-white font-medium">{dropdown.name}</h3>
+                            <p className="text-[#64748B] text-sm">{dropdown.options.length} options</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {dropdown.options.slice(0, 10).map(opt => (
+                            <span key={opt.value} className="px-2 py-1 bg-[#0A0F2C] text-[#94A3B8] rounded text-xs">
+                              {opt.label}
+                            </span>
+                          ))}
+                          {dropdown.options.length > 10 && (
+                            <span className="px-2 py-1 bg-[#2D3B5F] text-[#64748B] rounded text-xs">
+                              +{dropdown.options.length - 10} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {!dropdownsLoading && dbDropdowns.length === 0 && dropdowns.length === 0 && (
                   <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
                     <List className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
                     <p className="text-[#94A3B8]">No dropdowns configured</p>
+                    <p className="text-[#64748B] text-sm mt-2">Click "Add Dropdown" to create one</p>
                   </div>
-                ) : (
-                  dropdowns.map(dropdown => (
-                    <div key={dropdown.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                      <div className="flex items-center justify-between mb-4">
+                )}
+
+                {/* Edit Dropdown Modal */}
+                {showDropdownModal && editingDropdown && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-md">
+                      <h3 className="text-lg font-semibold text-white mb-4">{editingDropdown.id ? 'Edit Dropdown' : 'Add Dropdown'}</h3>
+                      <div className="space-y-4">
                         <div>
-                          <h3 className="text-white font-medium">{dropdown.name}</h3>
-                          <p className="text-[#64748B] text-sm">{dropdown.options.length} options</p>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Dropdown Name</label>
+                          <input
+                            type="text"
+                            value={editingDropdown.name}
+                            onChange={e => setEditingDropdown({ ...editingDropdown, name: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Slug</label>
+                          <input
+                            type="text"
+                            value={editingDropdown.slug}
+                            onChange={e => setEditingDropdown({ ...editingDropdown, slug: e.target.value })}
+                            placeholder="auto-generated"
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Category</label>
+                          <select
+                            value={editingDropdown.category || 'general'}
+                            onChange={e => setEditingDropdown({ ...editingDropdown, category: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          >
+                            <option value="general">General</option>
+                            <option value="forms">Forms</option>
+                            <option value="pipeline">Pipeline</option>
+                            <option value="partners">Partners</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Description</label>
+                          <textarea
+                            value={editingDropdown.description || ''}
+                            onChange={e => setEditingDropdown({ ...editingDropdown, description: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-20"
+                          />
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {dropdown.options.slice(0, 10).map(opt => (
-                          <span key={opt.value} className="px-2 py-1 bg-[#0A0F2C] text-[#94A3B8] rounded text-xs">
-                            {opt.label}
-                          </span>
-                        ))}
-                        {dropdown.options.length > 10 && (
-                          <span className="px-2 py-1 bg-[#2D3B5F] text-[#64748B] rounded text-xs">
-                            +{dropdown.options.length - 10} more
-                          </span>
-                        )}
+                      <div className="flex justify-end gap-3 mt-6">
+                        <button
+                          onClick={() => { setShowDropdownModal(false); setEditingDropdown(null) }}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => saveDropdown(editingDropdown)}
+                          className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                        >
+                          Save
+                        </button>
                       </div>
                     </div>
-                  ))
+                  </div>
                 )}
               </div>
             )}
