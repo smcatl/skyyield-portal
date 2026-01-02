@@ -23,7 +23,7 @@ import {
   GripVertical, Phone, MoreVertical, Filter, UserPlus,
   CreditCard, Wallet, PieChart, MessageSquare, Bell,
   SkipForward, AlertTriangle, Pause, Play, Archive, History,
-  User, BookOpen, Video, Wifi
+  Key, Shield, User, BookOpen, Video, Wifi
 } from 'lucide-react'
 // removed TipaltiIFrame import
 
@@ -841,36 +841,13 @@ export default function AdminPortalPage() {
 
   // Settings state
   const [settingsTab, setSettingsTab] = useState<'profile' | 'dropdowns' | 'stages' | 'calendly' | 'emails'>('profile')
-  const [settingsLoading, setSettingsLoading] = useState(false)
-
-  // Profile state
-  const [profileData, setProfileData] = useState<any>(null)
-  const [profileEditing, setProfileEditing] = useState(false)
-  const [profileForm, setProfileForm] = useState({ firstName: '', lastName: '', phone: '', imageUrl: '' })
-
-  // Email templates state
-  const [emailTemplates, setEmailTemplates] = useState<any[]>([])
-  const [editingTemplate, setEditingTemplate] = useState<any | null>(null)
-  const [showTemplateModal, setShowTemplateModal] = useState(false)
-
-  // Dropdowns state
-  const [dropdowns, setDropdowns] = useState<any[]>([])
-  const [editingDropdown, setEditingDropdown] = useState<any | null>(null)
-  const [showDropdownModal, setShowDropdownModal] = useState(false)
-  const [newDropdownItem, setNewDropdownItem] = useState({ label: '', value: '' })
-
-  // Calendly state
-  const [calendlyLinks, setCalendlyLinks] = useState<any[]>([])
-  const [editingCalendly, setEditingCalendly] = useState<any | null>(null)
-  const [showCalendlyModal, setShowCalendlyModal] = useState(false)
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(DEFAULT_EMAIL_TEMPLATES)
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
+  const [dropdowns, setDropdowns] = useState<Dropdown[]>([])
+  const [calendlyLinks, setCalendlyLinks] = useState<CalendlyLink[]>([])
+  const [calendlyUser, setCalendlyUser] = useState<{ name: string; email: string; timezone: string } | null>(null)
   const [calendlyLoading, setCalendlyLoading] = useState(false)
   const [calendlyError, setCalendlyError] = useState<string | null>(null)
-
-  // Pipeline stages state
-  const [pipelineStages, setPipelineStages] = useState<any[]>([])
-  const [editingStage, setEditingStage] = useState<any | null>(null)
-  const [showStageModal, setShowStageModal] = useState(false)
-  const [stagesPartnerType, setStagesPartnerType] = useState<string>('location_partner')
 
   // Payments state
   const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
@@ -1298,213 +1275,38 @@ export default function AdminPortalPage() {
     }
   }
 
-  // Settings fetch functions
-  const fetchProfile = async () => {
-    try {
-      const res = await fetch('/api/admin/settings/profile')
-      const data = await res.json()
-      if (data.profile) {
-        setProfileData(data.profile)
-        setProfileForm({
-          firstName: data.profile.firstName || '',
-          lastName: data.profile.lastName || '',
-          phone: data.profile.phone || '',
-          imageUrl: data.profile.imageUrl || '',
-        })
-      }
-    } catch (err) {
-      console.error('Error fetching profile:', err)
-    }
-  }
-
+  // Fetch dropdowns for settings
   const fetchDropdowns = async () => {
     try {
-      const res = await fetch('/api/admin/settings/dropdowns?includeItems=true')
-      const data = await res.json()
-      setDropdowns(data.dropdowns || [])
+      const res = await fetch('/api/pipeline/dropdowns')
+      if (res.ok) {
+        const data = await res.json()
+        setDropdowns(data.dropdowns || [])
+      }
     } catch (err) {
       console.error('Error fetching dropdowns:', err)
     }
   }
 
+  // Fetch calendly links from real API
   const fetchCalendlyLinks = async () => {
     setCalendlyLoading(true)
     setCalendlyError(null)
     try {
-      const res = await fetch('/api/admin/settings/calendly-links')
+      const res = await fetch('/api/pipeline/calendly')
       const data = await res.json()
-      setCalendlyLinks(data.links || [])
+
+      if (data.success) {
+        setCalendlyLinks(data.links || [])
+        setCalendlyUser(data.user || null)
+      } else {
+        setCalendlyError(data.error || 'Failed to fetch Calendly data')
+      }
     } catch (err) {
       console.error('Calendly fetch error:', err)
-      setCalendlyError('Failed to fetch Calendly links')
+      setCalendlyError('Failed to connect to Calendly API')
     } finally {
       setCalendlyLoading(false)
-    }
-  }
-
-  const fetchEmailTemplates = async () => {
-    try {
-      const res = await fetch('/api/admin/settings/email-templates')
-      const data = await res.json()
-      setEmailTemplates(data.templates || [])
-    } catch (err) {
-      console.error('Error fetching email templates:', err)
-    }
-  }
-
-  const fetchPipelineStages = async () => {
-    try {
-      const res = await fetch(`/api/admin/settings/pipeline-stages?partnerType=${stagesPartnerType}`)
-      const data = await res.json()
-      setPipelineStages(data.stages || [])
-    } catch (err) {
-      console.error('Error fetching pipeline stages:', err)
-    }
-  }
-
-  // Settings save functions
-  const saveProfile = async () => {
-    try {
-      const res = await fetch('/api/admin/settings/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileForm),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setProfileData(data.profile)
-        setProfileEditing(false)
-      }
-    } catch (err) {
-      console.error('Error saving profile:', err)
-    }
-  }
-
-  const saveCalendlyLink = async (link: any) => {
-    try {
-      const method = link.id ? 'PUT' : 'POST'
-      const res = await fetch('/api/admin/settings/calendly-links', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(link),
-      })
-      if (res.ok) {
-        fetchCalendlyLinks()
-        setShowCalendlyModal(false)
-        setEditingCalendly(null)
-      }
-    } catch (err) {
-      console.error('Error saving Calendly link:', err)
-    }
-  }
-
-  const deleteCalendlyLink = async (id: string) => {
-    if (!confirm('Delete this Calendly link?')) return
-    try {
-      await fetch(`/api/admin/settings/calendly-links?id=${id}`, { method: 'DELETE' })
-      fetchCalendlyLinks()
-    } catch (err) {
-      console.error('Error deleting Calendly link:', err)
-    }
-  }
-
-  const saveEmailTemplate = async (template: any) => {
-    try {
-      const method = template.id ? 'PUT' : 'POST'
-      const res = await fetch('/api/admin/settings/email-templates', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(template),
-      })
-      if (res.ok) {
-        fetchEmailTemplates()
-        setShowTemplateModal(false)
-        setEditingTemplate(null)
-      }
-    } catch (err) {
-      console.error('Error saving email template:', err)
-    }
-  }
-
-  const deleteEmailTemplate = async (id: string) => {
-    if (!confirm('Delete this email template?')) return
-    try {
-      await fetch(`/api/admin/settings/email-templates?id=${id}`, { method: 'DELETE' })
-      fetchEmailTemplates()
-    } catch (err) {
-      console.error('Error deleting email template:', err)
-    }
-  }
-
-  const saveDropdown = async (dropdown: any) => {
-    try {
-      const method = dropdown.id ? 'PUT' : 'POST'
-      const res = await fetch('/api/admin/settings/dropdowns', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dropdown),
-      })
-      if (res.ok) {
-        fetchDropdowns()
-        setShowDropdownModal(false)
-        setEditingDropdown(null)
-      }
-    } catch (err) {
-      console.error('Error saving dropdown:', err)
-    }
-  }
-
-  const addDropdownItem = async (dropdownId: string, item: any) => {
-    try {
-      const res = await fetch('/api/admin/settings/dropdowns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dropdown_id: dropdownId, ...item }),
-      })
-      if (res.ok) {
-        fetchDropdowns()
-        setNewDropdownItem({ label: '', value: '' })
-      }
-    } catch (err) {
-      console.error('Error adding dropdown item:', err)
-    }
-  }
-
-  const deleteDropdownItem = async (itemId: string) => {
-    if (!confirm('Delete this option?')) return
-    try {
-      await fetch(`/api/admin/settings/dropdowns?itemId=${itemId}`, { method: 'DELETE' })
-      fetchDropdowns()
-    } catch (err) {
-      console.error('Error deleting dropdown item:', err)
-    }
-  }
-
-  const savePipelineStage = async (stage: any) => {
-    try {
-      const method = stage.id ? 'PUT' : 'POST'
-      const res = await fetch('/api/admin/settings/pipeline-stages', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...stage, partner_type: stagesPartnerType }),
-      })
-      if (res.ok) {
-        fetchPipelineStages()
-        setShowStageModal(false)
-        setEditingStage(null)
-      }
-    } catch (err) {
-      console.error('Error saving pipeline stage:', err)
-    }
-  }
-
-  const deletePipelineStage = async (id: string) => {
-    if (!confirm('Delete this pipeline stage?')) return
-    try {
-      await fetch(`/api/admin/settings/pipeline-stages?id=${id}`, { method: 'DELETE' })
-      fetchPipelineStages()
-    } catch (err) {
-      console.error('Error deleting pipeline stage:', err)
     }
   }
 
@@ -1571,11 +1373,8 @@ export default function AdminPortalPage() {
     if (activeTab === 'pipeline') fetchPipeline()
     if (activeTab === 'followups') fetchPipeline() // Uses same data as pipeline
     if (activeTab === 'settings') {
-      fetchProfile()
       fetchDropdowns()
       fetchCalendlyLinks()
-      fetchEmailTemplates()
-      fetchPipelineStages()
     }
     if (activeTab === 'overview') {
       fetchUsers()
@@ -4048,18 +3847,18 @@ export default function AdminPortalPage() {
             </div>
 
             {/* Settings Sub-tabs */}
-            <div className="flex gap-2 border-b border-[#2D3B5F] overflow-x-auto">
+            <div className="flex gap-2 border-b border-[#2D3B5F]">
               {[
                 { id: 'profile', label: 'My Profile', icon: User },
-                { id: 'stages', label: 'Pipeline Stages', icon: GitBranch },
-                { id: 'calendly', label: 'Calendly', icon: Calendar },
                 { id: 'emails', label: 'Email Templates', icon: Mail },
                 { id: 'dropdowns', label: 'Dropdowns', icon: List },
+                { id: 'calendly', label: 'Calendly', icon: Calendar },
+                { id: 'stages', label: 'Pipeline Stages', icon: GitBranch },
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setSettingsTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${settingsTab === tab.id
+                  className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${settingsTab === tab.id
                     ? 'border-[#0EA5E9] text-white'
                     : 'border-transparent text-[#94A3B8] hover:text-white'
                     }`}
@@ -4073,382 +3872,165 @@ export default function AdminPortalPage() {
             {/* My Profile */}
             {settingsTab === 'profile' && (
               <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-                <div className="p-6 border-b border-[#2D3B5F] flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-1">Personal Information</h3>
-                    <p className="text-[#64748B] text-sm">Update your profile details (synced to database)</p>
-                  </div>
-                  {!profileEditing && (
-                    <button onClick={() => setProfileEditing(true)} className="flex items-center gap-2 px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F]">
-                      <Edit className="w-4 h-4" /> Edit
-                    </button>
-                  )}
+                <div className="p-6 border-b border-[#2D3B5F]">
+                  <h3 className="text-lg font-semibold text-white mb-1">Personal Information</h3>
+                  <p className="text-[#64748B] text-sm">Update your profile details</p>
                 </div>
                 <div className="p-6 space-y-6">
+                  {/* Avatar */}
                   <div className="flex items-center gap-4">
                     <div className="w-20 h-20 bg-[#0A0F2C] rounded-full flex items-center justify-center overflow-hidden">
-                      {profileForm.imageUrl || user?.imageUrl ? (
-                        <img src={profileForm.imageUrl || user?.imageUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      {user?.imageUrl ? (
+                        <img src={user.imageUrl} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (
                         <User className="w-8 h-8 text-[#64748B]" />
                       )}
                     </div>
                     <div>
-                      <div className="text-white font-medium">{profileForm.firstName || user?.firstName} {profileForm.lastName || user?.lastName}</div>
+                      <div className="text-white font-medium">{user?.fullName}</div>
                       <div className="text-[#64748B] text-sm">{user?.primaryEmailAddress?.emailAddress}</div>
-                      {profileEditing && (
-                        <input type="text" placeholder="Image URL" value={profileForm.imageUrl} onChange={e => setProfileForm({ ...profileForm, imageUrl: e.target.value })}
-                          className="mt-2 w-64 px-3 py-1 bg-[#0A0F2C] border border-[#2D3B5F] rounded text-white text-sm" />
-                      )}
+                      <button className="mt-2 text-[#0EA5E9] text-sm hover:underline">
+                        Change Photo
+                      </button>
                     </div>
                   </div>
+
+                  {/* Profile Form */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[#94A3B8] text-sm mb-2">First Name</label>
-                      <input type="text" value={profileForm.firstName} onChange={e => setProfileForm({ ...profileForm, firstName: e.target.value })} disabled={!profileEditing}
-                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white disabled:opacity-60" />
+                      <input
+                        type="text"
+                        defaultValue={user?.firstName || ''}
+                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      />
                     </div>
                     <div>
                       <label className="block text-[#94A3B8] text-sm mb-2">Last Name</label>
-                      <input type="text" value={profileForm.lastName} onChange={e => setProfileForm({ ...profileForm, lastName: e.target.value })} disabled={!profileEditing}
-                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white disabled:opacity-60" />
+                      <input
+                        type="text"
+                        defaultValue={user?.lastName || ''}
+                        className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      />
                     </div>
                   </div>
+
                   <div>
                     <label className="block text-[#94A3B8] text-sm mb-2">Email Address</label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-                      <input type="email" value={user?.primaryEmailAddress?.emailAddress || ''} disabled
-                        className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white opacity-60" />
+                      <input
+                        type="email"
+                        defaultValue={user?.primaryEmailAddress?.emailAddress || ''}
+                        className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                        disabled
+                      />
                     </div>
                     <p className="text-[#64748B] text-xs mt-1">Email is managed through Clerk authentication</p>
                   </div>
+
                   <div>
                     <label className="block text-[#94A3B8] text-sm mb-2">Phone Number</label>
                     <div className="relative">
                       <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-                      <input type="tel" placeholder="(555) 555-5555" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} disabled={!profileEditing}
-                        className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white disabled:opacity-60" />
+                      <input
+                        type="tel"
+                        placeholder="(555) 555-5555"
+                        className="w-full pl-10 pr-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white focus:outline-none focus:border-[#0EA5E9]"
+                      />
                     </div>
                   </div>
-                  {profileEditing && (
-                    <div className="flex justify-end gap-3 pt-4 border-t border-[#2D3B5F]">
-                      <button onClick={() => setProfileEditing(false)} className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F]">Cancel</button>
-                      <button onClick={saveProfile} className="flex items-center gap-2 px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
-                        <Save className="w-4 h-4" /> Save Changes
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
-            {/* Pipeline Stages */}
-            {settingsTab === 'stages' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <select value={stagesPartnerType} onChange={e => { setStagesPartnerType(e.target.value); setTimeout(fetchPipelineStages, 100) }}
-                    className="px-4 py-2 bg-[#1A1F3A] border border-[#2D3B5F] rounded-lg text-white">
-                    <option value="location_partner">Location Partner Stages</option>
-                    <option value="referral_partner">Referral Partner Stages</option>
-                    <option value="channel_partner">Channel Partner Stages</option>
-                    <option value="contractor">Contractor Stages</option>
-                  </select>
-                  <button onClick={() => { setEditingStage({ name: '', slug: '', color: 'border-blue-500', description: '' }); setShowStageModal(true) }}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
-                    <Plus className="w-4 h-4" /> Add Stage
-                  </button>
-                </div>
-                <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                  {pipelineStages.length === 0 ? (
-                    <div className="text-center py-8 text-[#64748B]">No stages configured for this partner type</div>
-                  ) : (
+                  {/* Security Section */}
+                  <div className="pt-6 border-t border-[#2D3B5F]">
+                    <h4 className="text-white font-medium mb-4">Security</h4>
                     <div className="space-y-3">
-                      {pipelineStages.map((stage, index) => (
-                        <div key={stage.id} className={`flex items-center gap-4 p-4 bg-[#0A0F2C] rounded-lg border-l-4 ${stage.color || 'border-blue-500'}`}>
-                          <GripVertical className="w-5 h-5 text-[#64748B] cursor-move" />
-                          <div className="flex-1">
-                            <div className="text-white font-medium">{stage.name}</div>
-                            <div className="text-[#64748B] text-xs">{stage.slug} • {stage.description || 'No description'}</div>
-                            {stage.action_type && <span className="text-xs text-[#0EA5E9]">Action: {stage.action_type}</span>}
-                          </div>
-                          <span className="text-[#64748B] text-sm">#{index + 1}</span>
-                          <div className="flex gap-2">
-                            <button onClick={() => { setEditingStage(stage); setShowStageModal(true) }} className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]">
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => deletePipelineStage(stage.id)} className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                      <div className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Key className="w-5 h-5 text-[#64748B]" />
+                          <div>
+                            <div className="text-white">Password</div>
+                            <div className="text-[#64748B] text-sm">Change your account password</div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {showStageModal && editingStage && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-md">
-                      <h3 className="text-lg font-semibold text-white mb-4">{editingStage.id ? 'Edit Stage' : 'Add Stage'}</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Stage Name</label>
-                          <input type="text" value={editingStage.name} onChange={e => setEditingStage({ ...editingStage, name: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Slug</label>
-                          <input type="text" value={editingStage.slug} onChange={e => setEditingStage({ ...editingStage, slug: e.target.value })} placeholder="auto-generated"
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Color</label>
-                          <select value={editingStage.color} onChange={e => setEditingStage({ ...editingStage, color: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white">
-                            <option value="border-blue-500">Blue</option>
-                            <option value="border-green-500">Green</option>
-                            <option value="border-yellow-500">Yellow</option>
-                            <option value="border-orange-500">Orange</option>
-                            <option value="border-purple-500">Purple</option>
-                            <option value="border-pink-500">Pink</option>
-                            <option value="border-cyan-500">Cyan</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Description</label>
-                          <textarea value={editingStage.description || ''} onChange={e => setEditingStage({ ...editingStage, description: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-20" />
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Auto Action</label>
-                          <select value={editingStage.action_type || ''} onChange={e => setEditingStage({ ...editingStage, action_type: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white">
-                            <option value="">None</option>
-                            <option value="send_email">Send Email</option>
-                            <option value="schedule_call">Schedule Call</option>
-                            <option value="send_agreement">Send Agreement</option>
-                            <option value="create_task">Create Task</option>
-                          </select>
-                        </div>
+                        <button
+                          onClick={() => window.open('https://accounts.clerk.dev/user/security', '_blank')}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
+                        >
+                          Change
+                        </button>
                       </div>
-                      <div className="flex justify-end gap-3 mt-6">
-                        <button onClick={() => { setShowStageModal(false); setEditingStage(null) }} className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg">Cancel</button>
-                        <button onClick={() => savePipelineStage(editingStage)} className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg">Save</button>
+                      <div className="flex items-center justify-between p-4 bg-[#0A0F2C] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Shield className="w-5 h-5 text-[#64748B]" />
+                          <div>
+                            <div className="text-white">Two-Factor Authentication</div>
+                            <div className="text-[#64748B] text-sm">Add extra security to your account</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => window.open('https://accounts.clerk.dev/user/security', '_blank')}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
+                        >
+                          Configure
+                        </button>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* Calendly */}
-            {settingsTab === 'calendly' && (
-              <div className="space-y-4">
-                <div className="flex justify-end">
-                  <button onClick={() => { setEditingCalendly({ name: '', url: '', duration_minutes: 30, description: '', link_type: 'discovery_call' }); setShowCalendlyModal(true) }}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
-                    <Plus className="w-4 h-4" /> Add Calendly Link
-                  </button>
+                  {/* Save Button */}
+                  <div className="flex justify-end pt-4">
+                    <button className="flex items-center gap-2 px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors">
+                      <Save className="w-4 h-4" />
+                      Save Changes
+                    </button>
+                  </div>
                 </div>
-                {calendlyLinks.length === 0 ? (
-                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <Calendar className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                    <p className="text-[#94A3B8]">No Calendly links configured</p>
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {calendlyLinks.map(link => (
-                      <div key={link.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <Calendar className="w-5 h-5 text-[#0EA5E9]" />
-                            <h3 className="text-white font-medium">{link.name}</h3>
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => { setEditingCalendly(link); setShowCalendlyModal(true) }} className="p-1 text-[#94A3B8] hover:text-white">
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => deleteCalendlyLink(link.id)} className="p-1 text-red-400 hover:text-red-300">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-[#64748B] text-sm mb-2">{link.description || 'No description'}</p>
-                        <div className="flex items-center gap-4 text-sm text-[#94A3B8] mb-3">
-                          <span>{link.duration_minutes || link.duration} min</span>
-                          <span className="px-2 py-0.5 bg-[#2D3B5F] rounded text-xs">{link.link_type || 'general'}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input type="text" value={link.url} readOnly className="flex-1 px-3 py-1 bg-[#0A0F2C] border border-[#2D3B5F] rounded text-[#64748B] text-sm" />
-                          <button onClick={() => { navigator.clipboard.writeText(link.url); setCopiedLink(link.id); setTimeout(() => setCopiedLink(null), 2000) }}
-                            className="px-3 py-1 bg-[#2D3B5F] text-[#94A3B8] rounded hover:bg-[#3D4B6F] text-sm">
-                            {copiedLink === link.id ? 'Copied!' : 'Copy'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {showCalendlyModal && editingCalendly && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-md">
-                      <h3 className="text-lg font-semibold text-white mb-4">{editingCalendly.id ? 'Edit Calendly Link' : 'Add Calendly Link'}</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Name</label>
-                          <input type="text" value={editingCalendly.name} onChange={e => setEditingCalendly({ ...editingCalendly, name: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">URL</label>
-                          <input type="url" value={editingCalendly.url} onChange={e => setEditingCalendly({ ...editingCalendly, url: e.target.value })} placeholder="https://calendly.com/..."
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[#94A3B8] text-sm mb-2">Duration (min)</label>
-                            <input type="number" value={editingCalendly.duration_minutes} onChange={e => setEditingCalendly({ ...editingCalendly, duration_minutes: parseInt(e.target.value) })}
-                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
-                          </div>
-                          <div>
-                            <label className="block text-[#94A3B8] text-sm mb-2">Type</label>
-                            <select value={editingCalendly.link_type} onChange={e => setEditingCalendly({ ...editingCalendly, link_type: e.target.value })}
-                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white">
-                              <option value="discovery_call">Discovery Call</option>
-                              <option value="site_survey">Site Survey</option>
-                              <option value="follow_up">Follow Up</option>
-                              <option value="onboarding">Onboarding</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Description</label>
-                          <textarea value={editingCalendly.description || ''} onChange={e => setEditingCalendly({ ...editingCalendly, description: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-20" />
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-3 mt-6">
-                        <button onClick={() => { setShowCalendlyModal(false); setEditingCalendly(null) }} className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg">Cancel</button>
-                        <button onClick={() => saveCalendlyLink(editingCalendly)} className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg">Save</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
             {/* Email Templates */}
             {settingsTab === 'emails' && (
               <div className="space-y-4">
-                <div className="flex justify-end">
-                  <button onClick={() => { setEditingTemplate({ name: '', subject: '', body_text: '', trigger_event: '', is_active: true }); setShowTemplateModal(true) }}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
-                    <Plus className="w-4 h-4" /> Add Template
-                  </button>
-                </div>
-                {emailTemplates.length === 0 ? (
-                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <Mail className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                    <p className="text-[#94A3B8]">No email templates configured</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {emailTemplates.map(template => (
-                      <div key={template.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <Mail className="w-5 h-5 text-[#0EA5E9]" />
-                            <div>
-                              <h3 className="text-white font-medium">{template.name}</h3>
-                              <p className="text-[#64748B] text-sm">{template.category || 'general'} • {template.trigger_event || 'manual'}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => saveEmailTemplate({ ...template, is_active: !template.is_active })}
-                              className={`px-3 py-1 rounded text-xs ${template.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                              {template.is_active ? 'Enabled' : 'Disabled'}
-                            </button>
-                            <button onClick={() => { setEditingTemplate(template); setShowTemplateModal(true) }} className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]">
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => deleteEmailTemplate(template.id)} className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="bg-[#0A0F2C] rounded-lg p-4">
-                          <div className="text-[#94A3B8] text-sm"><strong>Subject:</strong> {template.subject}</div>
+                {emailTemplates.map(template => (
+                  <div key={template.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-5 h-5 text-[#0EA5E9]" />
+                        <div>
+                          <h3 className="text-white font-medium">{template.name}</h3>
+                          <p className="text-[#64748B] text-sm">{template.description}</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-                {showTemplateModal && editingTemplate && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                      <h3 className="text-lg font-semibold text-white mb-4">{editingTemplate.id ? 'Edit Template' : 'Add Template'}</h3>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[#94A3B8] text-sm mb-2">Template Name</label>
-                            <input type="text" value={editingTemplate.name} onChange={e => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
-                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
-                          </div>
-                          <div>
-                            <label className="block text-[#94A3B8] text-sm mb-2">Category</label>
-                            <select value={editingTemplate.category || 'general'} onChange={e => setEditingTemplate({ ...editingTemplate, category: e.target.value })}
-                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white">
-                              <option value="general">General</option>
-                              <option value="onboarding">Onboarding</option>
-                              <option value="pipeline">Pipeline</option>
-                              <option value="reminders">Reminders</option>
-                              <option value="notifications">Notifications</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Subject Line</label>
-                          <input type="text" value={editingTemplate.subject} onChange={e => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Trigger Event</label>
-                          <select value={editingTemplate.trigger_event || ''} onChange={e => setEditingTemplate({ ...editingTemplate, trigger_event: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white">
-                            <option value="">Manual Only</option>
-                            <option value="stage_changed">Stage Changed</option>
-                            <option value="application_submitted">Application Submitted</option>
-                            <option value="agreement_signed">Agreement Signed</option>
-                            <option value="trial_started">Trial Started</option>
-                            <option value="reminder">Reminder</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Email Body</label>
-                          <textarea value={editingTemplate.body_text || ''} onChange={e => setEditingTemplate({ ...editingTemplate, body_text: e.target.value })} placeholder="Use {{variable}} for dynamic content"
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-40 font-mono text-sm" />
-                        </div>
-                        <div className="text-[#64748B] text-xs">Variables: {'{{first_name}}'}, {'{{company_name}}'}, {'{{stage}}'}, {'{{calendly_link}}'}</div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded text-xs ${template.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                          {template.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <button
+                          onClick={() => setEditingTemplate(template)}
+                          className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
                       </div>
-                      <div className="flex justify-end gap-3 mt-6">
-                        <button onClick={() => { setShowTemplateModal(false); setEditingTemplate(null) }} className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg">Cancel</button>
-                        <button onClick={() => saveEmailTemplate(editingTemplate)} className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg">Save</button>
+                    </div>
+                    <div className="bg-[#0A0F2C] rounded-lg p-4">
+                      <div className="text-[#94A3B8] text-sm mb-2">
+                        <strong>Subject:</strong> {template.subject}
+                      </div>
+                      <div className="text-[#64748B] text-sm">
+                        <strong>Trigger:</strong> {template.trigger}
                       </div>
                     </div>
                   </div>
-                )}
+                ))}
               </div>
             )}
 
             {/* Dropdowns */}
             {settingsTab === 'dropdowns' && (
               <div className="space-y-4">
-                <div className="flex justify-end">
-                  <button onClick={() => { setEditingDropdown({ name: '', slug: '', category: 'general', items: [] }); setShowDropdownModal(true) }}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80">
-                    <Plus className="w-4 h-4" /> Add Dropdown
-                  </button>
-                </div>
                 {dropdowns.length === 0 ? (
                   <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
                     <List className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
@@ -4460,66 +4042,82 @@ export default function AdminPortalPage() {
                       <div className="flex items-center justify-between mb-4">
                         <div>
                           <h3 className="text-white font-medium">{dropdown.name}</h3>
-                          <p className="text-[#64748B] text-sm">{dropdown.slug} • {dropdown.category || 'general'} • {(dropdown.items || []).length} options</p>
+                          <p className="text-[#64748B] text-sm">{dropdown.options.length} options</p>
                         </div>
-                        <button onClick={() => { setEditingDropdown(dropdown); setShowDropdownModal(true) }} className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]">
-                          <Edit className="w-4 h-4" />
-                        </button>
                       </div>
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {(dropdown.items || []).slice(0, 10).map((item: any) => (
-                          <span key={item.id} className="flex items-center gap-1 px-2 py-1 bg-[#0A0F2C] text-[#94A3B8] rounded text-xs">
-                            {item.label}
-                            <button onClick={() => deleteDropdownItem(item.id)} className="text-red-400 hover:text-red-300 ml-1">
-                              <X className="w-3 h-3" />
-                            </button>
+                      <div className="flex flex-wrap gap-2">
+                        {dropdown.options.slice(0, 10).map(opt => (
+                          <span key={opt.value} className="px-2 py-1 bg-[#0A0F2C] text-[#94A3B8] rounded text-xs">
+                            {opt.label}
                           </span>
                         ))}
-                        {(dropdown.items || []).length > 10 && <span className="px-2 py-1 bg-[#2D3B5F] text-[#64748B] rounded text-xs">+{(dropdown.items || []).length - 10} more</span>}
-                      </div>
-                      <div className="flex gap-2">
-                        <input type="text" placeholder="New option" value={editingDropdown?.id === dropdown.id ? newDropdownItem.label : ''}
-                          onChange={e => { setEditingDropdown(dropdown); setNewDropdownItem({ label: e.target.value, value: e.target.value.toLowerCase().replace(/\s+/g, '_') }) }}
-                          className="flex-1 px-3 py-1 bg-[#0A0F2C] border border-[#2D3B5F] rounded text-white text-sm" />
-                        <button onClick={() => { if (newDropdownItem.label) addDropdownItem(dropdown.id, newDropdownItem) }}
-                          className="px-3 py-1 bg-[#0EA5E9] text-white rounded text-sm">Add</button>
+                        {dropdown.options.length > 10 && (
+                          <span className="px-2 py-1 bg-[#2D3B5F] text-[#64748B] rounded text-xs">
+                            +{dropdown.options.length - 10} more
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))
                 )}
-                {showDropdownModal && editingDropdown && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-md">
-                      <h3 className="text-lg font-semibold text-white mb-4">{editingDropdown.id ? 'Edit Dropdown' : 'Add Dropdown'}</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Dropdown Name</label>
-                          <input type="text" value={editingDropdown.name} onChange={e => setEditingDropdown({ ...editingDropdown, name: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
+              </div>
+            )}
+
+
+            {/* Calendly */}
+            {settingsTab === 'calendly' && (
+              <div className="space-y-4">
+                {calendlyLinks.length === 0 ? (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <Calendar className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
+                    <p className="text-[#94A3B8]">No Calendly links configured</p>
+                    <p className="text-[#64748B] text-sm mt-2">Connect your Calendly account to manage event types</p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {calendlyLinks.map(link => (
+                      <div key={link.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: link.color || '#0EA5E9' }} />
+                          <h3 className="text-white font-medium">{link.name}</h3>
                         </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Slug</label>
-                          <input type="text" value={editingDropdown.slug} onChange={e => setEditingDropdown({ ...editingDropdown, slug: e.target.value })} placeholder="auto-generated"
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[#94A3B8] text-sm mb-2">Category</label>
-                          <select value={editingDropdown.category || 'general'} onChange={e => setEditingDropdown({ ...editingDropdown, category: e.target.value })}
-                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white">
-                            <option value="general">General</option>
-                            <option value="forms">Forms</option>
-                            <option value="pipeline">Pipeline</option>
-                            <option value="partners">Partners</option>
-                          </select>
+                        <p className="text-[#64748B] text-sm mb-3">{link.description || 'No description'}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#94A3B8] text-sm">{link.duration} min</span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(link.url)
+                              setCopiedLink(link.id)
+                              setTimeout(() => setCopiedLink(null), 2000)
+                            }}
+                            className="flex items-center gap-1 px-3 py-1 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
+                          >
+                            {copiedLink === link.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            {copiedLink === link.id ? 'Copied!' : 'Copy Link'}
+                          </button>
                         </div>
                       </div>
-                      <div className="flex justify-end gap-3 mt-6">
-                        <button onClick={() => { setShowDropdownModal(false); setEditingDropdown(null) }} className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg">Cancel</button>
-                        <button onClick={() => saveDropdown(editingDropdown)} className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg">Save</button>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Pipeline Stages */}
+            {settingsTab === 'stages' && (
+              <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                <div className="space-y-3">
+                  {PIPELINE_STAGES.map((stage, index) => (
+                    <div key={stage.id} className={`flex items-center gap-4 p-3 bg-[#0A0F2C] rounded-lg border-l-4 ${stage.color}`}>
+                      <GripVertical className="w-5 h-5 text-[#64748B]" />
+                      <div className="flex-1">
+                        <div className="text-white font-medium">{stage.name}</div>
+                        <div className="text-[#64748B] text-xs">{stage.id}</div>
+                      </div>
+                      <span className="text-[#64748B] text-sm">Stage {index + 1}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
