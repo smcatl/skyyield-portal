@@ -862,6 +862,12 @@ export default function AdminPortalPage() {
   const [showStageModal, setShowStageModal] = useState(false)
   const [stagesPartnerTypeFilter, setStagesPartnerTypeFilter] = useState<string>('all')
 
+  // Database Calendly Links state
+  const [dbCalendlyLinks, setDbCalendlyLinks] = useState<any[]>([])
+  const [calendlyDbLoading, setCalendlyDbLoading] = useState(false)
+  const [editingCalendly, setEditingCalendly] = useState<any | null>(null)
+  const [showCalendlyModal, setShowCalendlyModal] = useState(false)
+
   // Payments state
   const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
 
@@ -1411,6 +1417,50 @@ export default function AdminPortalPage() {
     }
   }
 
+  // Fetch calendly links from database
+  const fetchDbCalendlyLinks = async () => {
+    setCalendlyDbLoading(true)
+    try {
+      const res = await fetch('/api/admin/settings/calendly-links')
+      const data = await res.json()
+      setDbCalendlyLinks(data.links || [])
+    } catch (err) {
+      console.error('Error fetching calendly links:', err)
+    } finally {
+      setCalendlyDbLoading(false)
+    }
+  }
+
+  // Save calendly link
+  const saveCalendlyLink = async (link: any) => {
+    try {
+      const method = link.id ? 'PUT' : 'POST'
+      const res = await fetch('/api/admin/settings/calendly-links', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(link),
+      })
+      if (res.ok) {
+        fetchDbCalendlyLinks()
+        setShowCalendlyModal(false)
+        setEditingCalendly(null)
+      }
+    } catch (err) {
+      console.error('Error saving calendly link:', err)
+    }
+  }
+
+  // Delete calendly link
+  const deleteCalendlyLink = async (id: string) => {
+    if (!confirm('Delete this Calendly link?')) return
+    try {
+      await fetch(`/api/admin/settings/calendly-links?id=${id}`, { method: 'DELETE' })
+      fetchDbCalendlyLinks()
+    } catch (err) {
+      console.error('Error deleting calendly link:', err)
+    }
+  }
+
   // Send user invite
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return
@@ -1478,6 +1528,7 @@ export default function AdminPortalPage() {
       fetchCalendlyLinks()
       fetchPipelineStages()
       fetchEmailTemplates()
+      fetchDbCalendlyLinks()
     }
     if (activeTab === 'overview') {
       fetchUsers()
@@ -4342,37 +4393,195 @@ export default function AdminPortalPage() {
             {/* Calendly */}
             {settingsTab === 'calendly' && (
               <div className="space-y-4">
-                {calendlyLinks.length === 0 ? (
+                {/* Header with Add button */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      setEditingCalendly({ name: '', url: '', duration_minutes: 30, description: '', link_type: 'discovery_call' })
+                      setShowCalendlyModal(true)
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                  >
+                    <Plus className="w-4 h-4" /> Add Calendly Link
+                  </button>
+                </div>
+
+                {/* Loading state */}
+                {calendlyDbLoading && (
                   <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
-                    <Calendar className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
-                    <p className="text-[#94A3B8]">No Calendly links configured</p>
-                    <p className="text-[#64748B] text-sm mt-2">Connect your Calendly account to manage event types</p>
+                    <RefreshCw className="w-6 h-6 mx-auto mb-2 text-[#0EA5E9] animate-spin" />
+                    <p className="text-[#94A3B8]">Loading Calendly links...</p>
                   </div>
-                ) : (
+                )}
+
+                {/* Database Calendly links */}
+                {!calendlyDbLoading && dbCalendlyLinks.length > 0 && (
                   <div className="grid md:grid-cols-2 gap-4">
-                    {calendlyLinks.map(link => (
+                    {dbCalendlyLinks.map(link => (
                       <div key={link.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: link.color || '#0EA5E9' }} />
-                          <h3 className="text-white font-medium">{link.name}</h3>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <Calendar className="w-5 h-5 text-[#0EA5E9]" />
+                            <h3 className="text-white font-medium">{link.name}</h3>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setEditingCalendly(link); setShowCalendlyModal(true) }}
+                              className="p-1 text-[#94A3B8] hover:text-white"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteCalendlyLink(link.id)}
+                              className="p-1 text-red-400 hover:text-red-300"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-[#64748B] text-sm mb-3">{link.description || 'No description'}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#94A3B8] text-sm">{link.duration} min</span>
+                        <p className="text-[#64748B] text-sm mb-2">{link.description || 'No description'}</p>
+                        <div className="flex items-center gap-4 text-sm text-[#94A3B8] mb-3">
+                          <span>{link.duration_minutes || link.duration} min</span>
+                          <span className="px-2 py-0.5 bg-[#2D3B5F] rounded text-xs">{link.link_type || 'general'}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={link.url}
+                            readOnly
+                            className="flex-1 px-3 py-1 bg-[#0A0F2C] border border-[#2D3B5F] rounded text-[#64748B] text-sm"
+                          />
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(link.url)
                               setCopiedLink(link.id)
                               setTimeout(() => setCopiedLink(null), 2000)
                             }}
-                            className="flex items-center gap-1 px-3 py-1 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors text-sm"
+                            className="px-3 py-1 bg-[#2D3B5F] text-[#94A3B8] rounded hover:bg-[#3D4B6F] text-sm"
                           >
-                            {copiedLink === link.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                            {copiedLink === link.id ? 'Copied!' : 'Copy Link'}
+                            {copiedLink === link.id ? 'Copied!' : 'Copy'}
                           </button>
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Fallback: Show API calendly links when no database links */}
+                {!calendlyDbLoading && dbCalendlyLinks.length === 0 && calendlyLinks.length > 0 && (
+                  <div className="space-y-4">
+                    <p className="text-[#94A3B8] text-sm">Showing links from Calendly API:</p>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {calendlyLinks.map(link => (
+                        <div key={link.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: link.color || '#0EA5E9' }} />
+                            <h3 className="text-white font-medium">{link.name}</h3>
+                          </div>
+                          <p className="text-[#64748B] text-sm mb-3">{link.description || 'No description'}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#94A3B8] text-sm">{link.duration} min</span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(link.url)
+                                setCopiedLink(link.id)
+                                setTimeout(() => setCopiedLink(null), 2000)
+                              }}
+                              className="flex items-center gap-1 px-3 py-1 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] text-sm"
+                            >
+                              {copiedLink === link.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                              {copiedLink === link.id ? 'Copied!' : 'Copy Link'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {!calendlyDbLoading && dbCalendlyLinks.length === 0 && calendlyLinks.length === 0 && (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <Calendar className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
+                    <p className="text-[#94A3B8]">No Calendly links configured</p>
+                    <p className="text-[#64748B] text-sm mt-2">Click "Add Calendly Link" to create one</p>
+                  </div>
+                )}
+
+                {/* Edit Calendly Modal */}
+                {showCalendlyModal && editingCalendly && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-md">
+                      <h3 className="text-lg font-semibold text-white mb-4">{editingCalendly.id ? 'Edit Calendly Link' : 'Add Calendly Link'}</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Name</label>
+                          <input
+                            type="text"
+                            value={editingCalendly.name}
+                            onChange={e => setEditingCalendly({ ...editingCalendly, name: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">URL</label>
+                          <input
+                            type="url"
+                            value={editingCalendly.url}
+                            onChange={e => setEditingCalendly({ ...editingCalendly, url: e.target.value })}
+                            placeholder="https://calendly.com/..."
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Duration (min)</label>
+                            <input
+                              type="number"
+                              value={editingCalendly.duration_minutes}
+                              onChange={e => setEditingCalendly({ ...editingCalendly, duration_minutes: parseInt(e.target.value) })}
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Link Type</label>
+                            <select
+                              value={editingCalendly.link_type}
+                              onChange={e => setEditingCalendly({ ...editingCalendly, link_type: e.target.value })}
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            >
+                              <option value="discovery_call">Discovery Call</option>
+                              <option value="site_survey">Site Survey</option>
+                              <option value="follow_up">Follow Up</option>
+                              <option value="onboarding">Onboarding</option>
+                              <option value="general">General</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Description</label>
+                          <textarea
+                            value={editingCalendly.description || ''}
+                            onChange={e => setEditingCalendly({ ...editingCalendly, description: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-20"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-3 mt-6">
+                        <button
+                          onClick={() => { setShowCalendlyModal(false); setEditingCalendly(null) }}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => saveCalendlyLink(editingCalendly)}
+                          className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
