@@ -10,40 +10,48 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Default tabs configuration
+// Default tabs configuration grouped by section
 const DEFAULT_TABS = [
-  // Admin Portal Tabs
-  { tab_key: 'admin_dashboard', tab_name: 'Dashboard', portal: 'admin' },
-  { tab_key: 'admin_pipeline', tab_name: 'Pipeline', portal: 'admin' },
-  { tab_key: 'admin_partners', tab_name: 'Partners', portal: 'admin' },
-  { tab_key: 'admin_venues', tab_name: 'Venues', portal: 'admin' },
-  { tab_key: 'admin_devices', tab_name: 'Devices', portal: 'admin' },
-  { tab_key: 'admin_earnings', tab_name: 'Earnings', portal: 'admin' },
-  { tab_key: 'admin_analytics', tab_name: 'Analytics', portal: 'admin' },
-  { tab_key: 'admin_settings', tab_name: 'Settings', portal: 'admin' },
-  // Location Partner Portal Tabs
-  { tab_key: 'lp_dashboard', tab_name: 'Dashboard', portal: 'location_partner' },
-  { tab_key: 'lp_venues', tab_name: 'Venues', portal: 'location_partner' },
-  { tab_key: 'lp_devices', tab_name: 'Devices', portal: 'location_partner' },
-  { tab_key: 'lp_earnings', tab_name: 'Earnings', portal: 'location_partner' },
-  { tab_key: 'lp_analytics', tab_name: 'Analytics', portal: 'location_partner' },
-  { tab_key: 'lp_settings', tab_name: 'Settings', portal: 'location_partner' },
-  // Referral Partner Portal Tabs
-  { tab_key: 'rp_dashboard', tab_name: 'Dashboard', portal: 'referral_partner' },
-  { tab_key: 'rp_referrals', tab_name: 'Referrals', portal: 'referral_partner' },
-  { tab_key: 'rp_earnings', tab_name: 'Earnings', portal: 'referral_partner' },
-  { tab_key: 'rp_settings', tab_name: 'Settings', portal: 'referral_partner' },
-  // Channel Partner Portal Tabs
-  { tab_key: 'cp_dashboard', tab_name: 'Dashboard', portal: 'channel_partner' },
-  { tab_key: 'cp_clients', tab_name: 'Clients', portal: 'channel_partner' },
-  { tab_key: 'cp_earnings', tab_name: 'Earnings', portal: 'channel_partner' },
-  { tab_key: 'cp_settings', tab_name: 'Settings', portal: 'channel_partner' },
-  // Contractor Portal Tabs
-  { tab_key: 'contractor_dashboard', tab_name: 'Dashboard', portal: 'contractor' },
-  { tab_key: 'contractor_jobs', tab_name: 'Jobs', portal: 'contractor' },
-  { tab_key: 'contractor_schedule', tab_name: 'Schedule', portal: 'contractor' },
-  { tab_key: 'contractor_earnings', tab_name: 'Earnings', portal: 'contractor' },
-  { tab_key: 'contractor_settings', tab_name: 'Settings', portal: 'contractor' },
+  // ===== ADMIN PORTAL =====
+  { tab_key: 'admin_dashboard', tab_name: 'Dashboard', portal: 'admin', section: 'Admin Portal' },
+  { tab_key: 'admin_pipeline', tab_name: 'Pipeline', portal: 'admin', section: 'Admin Portal' },
+  { tab_key: 'admin_partners', tab_name: 'Partners', portal: 'admin', section: 'Admin Portal' },
+  { tab_key: 'admin_venues', tab_name: 'Venues', portal: 'admin', section: 'Admin Portal' },
+  { tab_key: 'admin_devices', tab_name: 'Devices', portal: 'admin', section: 'Admin Portal' },
+  { tab_key: 'admin_earnings', tab_name: 'Earnings', portal: 'admin', section: 'Admin Portal' },
+  { tab_key: 'admin_analytics', tab_name: 'Analytics', portal: 'admin', section: 'Admin Portal' },
+  { tab_key: 'admin_settings', tab_name: 'Settings', portal: 'admin', section: 'Admin Portal' },
+
+  // ===== LOCATION PARTNER PORTAL =====
+  { tab_key: 'lp_dashboard', tab_name: 'Overview', portal: 'location_partner', section: 'Location Partner Portal' },
+  { tab_key: 'lp_venues', tab_name: 'My Venues', portal: 'location_partner', section: 'Location Partner Portal' },
+  { tab_key: 'lp_devices', tab_name: 'My Devices', portal: 'location_partner', section: 'Location Partner Portal' },
+  { tab_key: 'lp_earnings', tab_name: 'Earnings', portal: 'location_partner', section: 'Location Partner Portal' },
+  { tab_key: 'lp_documents', tab_name: 'Documents', portal: 'location_partner', section: 'Location Partner Portal' },
+  { tab_key: 'lp_support', tab_name: 'Support', portal: 'location_partner', section: 'Location Partner Portal' },
+  { tab_key: 'lp_settings', tab_name: 'Settings', portal: 'location_partner', section: 'Location Partner Portal' },
+
+  // ===== REFERRAL PARTNER PORTAL =====
+  { tab_key: 'rp_dashboard', tab_name: 'Overview', portal: 'referral_partner', section: 'Referral Partner Portal' },
+  { tab_key: 'rp_referrals', tab_name: 'My Referrals', portal: 'referral_partner', section: 'Referral Partner Portal' },
+  { tab_key: 'rp_earnings', tab_name: 'Earnings', portal: 'referral_partner', section: 'Referral Partner Portal' },
+  { tab_key: 'rp_marketing', tab_name: 'Marketing', portal: 'referral_partner', section: 'Referral Partner Portal' },
+  { tab_key: 'rp_documents', tab_name: 'Documents', portal: 'referral_partner', section: 'Referral Partner Portal' },
+  { tab_key: 'rp_settings', tab_name: 'Settings', portal: 'referral_partner', section: 'Referral Partner Portal' },
+
+  // ===== CHANNEL PARTNER PORTAL =====
+  { tab_key: 'cp_dashboard', tab_name: 'Overview', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_clients', tab_name: 'My Clients', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_earnings', tab_name: 'Earnings', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_documents', tab_name: 'Documents', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_settings', tab_name: 'Settings', portal: 'channel_partner', section: 'Channel Partner Portal' },
+
+  // ===== CONTRACTOR PORTAL =====
+  { tab_key: 'contractor_dashboard', tab_name: 'Overview', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'contractor_jobs', tab_name: 'My Jobs', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'contractor_schedule', tab_name: 'Schedule', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'contractor_earnings', tab_name: 'Earnings', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'contractor_settings', tab_name: 'Settings', portal: 'contractor', section: 'Contractor Portal' },
 ]
 
 // GET - List permissions for a role or all roles

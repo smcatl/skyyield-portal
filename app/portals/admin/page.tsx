@@ -5855,76 +5855,75 @@ export default function AdminPortalPage() {
 
                 {/* Permissions Table */}
                 {!permissionsLoading && permissionsTabs.length > 0 && (
-                  <div className="space-y-6">
-                    {/* Group tabs by portal */}
-                    {['admin', 'location_partner', 'referral_partner', 'channel_partner', 'contractor'].map(portal => {
-                      const portalTabs = permissionsTabs.filter(t => t.portal === portal)
-                      if (portalTabs.length === 0) return null
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[700px]">
+                        <thead>
+                          <tr className="border-b border-[#2D3B5F] bg-[#0A0F2C]">
+                            <th className="text-left px-4 py-3 text-[#94A3B8] text-sm font-medium w-48">Tab</th>
+                            {ALL_ROLES.map(role => (
+                              <th key={role.id} className="px-2 py-3 text-center">
+                                <span className="text-[#94A3B8] text-xs font-medium">{role.label}</span>
+                                <div className="flex justify-center gap-1 mt-1 text-[#64748B] text-[10px]">
+                                  <span>V</span>
+                                  <span>E</span>
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        {/* Group tabs by section */}
+                        {(() => {
+                            const sections = [...new Set(permissionsTabs.map(t => t.section || t.portal))]
+                            return sections.map(section => {
+                              const sectionTabs = permissionsTabs.filter(t => (t.section || t.portal) === section)
+                              if (sectionTabs.length === 0) return null
 
-                      const portalLabel = portal === 'admin' ? 'Admin Portal' :
-                        portal === 'location_partner' ? 'Location Partner Portal' :
-                        portal === 'referral_partner' ? 'Referral Partner Portal' :
-                        portal === 'channel_partner' ? 'Channel Partner Portal' :
-                        'Contractor Portal'
-
-                      return (
-                        <div key={portal} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
-                          <div className="px-4 py-3 bg-[#0A0F2C] border-b border-[#2D3B5F]">
-                            <h3 className="text-white font-medium">{portalLabel}</h3>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full min-w-[700px]">
-                              <thead>
-                                <tr className="border-b border-[#2D3B5F]">
-                                  <th className="text-left px-4 py-3 text-[#94A3B8] text-sm font-medium w-48">Tab</th>
-                                  {ALL_ROLES.map(role => (
-                                    <th key={role.id} className="px-2 py-3 text-center">
-                                      <span className="text-[#94A3B8] text-xs font-medium">{role.label}</span>
-                                      <div className="flex justify-center gap-1 mt-1 text-[#64748B] text-[10px]">
-                                        <span>V</span>
-                                        <span>E</span>
-                                      </div>
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-[#2D3B5F]">
-                                {portalTabs.map(tab => (
-                                  <tr key={tab.tab_key} className="hover:bg-[#2D3B5F]/20">
-                                    <td className="px-4 py-3">
-                                      <span className="text-white text-sm">{tab.tab_name}</span>
+                              return (
+                                <tbody key={section}>
+                                  {/* Section header row */}
+                                  <tr className="bg-[#0A0F2C]">
+                                    <td colSpan={ALL_ROLES.length + 1} className="px-4 py-2">
+                                      <span className="text-[#0EA5E9] text-xs font-semibold uppercase tracking-wider">{section}</span>
                                     </td>
-                                    {ALL_ROLES.map(role => {
-                                      const perm = getPermission(role.id, tab.tab_key)
-                                      return (
-                                        <td key={role.id} className="px-2 py-3">
-                                          <div className="flex justify-center gap-1">
-                                            <input
-                                              type="checkbox"
-                                              checked={perm.canView}
-                                              onChange={e => updatePendingPermission(role.id, tab.tab_key, e.target.checked, perm.canEdit)}
-                                              className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9] cursor-pointer"
-                                              title={`${role.label} can view ${tab.tab_name}`}
-                                            />
-                                            <input
-                                              type="checkbox"
-                                              checked={perm.canEdit}
-                                              onChange={e => updatePendingPermission(role.id, tab.tab_key, perm.canView, e.target.checked)}
-                                              className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#10B981] focus:ring-[#10B981] cursor-pointer"
-                                              title={`${role.label} can edit ${tab.tab_name}`}
-                                            />
-                                          </div>
-                                        </td>
-                                      )
-                                    })}
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )
-                    })}
+                                  {/* Tab rows for this section */}
+                                  {sectionTabs.map(tab => (
+                                    <tr key={tab.tab_key} className="hover:bg-[#2D3B5F]/20 border-b border-[#2D3B5F]/50">
+                                      <td className="px-4 py-3">
+                                        <span className="text-white text-sm">{tab.tab_name}</span>
+                                      </td>
+                                      {ALL_ROLES.map(role => {
+                                        const perm = getPermission(role.id, tab.tab_key)
+                                        return (
+                                          <td key={role.id} className="px-2 py-3">
+                                            <div className="flex justify-center gap-1">
+                                              <input
+                                                type="checkbox"
+                                                checked={perm.canView}
+                                                onChange={e => updatePendingPermission(role.id, tab.tab_key, e.target.checked, perm.canEdit)}
+                                                className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9] cursor-pointer"
+                                                title={`${role.label} can view ${tab.tab_name}`}
+                                              />
+                                              <input
+                                                type="checkbox"
+                                                checked={perm.canEdit}
+                                                onChange={e => updatePendingPermission(role.id, tab.tab_key, perm.canView, e.target.checked)}
+                                                className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#10B981] focus:ring-[#10B981] cursor-pointer"
+                                                title={`${role.label} can edit ${tab.tab_name}`}
+                                              />
+                                            </div>
+                                          </td>
+                                        )
+                                      })}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              )
+                            })
+                          })()}
+                      </table>
+                    </div>
                   </div>
                 )}
 
