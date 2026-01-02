@@ -4,15 +4,16 @@ import { useUser } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { 
-  Building2, MapPin, Cpu, DollarSign, FileText, 
-  Settings, Activity, Wifi, HelpCircle, RefreshCw
+import {
+  Building2, MapPin, Cpu, DollarSign, FileText,
+  Settings, Activity, Wifi, HelpCircle, RefreshCw, Lock
 } from 'lucide-react'
 import {
   ContactCard, DashboardCard, DocumentsSection,
   VenuesSection, PartnerSettings, PartnerPayments,
 } from '@/components/portal'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
+import { useRolePermissions } from '@/hooks/useRolePermissions'
 
 type TabType = 'overview' | 'venues' | 'devices' | 'earnings' | 'documents' | 'support' | 'settings'
 
@@ -66,15 +67,21 @@ function LocationPartnerPortalContent() {
   const [devices, setDevices] = useState<any[]>([])
   const [documents, setDocuments] = useState<any[]>([])
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: Building2 },
-    { id: 'venues', label: 'Venues', icon: MapPin },
-    { id: 'devices', label: 'Devices', icon: Cpu },
-    { id: 'earnings', label: 'Payments', icon: DollarSign },
-    { id: 'documents', label: 'Documents', icon: FileText },
-    { id: 'support', label: 'Support', icon: HelpCircle },
-    { id: 'settings', label: 'Settings', icon: Settings },
+  // Role permissions
+  const { canView, canEdit, loading: permissionsLoading } = useRolePermissions()
+
+  const allTabs = [
+    { id: 'overview', label: 'Overview', icon: Building2, permKey: 'lp_dashboard' },
+    { id: 'venues', label: 'Venues', icon: MapPin, permKey: 'lp_venues' },
+    { id: 'devices', label: 'Devices', icon: Cpu, permKey: 'lp_devices' },
+    { id: 'earnings', label: 'Payments', icon: DollarSign, permKey: 'lp_earnings' },
+    { id: 'documents', label: 'Documents', icon: FileText, permKey: 'lp_documents' },
+    { id: 'support', label: 'Support', icon: HelpCircle, permKey: 'lp_support' },
+    { id: 'settings', label: 'Settings', icon: Settings, permKey: 'lp_settings' },
   ]
+
+  // Filter tabs based on permissions
+  const tabs = allTabs.filter(tab => canView(tab.permKey))
 
   useEffect(() => {
     if (!isLoaded) return

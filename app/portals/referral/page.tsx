@@ -4,7 +4,7 @@ import { useUser } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { 
+import {
   Users, DollarSign, Link as LinkIcon, Copy, FileText,
   Settings, TrendingUp, Clock, CheckCircle, AlertCircle,
   RefreshCw, Share2, Wifi, Megaphone, HelpCircle, UserPlus
@@ -14,6 +14,7 @@ import {
   TrainingSection, PartnerSettings, PartnerPayments,
 } from '@/components/portal'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
+import { useRolePermissions } from '@/hooks/useRolePermissions'
 
 type TabType = 'overview' | 'referrals' | 'earnings' | 'marketing' | 'documents' | 'settings'
 
@@ -77,14 +78,20 @@ function ReferralPartnerPortalContent() {
   const [materials, setMaterials] = useState<any[]>([])
   const [copied, setCopied] = useState(false)
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: Users },
-    { id: 'referrals', label: 'My Referrals', icon: UserPlus },
-    { id: 'earnings', label: 'Earnings', icon: DollarSign },
-    { id: 'marketing', label: 'Marketing', icon: Megaphone },
-    { id: 'documents', label: 'Documents', icon: FileText },
-    { id: 'settings', label: 'Settings', icon: Settings },
+  // Role permissions
+  const { canView } = useRolePermissions()
+
+  const allTabs = [
+    { id: 'overview', label: 'Overview', icon: Users, permKey: 'rp_dashboard' },
+    { id: 'referrals', label: 'My Referrals', icon: UserPlus, permKey: 'rp_referrals' },
+    { id: 'earnings', label: 'Earnings', icon: DollarSign, permKey: 'rp_earnings' },
+    { id: 'marketing', label: 'Marketing', icon: Megaphone, permKey: 'rp_marketing' },
+    { id: 'documents', label: 'Documents', icon: FileText, permKey: 'rp_documents' },
+    { id: 'settings', label: 'Settings', icon: Settings, permKey: 'rp_settings' },
   ]
+
+  // Filter tabs based on permissions
+  const tabs = allTabs.filter(tab => canView(tab.permKey))
 
   useEffect(() => {
     if (!isLoaded) return

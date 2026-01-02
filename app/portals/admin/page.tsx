@@ -840,7 +840,7 @@ export default function AdminPortalPage() {
   const [followUpSearch, setFollowUpSearch] = useState('')
 
   // Settings state
-  const [settingsTab, setSettingsTab] = useState<'profile' | 'dropdowns' | 'stages' | 'calendly' | 'emails'>('profile')
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'dropdowns' | 'stages' | 'calendly' | 'emails' | 'permissions'>('profile')
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>(DEFAULT_EMAIL_TEMPLATES)
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
   const [dropdowns, setDropdowns] = useState<Dropdown[]>([])
@@ -877,6 +877,12 @@ export default function AdminPortalPage() {
   const [expandedDropdowns, setExpandedDropdowns] = useState<Set<string>>(new Set())
   const [editingDropdownItem, setEditingDropdownItem] = useState<any | null>(null)
   const [showDropdownItemModal, setShowDropdownItemModal] = useState(false)
+
+  // Role Permissions state
+  const [rolePermissions, setRolePermissions] = useState<any[]>([])
+  const [permissionsTabs, setPermissionsTabs] = useState<any[]>([])
+  const [permissionsLoading, setPermissionsLoading] = useState(false)
+  const [selectedPermissionsRole, setSelectedPermissionsRole] = useState<string>('location_partner')
 
   // Profile state
   const [profileData, setProfileData] = useState<any>({
@@ -1622,6 +1628,53 @@ export default function AdminPortalPage() {
     })
   }
 
+  // Fetch role permissions
+  const fetchRolePermissions = async () => {
+    setPermissionsLoading(true)
+    try {
+      const res = await fetch('/api/admin/settings/role-permissions')
+      const data = await res.json()
+      setRolePermissions(data.permissions || [])
+      setPermissionsTabs(data.tabs || [])
+    } catch (err) {
+      console.error('Error fetching role permissions:', err)
+    } finally {
+      setPermissionsLoading(false)
+    }
+  }
+
+  // Save role permission
+  const saveRolePermission = async (tabKey: string, canView: boolean, canEdit: boolean) => {
+    try {
+      const res = await fetch('/api/admin/settings/role-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: selectedPermissionsRole,
+          tab_key: tabKey,
+          can_view: canView,
+          can_edit: canEdit,
+        }),
+      })
+      if (res.ok) {
+        fetchRolePermissions()
+      }
+    } catch (err) {
+      console.error('Error saving role permission:', err)
+    }
+  }
+
+  // Get permission for a specific tab and role
+  const getPermission = (tabKey: string) => {
+    const perm = rolePermissions.find(
+      p => p.role === selectedPermissionsRole && p.tab_key === tabKey
+    )
+    return {
+      canView: perm?.can_view ?? true,
+      canEdit: perm?.can_edit ?? false,
+    }
+  }
+
   // Fetch user profile from database
   const fetchProfile = async () => {
     setProfileLoading(true)
@@ -1775,6 +1828,7 @@ export default function AdminPortalPage() {
       fetchDbCalendlyLinks()
       fetchDbDropdowns()
       fetchProfile()
+      fetchRolePermissions()
     }
     if (activeTab === 'overview') {
       fetchUsers()
@@ -4254,6 +4308,7 @@ export default function AdminPortalPage() {
                 { id: 'dropdowns', label: 'Dropdowns', icon: List },
                 { id: 'calendly', label: 'Calendly', icon: Calendar },
                 { id: 'stages', label: 'Pipeline Stages', icon: GitBranch },
+                { id: 'permissions', label: 'Role Permissions', icon: Shield },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -5725,6 +5780,110 @@ export default function AdminPortalPage() {
                         </button>
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Role Permissions */}
+            {settingsTab === 'permissions' && (
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[#94A3B8] text-sm">Configure which tabs each role can view and edit</p>
+                  </div>
+                </div>
+
+                {/* Role selector */}
+                <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
+                  <label className="block text-[#94A3B8] text-sm mb-2">Select Role</label>
+                  <select
+                    value={selectedPermissionsRole}
+                    onChange={e => setSelectedPermissionsRole(e.target.value)}
+                    className="w-full md:w-64 px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="employee">Employee</option>
+                    <option value="location_partner">Location Partner</option>
+                    <option value="referral_partner">Referral Partner</option>
+                    <option value="channel_partner">Channel Partner</option>
+                    <option value="contractor">Contractor</option>
+                  </select>
+                </div>
+
+                {/* Loading state */}
+                {permissionsLoading && (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <RefreshCw className="w-6 h-6 mx-auto mb-2 text-[#0EA5E9] animate-spin" />
+                    <p className="text-[#94A3B8]">Loading permissions...</p>
+                  </div>
+                )}
+
+                {/* Permissions by portal */}
+                {!permissionsLoading && permissionsTabs.length > 0 && (
+                  <div className="space-y-6">
+                    {/* Group tabs by portal */}
+                    {['admin', 'location_partner', 'referral_partner', 'channel_partner', 'contractor'].map(portal => {
+                      const portalTabs = permissionsTabs.filter(t => t.portal === portal)
+                      if (portalTabs.length === 0) return null
+
+                      const portalLabel = portal === 'admin' ? 'Admin Portal' :
+                        portal === 'location_partner' ? 'Location Partner Portal' :
+                        portal === 'referral_partner' ? 'Referral Partner Portal' :
+                        portal === 'channel_partner' ? 'Channel Partner Portal' :
+                        'Contractor Portal'
+
+                      return (
+                        <div key={portal} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                          <div className="px-4 py-3 bg-[#0A0F2C] border-b border-[#2D3B5F]">
+                            <h3 className="text-white font-medium">{portalLabel}</h3>
+                          </div>
+                          <div className="divide-y divide-[#2D3B5F]">
+                            {portalTabs.map(tab => {
+                              const perm = getPermission(tab.tab_key)
+                              return (
+                                <div key={tab.tab_key} className="flex items-center justify-between p-4">
+                                  <div>
+                                    <span className="text-white">{tab.tab_name}</span>
+                                    <span className="text-[#64748B] text-sm ml-2">({tab.tab_key})</span>
+                                  </div>
+                                  <div className="flex items-center gap-6">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={perm.canView}
+                                        onChange={e => saveRolePermission(tab.tab_key, e.target.checked, perm.canEdit)}
+                                        className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9]"
+                                      />
+                                      <span className="text-[#94A3B8] text-sm">Can View</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={perm.canEdit}
+                                        onChange={e => saveRolePermission(tab.tab_key, perm.canView, e.target.checked)}
+                                        className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9]"
+                                      />
+                                      <span className="text-[#94A3B8] text-sm">Can Edit</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {!permissionsLoading && permissionsTabs.length === 0 && (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <Shield className="w-12 h-12 mx-auto mb-3 text-[#64748B] opacity-50" />
+                    <p className="text-[#94A3B8]">No tabs configured</p>
+                    <p className="text-[#64748B] text-sm mt-2">Role permissions will appear here once tabs are defined</p>
                   </div>
                 )}
               </div>
