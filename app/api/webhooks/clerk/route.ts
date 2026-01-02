@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Created new user ${newUser.id}`)
 
           // Try to match with existing partner record
-          await matchUserToPartner(newUser.id, email, userType)
+          await matchUserToPartner(newUser.id, id, email, userType)
         }
 
         break
@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
 // Helper: Match user to existing partner record
 async function matchUserToPartner(
   userId: string,
+  clerkId: string,
   email: string,
   userType: string
 ) {
@@ -200,15 +201,25 @@ async function matchUserToPartner(
 
   if (lp) {
     // Link user to location partner
-    await supabase.from('location_partners').update({ user_id: userId }).eq('id', lp.id)
+    await supabase.from('location_partners').update({ clerk_user_id: clerkId }).eq('id', lp.id)
+
+    // Get current location_partner_ids and append
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('location_partner_ids')
+      .eq('id', userId)
+      .single()
+
+    const currentIds = currentUser?.location_partner_ids || []
+    const updatedIds = currentIds.includes(lp.id) ? currentIds : [...currentIds, lp.id]
 
     await supabase
       .from('users')
       .update({
-        partner_record_id: lp.id,
+        location_partner_ids: updatedIds,
         user_type: 'location_partner',
-        portal_status: lp.pipeline_stage === 'trial_active' || lp.pipeline_stage === 'active' 
-          ? 'account_active' 
+        portal_status: lp.pipeline_stage === 'trial_active' || lp.pipeline_stage === 'active'
+          ? 'account_active'
           : 'pending_approval',
       })
       .eq('id', userId)
@@ -225,7 +236,7 @@ async function matchUserToPartner(
     .single()
 
   if (rp) {
-    await supabase.from('referral_partners').update({ user_id: userId }).eq('id', rp.id)
+    await supabase.from('referral_partners').update({ clerk_user_id: clerkId }).eq('id', rp.id)
 
     await supabase
       .from('users')
@@ -248,7 +259,7 @@ async function matchUserToPartner(
     .single()
 
   if (cp) {
-    await supabase.from('channel_partners').update({ user_id: userId }).eq('id', cp.id)
+    await supabase.from('channel_partners').update({ clerk_user_id: clerkId }).eq('id', cp.id)
 
     await supabase
       .from('users')
@@ -271,7 +282,7 @@ async function matchUserToPartner(
     .single()
 
   if (relp) {
-    await supabase.from('relationship_partners').update({ user_id: userId }).eq('id', relp.id)
+    await supabase.from('relationship_partners').update({ clerk_user_id: clerkId }).eq('id', relp.id)
 
     await supabase
       .from('users')
@@ -294,7 +305,7 @@ async function matchUserToPartner(
     .single()
 
   if (con) {
-    await supabase.from('contractors').update({ user_id: userId }).eq('id', con.id)
+    await supabase.from('contractors').update({ clerk_user_id: clerkId }).eq('id', con.id)
 
     await supabase
       .from('users')
@@ -317,7 +328,7 @@ async function matchUserToPartner(
     .single()
 
   if (emp) {
-    await supabase.from('employees').update({ user_id: userId }).eq('id', emp.id)
+    await supabase.from('employees').update({ clerk_user_id: clerkId }).eq('id', emp.id)
 
     await supabase
       .from('users')
