@@ -161,8 +161,8 @@ export async function GET(request: NextRequest) {
       const primary = partners[0]
       const transformed = transformLocationPartner(primary)
 
-      // Add all location_partner records as nested array
-      transformed.locationPartners = partners.map(p => transformLocationPartner(p))
+      // Add all location_partner records as nested venues array
+      transformed.venues = partners.map(p => transformLocationPartner(p))
       transformed.venueCount = partners.length
       transformed.clerkUserId = clerkUserId
 
@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
     // Transform ungrouped location partners (no clerk_user_id)
     const ungroupedTransformed = ungroupedPartners.map(p => {
       const transformed = transformLocationPartner(p)
-      transformed.locationPartners = [transformed]
+      transformed.venues = [transformed]
       transformed.venueCount = 1
       return transformed
     })
