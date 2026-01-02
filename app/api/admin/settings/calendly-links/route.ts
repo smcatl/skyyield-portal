@@ -13,6 +13,8 @@ const supabase = createClient(
 // GET - List all Calendly links
 export async function GET(request: NextRequest) {
   try {
+    console.log('[calendly-links] GET request received')
+
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     const linkType = searchParams.get('type')
@@ -24,28 +26,29 @@ export async function GET(request: NextRequest) {
         .eq('id', id)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('[calendly-links] Single fetch error:', error.code, error.message, error.details)
+        throw error
+      }
       return NextResponse.json({ link: data })
     }
 
-    let query = supabase
+    // Simple query without filters that might fail
+    console.log('[calendly-links] Fetching all links')
+    const { data, error } = await supabase
       .from('calendly_links')
       .select('*')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
 
-    if (linkType) {
-      query = query.eq('link_type', linkType)
+    if (error) {
+      console.error('[calendly-links] List error:', error.code, error.message, error.details)
+      throw error
     }
 
-    const { data, error } = await query
-
-    if (error) throw error
-
+    console.log('[calendly-links] Found', data?.length || 0, 'links')
     return NextResponse.json({ links: data || [] })
   } catch (error: any) {
-    console.error('GET /api/admin/settings/calendly-links error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[calendly-links] GET error:', error.code, error.message, error.details, error)
+    return NextResponse.json({ error: error.message, code: error.code, details: error.details }, { status: 500 })
   }
 }
 
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
       partner_types: body.partner_types || ['location_partner'],
       assigned_to_user_id: body.assigned_to_user_id || null,
       sort_order: (maxOrder?.sort_order || 0) + 1,
-      is_active: body.is_active !== false,
+      active: body.active !== false,
       created_by: userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -148,7 +151,7 @@ export async function DELETE(request: NextRequest) {
     // Soft delete
     const { error } = await supabase
       .from('calendly_links')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .update({ active: false, updated_at: new Date().toISOString() })
       .eq('id', id)
 
     if (error) throw error

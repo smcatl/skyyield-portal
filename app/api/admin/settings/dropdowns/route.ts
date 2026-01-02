@@ -13,9 +13,10 @@ const supabase = createClient(
 // GET - List all dropdowns or dropdown items
 export async function GET(request: NextRequest) {
   try {
+    console.log('[dropdowns] GET request received')
+
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
-    const category = searchParams.get('category')
     const includeItems = searchParams.get('includeItems') === 'true'
 
     if (id) {
@@ -25,16 +26,21 @@ export async function GET(request: NextRequest) {
         .eq('id', id)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('[dropdowns] Single fetch error:', error.code, error.message, error.details)
+        throw error
+      }
 
       // Optionally include dropdown items
       if (includeItems) {
-        const { data: items } = await supabase
+        const { data: items, error: itemsError } = await supabase
           .from('dropdown_items')
           .select('*')
           .eq('dropdown_id', id)
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true })
+
+        if (itemsError) {
+          console.error('[dropdowns] Items fetch error:', itemsError.code, itemsError.message)
+        }
 
         return NextResponse.json({ dropdown, items: items || [] })
       }
@@ -42,30 +48,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ dropdown })
     }
 
-    let query = supabase
+    // Simple query - no is_active filter since column doesn't exist
+    console.log('[dropdowns] Fetching all dropdowns')
+    const { data, error } = await supabase
       .from('dropdowns')
       .select('*')
-      .eq('is_active', true)
-      .order('category', { ascending: true })
-      .order('name', { ascending: true })
 
-    if (category) {
-      query = query.eq('category', category)
+    if (error) {
+      console.error('[dropdowns] List error:', error.code, error.message, error.details)
+      throw error
     }
 
-    const { data, error } = await query
-
-    if (error) throw error
+    console.log('[dropdowns] Found', data?.length || 0, 'dropdowns')
 
     // Optionally include items for each dropdown
-    if (includeItems && data) {
+    if (includeItems && data && data.length > 0) {
       const dropdownIds = data.map(d => d.id)
-      const { data: allItems } = await supabase
+      console.log('[dropdowns] Fetching items for', dropdownIds.length, 'dropdowns')
+
+      const { data: allItems, error: itemsError } = await supabase
         .from('dropdown_items')
         .select('*')
         .in('dropdown_id', dropdownIds)
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
+
+      if (itemsError) {
+        console.error('[dropdowns] Items fetch error:', itemsError.code, itemsError.message)
+      }
+
+      console.log('[dropdowns] Found', allItems?.length || 0, 'items')
 
       const dropdownsWithItems = data.map(dropdown => ({
         ...dropdown,
@@ -77,8 +87,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ dropdowns: data || [] })
   } catch (error: any) {
-    console.error('GET /api/admin/settings/dropdowns error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[dropdowns] GET error:', error.code, error.message, error.details, error)
+    return NextResponse.json({ error: error.message, code: error.code, details: error.details }, { status: 500 })
   }
 }
 
@@ -94,25 +104,16 @@ export async function POST(request: NextRequest) {
 
     // If dropdown_id is provided, create a dropdown item
     if (body.dropdown_id) {
-      const { data: maxOrder } = await supabase
-        .from('dropdown_items')
-        .select('sort_order')
-        .eq('dropdown_id', body.dropdown_id)
-        .order('sort_order', { ascending: false })
-        .limit(1)
-        .single()
-
-      const itemData = {
+      const itemData: any = {
         dropdown_id: body.dropdown_id,
         label: body.label,
         value: body.value || body.label.toLowerCase().replace(/\s+/g, '_'),
-        description: body.description || null,
-        metadata: body.metadata || null,
-        sort_order: body.sort_order ?? (maxOrder?.sort_order || 0) + 1,
-        is_active: body.is_active !== false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       }
+
+      // Only add optional fields if they exist
+      if (body.description) itemData.description = body.description
+      if (body.metadata) itemData.metadata = body.metadata
+      if (body.sort_order !== undefined) itemData.sort_order = body.sort_order
 
       const { data, error } = await supabase
         .from('dropdown_items')
@@ -126,18 +127,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new dropdown
-    const dropdownData = {
+    const dropdownData: any = {
       name: body.name,
       slug: body.slug || body.name.toLowerCase().replace(/\s+/g, '_'),
-      category: body.category || 'general',
-      description: body.description || null,
-      is_multi_select: body.is_multi_select || false,
-      is_required: body.is_required || false,
-      is_active: body.is_active !== false,
-      created_by: userId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     }
+
+    // Only add optional fields if they exist
+    if (body.category) dropdownData.category = body.category
+    if (body.description) dropdownData.description = body.description
 
     const { data, error } = await supabase
       .from('dropdowns')
@@ -164,8 +161,6 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json()
     const { id, itemId, ...updates } = body
-
-    updates.updated_at = new Date().toISOString()
 
     // Update dropdown item
     if (itemId) {
@@ -202,7 +197,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - Delete dropdown or dropdown item
+// DELETE - Delete dropdown or dropdown item (hard delete)
 export async function DELETE(request: NextRequest) {
   try {
     const { userId } = await auth()
@@ -218,7 +213,7 @@ export async function DELETE(request: NextRequest) {
     if (itemId) {
       const { error } = await supabase
         .from('dropdown_items')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .delete()
         .eq('id', itemId)
 
       if (error) throw error
@@ -231,17 +226,18 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Dropdown ID required' }, { status: 400 })
     }
 
-    // Soft delete dropdown and its items
+    // Delete dropdown items first
     const { error: itemsError } = await supabase
       .from('dropdown_items')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .delete()
       .eq('dropdown_id', id)
 
     if (itemsError) throw itemsError
 
+    // Then delete the dropdown
     const { error } = await supabase
       .from('dropdowns')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .delete()
       .eq('id', id)
 
     if (error) throw error

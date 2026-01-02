@@ -13,10 +13,10 @@ const supabase = createClient(
 // GET - List all email templates
 export async function GET(request: NextRequest) {
   try {
+    console.log('[email-templates] GET request received')
+
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
-    const templateType = searchParams.get('type')
-    const category = searchParams.get('category')
 
     if (id) {
       const { data, error } = await supabase
@@ -25,33 +25,29 @@ export async function GET(request: NextRequest) {
         .eq('id', id)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('[email-templates] Single fetch error:', error.code, error.message, error.details)
+        throw error
+      }
       return NextResponse.json({ template: data })
     }
 
-    let query = supabase
+    // Simple query without filters
+    console.log('[email-templates] Fetching all templates')
+    const { data, error } = await supabase
       .from('email_templates')
       .select('*')
-      .eq('is_active', true)
-      .order('category', { ascending: true })
-      .order('name', { ascending: true })
 
-    if (templateType) {
-      query = query.eq('template_type', templateType)
+    if (error) {
+      console.error('[email-templates] List error:', error.code, error.message, error.details)
+      throw error
     }
 
-    if (category) {
-      query = query.eq('category', category)
-    }
-
-    const { data, error } = await query
-
-    if (error) throw error
-
+    console.log('[email-templates] Found', data?.length || 0, 'templates')
     return NextResponse.json({ templates: data || [] })
   } catch (error: any) {
-    console.error('GET /api/admin/settings/email-templates error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[email-templates] GET error:', error.code, error.message, error.details, error)
+    return NextResponse.json({ error: error.message, code: error.code, details: error.details }, { status: 500 })
   }
 }
 
@@ -77,7 +73,7 @@ export async function POST(request: NextRequest) {
       partner_types: body.partner_types || null,
       trigger_event: body.trigger_event || null,
       is_automated: body.is_automated || false,
-      is_active: body.is_active !== false,
+      enabled: body.enabled !== false,
       created_by: userId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -150,7 +146,7 @@ export async function DELETE(request: NextRequest) {
     // Soft delete
     const { error } = await supabase
       .from('email_templates')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .update({ enabled: false, updated_at: new Date().toISOString() })
       .eq('id', id)
 
     if (error) throw error
