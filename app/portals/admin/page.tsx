@@ -1451,15 +1451,20 @@ export default function AdminPortalPage() {
 
   // Fetch calendly links from database
   const fetchDbCalendlyLinks = async () => {
+    console.log('[DEBUG] fetchDbCalendlyLinks called')
     setCalendlyDbLoading(true)
     try {
       const res = await fetch('/api/admin/settings/calendly-links')
+      console.log('[DEBUG] Calendly API response status:', res.status)
       const data = await res.json()
+      console.log('[DEBUG] Calendly API response data:', data)
+      console.log('[DEBUG] Setting dbCalendlyLinks to:', data.links || [])
       setDbCalendlyLinks(data.links || [])
     } catch (err) {
-      console.error('Error fetching calendly links:', err)
+      console.error('[DEBUG] Error fetching calendly links:', err)
     } finally {
       setCalendlyDbLoading(false)
+      console.log('[DEBUG] fetchDbCalendlyLinks complete')
     }
   }
 
@@ -1495,15 +1500,20 @@ export default function AdminPortalPage() {
 
   // Fetch dropdowns from database
   const fetchDbDropdowns = async () => {
+    console.log('[DEBUG] fetchDbDropdowns called')
     setDropdownsLoading(true)
     try {
       const res = await fetch('/api/admin/settings/dropdowns?includeItems=true')
+      console.log('[DEBUG] Dropdowns API response status:', res.status)
       const data = await res.json()
+      console.log('[DEBUG] Dropdowns API response data:', data)
+      console.log('[DEBUG] Setting dbDropdowns to:', data.dropdowns || [])
       setDbDropdowns(data.dropdowns || [])
     } catch (err) {
-      console.error('Error fetching dropdowns:', err)
+      console.error('[DEBUG] Error fetching dropdowns:', err)
     } finally {
       setDropdownsLoading(false)
+      console.log('[DEBUG] fetchDbDropdowns complete')
     }
   }
 
@@ -1549,10 +1559,21 @@ export default function AdminPortalPage() {
   }
 
   // Delete dropdown item
-  const deleteDropdownItem = async (itemId: string) => {
+  const deleteDropdownItem = async (dropdownId: string, index: number) => {
     if (!confirm('Delete this option?')) return
     try {
-      await fetch(`/api/admin/settings/dropdowns?itemId=${itemId}`, { method: 'DELETE' })
+      // Find the dropdown and remove the option at the given index
+      const dropdown = dbDropdowns.find(d => d.id === dropdownId)
+      if (!dropdown) return
+
+      const newOptions = [...(dropdown.options || [])]
+      newOptions.splice(index, 1)
+
+      await fetch('/api/admin/settings/dropdowns', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: dropdownId, options: newOptions })
+      })
       fetchDbDropdowns()
     } catch (err) {
       console.error('Error deleting dropdown item:', err)
@@ -1746,6 +1767,7 @@ export default function AdminPortalPage() {
     if (activeTab === 'pipeline') fetchPipeline()
     if (activeTab === 'followups') fetchPipeline() // Uses same data as pipeline
     if (activeTab === 'settings') {
+      console.log('[DEBUG] useEffect triggered for settings tab')
       fetchDropdowns()
       fetchCalendlyLinks()
       fetchPipelineStages()
@@ -4788,6 +4810,7 @@ export default function AdminPortalPage() {
             {/* Dropdowns */}
             {settingsTab === 'dropdowns' && (
               <div className="space-y-4">
+                {console.log('[DEBUG RENDER] Dropdowns tab - dropdownsLoading:', dropdownsLoading, 'dbDropdowns:', dbDropdowns.length, 'dropdowns:', dropdowns.length)}
                 {/* Header with Add button */}
                 <div className="flex justify-end">
                   <button
@@ -4830,7 +4853,7 @@ export default function AdminPortalPage() {
                                   <span>•</span>
                                   <span>{dropdown.category || 'general'}</span>
                                   <span>•</span>
-                                  <span>{(dropdown.items || []).length} options</span>
+                                  <span>{(dropdown.options || []).length} options</span>
                                   {dropdown.used_in_forms && dropdown.used_in_forms.length > 0 && (
                                     <>
                                       <span>•</span>
@@ -4875,11 +4898,11 @@ export default function AdminPortalPage() {
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-[#94A3B8] text-sm font-medium">Options</span>
-                                  <span className="text-[#64748B] text-xs">{(dropdown.items || []).length} total</span>
+                                  <span className="text-[#64748B] text-xs">{(dropdown.options || []).length} total</span>
                                 </div>
                                 <div className="grid gap-2">
-                                  {(dropdown.items || []).map((item: any) => (
-                                    <div key={item.id} className="flex items-center justify-between p-2 bg-[#0A0F2C] rounded-lg group">
+                                  {(dropdown.options || []).map((item: any, idx: number) => (
+                                    <div key={item.value || idx} className="flex items-center justify-between p-2 bg-[#0A0F2C] rounded-lg group">
                                       <div>
                                         <span className="text-white text-sm">{item.label}</span>
                                         {item.description && (
@@ -4888,13 +4911,13 @@ export default function AdminPortalPage() {
                                       </div>
                                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
-                                          onClick={() => { setEditingDropdownItem(item); setShowDropdownItemModal(true) }}
+                                          onClick={() => { setEditingDropdownItem({ ...item, dropdown_id: dropdown.id, index: idx }); setShowDropdownItemModal(true) }}
                                           className="p-1 text-[#94A3B8] hover:text-white"
                                         >
                                           <Edit className="w-3 h-3" />
                                         </button>
                                         <button
-                                          onClick={() => deleteDropdownItem(item.id)}
+                                          onClick={() => deleteDropdownItem(dropdown.id, idx)}
                                           className="p-1 text-red-400 hover:text-red-300"
                                         >
                                           <X className="w-3 h-3" />
@@ -5117,6 +5140,7 @@ export default function AdminPortalPage() {
             {/* Calendly */}
             {settingsTab === 'calendly' && (
               <div className="space-y-4">
+                {console.log('[DEBUG RENDER] Calendly tab - calendlyDbLoading:', calendlyDbLoading, 'dbCalendlyLinks:', dbCalendlyLinks.length, 'calendlyLinks:', calendlyLinks.length)}
                 {/* Header with Add button */}
                 <div className="flex justify-end">
                   <button
