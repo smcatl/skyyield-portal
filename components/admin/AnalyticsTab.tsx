@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { DollarSign, TrendingUp, Activity, Calendar, RefreshCw, ChevronDown } from 'lucide-react'
+import { DollarSign, Activity, Calendar, RefreshCw, ChevronDown } from 'lucide-react'
 
 interface AnalyticsData {
   success: boolean
@@ -107,16 +107,6 @@ export default function AnalyticsTab() {
             <div className="grid grid-cols-2 gap-4"><div><p className="text-[#64748B] text-xs">Subscribers</p><p className="text-white font-medium">{summary.helium.subscribers.toLocaleString()}</p></div><div><p className="text-[#64748B] text-xs">Total Records</p><p className="text-white font-medium">{charts.byDate.helium.length}</p></div></div>
             <div className="pt-3 border-t border-[#2D3B5F]"><p className="text-[#64748B] text-xs mb-2">Rewards Breakdown</p><div className="flex gap-4 text-xs"><span className="text-white">Rewards: <span className="text-purple-400">{formatNumber(summary.helium.breakdown.rewards, 4)}</span></span><span className="text-white">PoC: <span className="text-purple-400">{formatNumber(summary.helium.breakdown.poc, 4)}</span></span></div></div>
           </div>
-        </div>
-      </div>
-
-      <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#0EA5E9]" />Token Prices (30-Day)</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-[#0A0F2C] rounded-lg p-4"><p className="text-[#64748B] text-xs mb-1">SYX Current</p><p className="text-white font-medium">${formatNumber(prices.xnet.current || 0, 4)}</p></div>
-          <div className="bg-[#0A0F2C] rounded-lg p-4"><p className="text-[#64748B] text-xs mb-1">SYX 30d Avg</p><p className="text-orange-400 font-medium">${formatNumber(prices.xnet.avg30d, 4)}</p></div>
-          <div className="bg-[#0A0F2C] rounded-lg p-4"><p className="text-[#64748B] text-xs mb-1">SYH Current</p><p className="text-white font-medium">${formatNumber(prices.hnt.current || 0, 2)}</p></div>
-          <div className="bg-[#0A0F2C] rounded-lg p-4"><p className="text-[#64748B] text-xs mb-1">SYH 30d Avg</p><p className="text-purple-400 font-medium">${formatNumber(prices.hnt.avg30d, 2)}</p></div>
         </div>
       </div>
 
