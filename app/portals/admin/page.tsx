@@ -849,6 +849,12 @@ export default function AdminPortalPage() {
   const [calendlyLoading, setCalendlyLoading] = useState(false)
   const [calendlyError, setCalendlyError] = useState<string | null>(null)
 
+  // Database Email Templates state
+  const [dbEmailTemplates, setDbEmailTemplates] = useState<any[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [editingDbTemplate, setEditingDbTemplate] = useState<any | null>(null)
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+
   // Pipeline Stages settings state
   const [dbPipelineStages, setDbPipelineStages] = useState<any[]>([])
   const [stagesLoading, setStagesLoading] = useState(false)
@@ -1361,6 +1367,50 @@ export default function AdminPortalPage() {
     }
   }
 
+  // Fetch email templates from database
+  const fetchEmailTemplates = async () => {
+    setTemplatesLoading(true)
+    try {
+      const res = await fetch('/api/admin/settings/email-templates')
+      const data = await res.json()
+      setDbEmailTemplates(data.templates || [])
+    } catch (err) {
+      console.error('Error fetching email templates:', err)
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }
+
+  // Save email template
+  const saveEmailTemplate = async (template: any) => {
+    try {
+      const method = template.id ? 'PUT' : 'POST'
+      const res = await fetch('/api/admin/settings/email-templates', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(template),
+      })
+      if (res.ok) {
+        fetchEmailTemplates()
+        setShowTemplateModal(false)
+        setEditingDbTemplate(null)
+      }
+    } catch (err) {
+      console.error('Error saving email template:', err)
+    }
+  }
+
+  // Delete email template
+  const deleteEmailTemplate = async (id: string) => {
+    if (!confirm('Delete this email template?')) return
+    try {
+      await fetch(`/api/admin/settings/email-templates?id=${id}`, { method: 'DELETE' })
+      fetchEmailTemplates()
+    } catch (err) {
+      console.error('Error deleting email template:', err)
+    }
+  }
+
   // Send user invite
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return
@@ -1427,6 +1477,7 @@ export default function AdminPortalPage() {
       fetchDropdowns()
       fetchCalendlyLinks()
       fetchPipelineStages()
+      fetchEmailTemplates()
     }
     if (activeTab === 'overview') {
       fetchUsers()
@@ -4044,39 +4095,211 @@ export default function AdminPortalPage() {
             {/* Email Templates */}
             {settingsTab === 'emails' && (
               <div className="space-y-4">
-                {emailTemplates.map(template => (
-                  <div key={template.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <Mail className="w-5 h-5 text-[#0EA5E9]" />
-                        <div>
-                          <h3 className="text-white font-medium">{template.name}</h3>
-                          <p className="text-[#64748B] text-sm">{template.description}</p>
+                {/* Header with Add button */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      setEditingDbTemplate({ name: '', subject: '', body_text: '', trigger_event: '', category: 'general', is_active: true })
+                      setShowTemplateModal(true)
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                  >
+                    <Plus className="w-4 h-4" /> Add Template
+                  </button>
+                </div>
+
+                {/* Loading state */}
+                {templatesLoading && (
+                  <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-8 text-center">
+                    <RefreshCw className="w-6 h-6 mx-auto mb-2 text-[#0EA5E9] animate-spin" />
+                    <p className="text-[#94A3B8]">Loading templates...</p>
+                  </div>
+                )}
+
+                {/* Database templates */}
+                {!templatesLoading && dbEmailTemplates.length > 0 && (
+                  <div className="space-y-4">
+                    {dbEmailTemplates.map(template => (
+                      <div key={template.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <Mail className="w-5 h-5 text-[#0EA5E9]" />
+                            <div>
+                              <h3 className="text-white font-medium">{template.name}</h3>
+                              <p className="text-[#64748B] text-sm">{template.category || 'general'} {template.trigger_event && `• Trigger: ${template.trigger_event}`}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => saveEmailTemplate({ ...template, is_active: !template.is_active })}
+                              className={`px-3 py-1 rounded text-xs ${template.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
+                            >
+                              {template.is_active ? 'Enabled' : 'Disabled'}
+                            </button>
+                            <button
+                              onClick={() => { setEditingDbTemplate(template); setShowTemplateModal(true) }}
+                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteEmailTemplate(template.id)}
+                              className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-[#0A0F2C] rounded-lg p-4">
+                          <div className="text-[#94A3B8] text-sm mb-2">
+                            <strong>Subject:</strong> {template.subject}
+                          </div>
+                          {template.body_text && (
+                            <div className="text-[#64748B] text-sm line-clamp-2">
+                              <strong>Body:</strong> {template.body_text.substring(0, 150)}{template.body_text.length > 150 ? '...' : ''}
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded text-xs ${template.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                          }`}>
-                          {template.enabled ? 'Enabled' : 'Disabled'}
-                        </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Fallback: Show default templates when no database templates */}
+                {!templatesLoading && dbEmailTemplates.length === 0 && (
+                  <div className="space-y-4">
+                    <p className="text-[#94A3B8] text-sm">No custom templates in database. Showing default templates:</p>
+                    {emailTemplates.map(template => (
+                      <div key={template.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <Mail className="w-5 h-5 text-[#0EA5E9]" />
+                            <div>
+                              <h3 className="text-white font-medium">{template.name}</h3>
+                              <p className="text-[#64748B] text-sm">{template.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded text-xs ${template.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {template.enabled ? 'Enabled' : 'Disabled'}
+                            </span>
+                            <button
+                              onClick={() => setEditingTemplate(template)}
+                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-[#0A0F2C] rounded-lg p-4">
+                          <div className="text-[#94A3B8] text-sm mb-2">
+                            <strong>Subject:</strong> {template.subject}
+                          </div>
+                          <div className="text-[#64748B] text-sm">
+                            <strong>Trigger:</strong> {template.trigger}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Edit Template Modal */}
+                {showTemplateModal && editingDbTemplate && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <h3 className="text-lg font-semibold text-white mb-4">{editingDbTemplate.id ? 'Edit Template' : 'Add Template'}</h3>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Template Name</label>
+                            <input
+                              type="text"
+                              value={editingDbTemplate.name}
+                              onChange={e => setEditingDbTemplate({ ...editingDbTemplate, name: e.target.value })}
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Category</label>
+                            <select
+                              value={editingDbTemplate.category || 'general'}
+                              onChange={e => setEditingDbTemplate({ ...editingDbTemplate, category: e.target.value })}
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            >
+                              <option value="general">General</option>
+                              <option value="onboarding">Onboarding</option>
+                              <option value="pipeline">Pipeline</option>
+                              <option value="reminders">Reminders</option>
+                              <option value="notifications">Notifications</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Subject Line</label>
+                          <input
+                            type="text"
+                            value={editingDbTemplate.subject}
+                            onChange={e => setEditingDbTemplate({ ...editingDbTemplate, subject: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Trigger Event</label>
+                          <select
+                            value={editingDbTemplate.trigger_event || ''}
+                            onChange={e => setEditingDbTemplate({ ...editingDbTemplate, trigger_event: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          >
+                            <option value="">Manual Only</option>
+                            <option value="stage_changed">Stage Changed</option>
+                            <option value="application_submitted">Application Submitted</option>
+                            <option value="agreement_signed">Agreement Signed</option>
+                            <option value="trial_started">Trial Started</option>
+                            <option value="reminder">Reminder</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Email Body</label>
+                          <textarea
+                            value={editingDbTemplate.body_text || ''}
+                            onChange={e => setEditingDbTemplate({ ...editingDbTemplate, body_text: e.target.value })}
+                            placeholder="Use {{variable}} for dynamic content"
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-40 font-mono text-sm"
+                          />
+                        </div>
+                        <div className="text-[#64748B] text-xs">
+                          Available variables: {'{{first_name}}'}, {'{{company_name}}'}, {'{{stage}}'}, {'{{calendly_link}}'}
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center gap-2 text-[#94A3B8]">
+                            <input
+                              type="checkbox"
+                              checked={editingDbTemplate.is_active !== false}
+                              onChange={e => setEditingDbTemplate({ ...editingDbTemplate, is_active: e.target.checked })}
+                              className="w-4 h-4 rounded border-[#2D3B5F]"
+                            />
+                            Template Enabled
+                          </label>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-3 mt-6">
                         <button
-                          onClick={() => setEditingTemplate(template)}
-                          className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F] transition-colors"
+                          onClick={() => { setShowTemplateModal(false); setEditingDbTemplate(null) }}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F]"
                         >
-                          <Edit className="w-4 h-4" />
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => saveEmailTemplate(editingDbTemplate)}
+                          className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                        >
+                          Save
                         </button>
                       </div>
                     </div>
-                    <div className="bg-[#0A0F2C] rounded-lg p-4">
-                      <div className="text-[#94A3B8] text-sm mb-2">
-                        <strong>Subject:</strong> {template.subject}
-                      </div>
-                      <div className="text-[#64748B] text-sm">
-                        <strong>Trigger:</strong> {template.trigger}
-                      </div>
-                    </div>
                   </div>
-                ))}
+                )}
               </div>
             )}
 
