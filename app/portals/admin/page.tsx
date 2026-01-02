@@ -882,6 +882,9 @@ export default function AdminPortalPage() {
   const [rolePermissions, setRolePermissions] = useState<any[]>([])
   const [permissionsTabs, setPermissionsTabs] = useState<any[]>([])
   const [permissionsLoading, setPermissionsLoading] = useState(false)
+  const [pendingPermissions, setPendingPermissions] = useState<Record<string, { role: string; tab_key: string; can_view: boolean; can_edit: boolean }>>({})
+  const [permissionsSaving, setPermissionsSaving] = useState(false)
+  const [permissionsSaved, setPermissionsSaved] = useState(false)
 
   // Profile state
   const [profileData, setProfileData] = useState<any>({
@@ -1642,29 +1645,66 @@ export default function AdminPortalPage() {
     }
   }
 
-  // Save role permission
-  const saveRolePermission = async (role: string, tabKey: string, canView: boolean, canEdit: boolean) => {
+  // Update pending permission (doesn't save to server yet)
+  const updatePendingPermission = (role: string, tabKey: string, canView: boolean, canEdit: boolean) => {
+    const key = `${role}:${tabKey}`
+    setPendingPermissions(prev => ({
+      ...prev,
+      [key]: { role, tab_key: tabKey, can_view: canView, can_edit: canEdit }
+    }))
+    setPermissionsSaved(false)
+  }
+
+  // Save all pending permissions to server
+  const saveAllPermissions = async () => {
+    const changes = Object.values(pendingPermissions)
+    if (changes.length === 0) return
+
+    setPermissionsSaving(true)
     try {
-      const res = await fetch('/api/admin/settings/role-permissions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role,
-          tab_key: tabKey,
-          can_view: canView,
-          can_edit: canEdit,
-        }),
+      // Group by role for bulk update
+      const byRole: Record<string, any[]> = {}
+      changes.forEach(change => {
+        if (!byRole[change.role]) byRole[change.role] = []
+        byRole[change.role].push(change)
       })
-      if (res.ok) {
-        fetchRolePermissions()
-      }
+
+      // Send bulk update for each role
+      await Promise.all(
+        Object.entries(byRole).map(([role, permissions]) =>
+          fetch('/api/admin/settings/role-permissions', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role, permissions }),
+          })
+        )
+      )
+
+      // Clear pending and refresh
+      setPendingPermissions({})
+      setPermissionsSaved(true)
+      fetchRolePermissions()
+
+      // Hide success message after 3 seconds
+      setTimeout(() => setPermissionsSaved(false), 3000)
     } catch (err) {
-      console.error('Error saving role permission:', err)
+      console.error('Error saving permissions:', err)
+    } finally {
+      setPermissionsSaving(false)
     }
   }
 
-  // Get permission for a specific tab and role
+  // Get permission for a specific tab and role (checks pending first)
   const getPermission = (role: string, tabKey: string) => {
+    const key = `${role}:${tabKey}`
+    // Check pending changes first
+    if (pendingPermissions[key]) {
+      return {
+        canView: pendingPermissions[key].can_view,
+        canEdit: pendingPermissions[key].can_edit,
+      }
+    }
+    // Fall back to saved permissions
     const perm = rolePermissions.find(
       p => p.role === role && p.tab_key === tabKey
     )
@@ -1673,6 +1713,9 @@ export default function AdminPortalPage() {
       canEdit: perm?.can_edit ?? false,
     }
   }
+
+  // Check if there are pending changes
+  const hasPendingChanges = Object.keys(pendingPermissions).length > 0
 
   // All roles for the permissions table
   const ALL_ROLES = [
@@ -5859,14 +5902,14 @@ export default function AdminPortalPage() {
                                             <input
                                               type="checkbox"
                                               checked={perm.canView}
-                                              onChange={e => saveRolePermission(role.id, tab.tab_key, e.target.checked, perm.canEdit)}
+                                              onChange={e => updatePendingPermission(role.id, tab.tab_key, e.target.checked, perm.canEdit)}
                                               className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9] cursor-pointer"
                                               title={`${role.label} can view ${tab.tab_name}`}
                                             />
                                             <input
                                               type="checkbox"
                                               checked={perm.canEdit}
-                                              onChange={e => saveRolePermission(role.id, tab.tab_key, perm.canView, e.target.checked)}
+                                              onChange={e => updatePendingPermission(role.id, tab.tab_key, perm.canView, e.target.checked)}
                                               className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#10B981] focus:ring-[#10B981] cursor-pointer"
                                               title={`${role.label} can edit ${tab.tab_name}`}
                                             />
@@ -5882,6 +5925,46 @@ export default function AdminPortalPage() {
                         </div>
                       )
                     })}
+                  </div>
+                )}
+
+                {/* Save Button and Success Toast */}
+                {!permissionsLoading && permissionsTabs.length > 0 && (
+                  <div className="flex items-center justify-between pt-4 border-t border-[#2D3B5F]">
+                    <div className="flex items-center gap-2">
+                      {hasPendingChanges && (
+                        <span className="text-[#F59E0B] text-sm">
+                          {Object.keys(pendingPermissions).length} unsaved change{Object.keys(pendingPermissions).length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {permissionsSaved && (
+                        <div className="flex items-center gap-2 text-[#10B981] text-sm">
+                          <Check className="w-4 h-4" />
+                          <span>Permissions saved successfully!</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={saveAllPermissions}
+                      disabled={!hasPendingChanges || permissionsSaving}
+                      className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-colors ${
+                        hasPendingChanges && !permissionsSaving
+                          ? 'bg-[#0EA5E9] text-white hover:bg-[#0EA5E9]/80'
+                          : 'bg-[#2D3B5F] text-[#64748B] cursor-not-allowed'
+                      }`}
+                    >
+                      {permissionsSaving ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          Save All Changes
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
 
