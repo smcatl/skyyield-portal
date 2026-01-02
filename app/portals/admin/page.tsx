@@ -5830,7 +5830,7 @@ export default function AdminPortalPage() {
                             <h3 className="text-white font-medium">{portalLabel}</h3>
                           </div>
                           <div className="overflow-x-auto">
-                            <table className="w-full">
+                            <table className="w-full min-w-[700px]">
                               <thead>
                                 <tr className="border-b border-[#2D3B5F]">
                                   <th className="text-left px-4 py-3 text-[#94A3B8] text-sm font-medium w-48">Tab</th>
