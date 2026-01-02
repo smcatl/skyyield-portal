@@ -4658,13 +4658,20 @@ export default function AdminPortalPage() {
                 {!calendlyDbLoading && dbCalendlyLinks.length > 0 && (
                   <div className="grid md:grid-cols-2 gap-4">
                     {dbCalendlyLinks.map(link => (
-                      <div key={link.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
+                      <div
+                        key={link.id}
+                        className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 cursor-pointer hover:border-[#0EA5E9]/50 transition-colors"
+                        onClick={() => { setEditingCalendly(link); setShowCalendlyModal(true) }}
+                      >
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
-                            <Calendar className="w-5 h-5 text-[#0EA5E9]" />
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: link.color || '#0EA5E9' }}
+                            />
                             <h3 className="text-white font-medium">{link.name}</h3>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                             <button
                               onClick={() => { setEditingCalendly(link); setShowCalendlyModal(true) }}
                               className="p-1 text-[#94A3B8] hover:text-white"
@@ -4683,8 +4690,11 @@ export default function AdminPortalPage() {
                         <div className="flex items-center gap-4 text-sm text-[#94A3B8] mb-3">
                           <span>{link.duration_minutes || link.duration} min</span>
                           <span className="px-2 py-0.5 bg-[#2D3B5F] rounded text-xs">{link.link_type || 'general'}</span>
+                          {link.pipeline_stage_id && (
+                            <span className="px-2 py-0.5 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded text-xs">Auto-trigger</span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                           <input
                             type="text"
                             value={link.url}
@@ -4805,6 +4815,48 @@ export default function AdminPortalPage() {
                             onChange={e => setEditingCalendly({ ...editingCalendly, description: e.target.value })}
                             className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-20"
                           />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Color</label>
+                          <div className="flex gap-2">
+                            {['#0EA5E9', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#6366F1'].map(color => (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => setEditingCalendly({ ...editingCalendly, color })}
+                                className={`w-8 h-8 rounded-full border-2 ${editingCalendly.color === color ? 'border-white' : 'border-transparent'}`}
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Pipeline Stage Trigger</label>
+                          <select
+                            value={editingCalendly.pipeline_stage_id || ''}
+                            onChange={e => setEditingCalendly({ ...editingCalendly, pipeline_stage_id: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          >
+                            <option value="">No trigger (manual use only)</option>
+                            {dbPipelineStages.map(stage => (
+                              <option key={stage.id} value={stage.id}>{stage.name} ({stage.partner_type})</option>
+                            ))}
+                          </select>
+                          <p className="text-[#64748B] text-xs mt-1">Automatically show this link when partner enters selected stage</p>
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Trigger Action</label>
+                          <select
+                            value={editingCalendly.trigger_action || ''}
+                            onChange={e => setEditingCalendly({ ...editingCalendly, trigger_action: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          >
+                            <option value="">None</option>
+                            <option value="show_in_portal">Show in Partner Portal</option>
+                            <option value="send_email">Send Email with Link</option>
+                            <option value="create_task">Create Task for Admin</option>
+                            <option value="add_to_sequence">Add to Email Sequence</option>
+                          </select>
                         </div>
                       </div>
                       <div className="flex justify-end gap-3 mt-6">
