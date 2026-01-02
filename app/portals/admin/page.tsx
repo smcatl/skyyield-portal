@@ -882,7 +882,6 @@ export default function AdminPortalPage() {
   const [rolePermissions, setRolePermissions] = useState<any[]>([])
   const [permissionsTabs, setPermissionsTabs] = useState<any[]>([])
   const [permissionsLoading, setPermissionsLoading] = useState(false)
-  const [selectedPermissionsRole, setSelectedPermissionsRole] = useState<string>('location_partner')
 
   // Profile state
   const [profileData, setProfileData] = useState<any>({
@@ -1644,13 +1643,13 @@ export default function AdminPortalPage() {
   }
 
   // Save role permission
-  const saveRolePermission = async (tabKey: string, canView: boolean, canEdit: boolean) => {
+  const saveRolePermission = async (role: string, tabKey: string, canView: boolean, canEdit: boolean) => {
     try {
       const res = await fetch('/api/admin/settings/role-permissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          role: selectedPermissionsRole,
+          role,
           tab_key: tabKey,
           can_view: canView,
           can_edit: canEdit,
@@ -1665,15 +1664,25 @@ export default function AdminPortalPage() {
   }
 
   // Get permission for a specific tab and role
-  const getPermission = (tabKey: string) => {
+  const getPermission = (role: string, tabKey: string) => {
     const perm = rolePermissions.find(
-      p => p.role === selectedPermissionsRole && p.tab_key === tabKey
+      p => p.role === role && p.tab_key === tabKey
     )
     return {
       canView: perm?.can_view ?? true,
       canEdit: perm?.can_edit ?? false,
     }
   }
+
+  // All roles for the permissions table
+  const ALL_ROLES = [
+    { id: 'admin', label: 'Admin' },
+    { id: 'employee', label: 'Employee' },
+    { id: 'location_partner', label: 'Location' },
+    { id: 'referral_partner', label: 'Referral' },
+    { id: 'channel_partner', label: 'Channel' },
+    { id: 'contractor', label: 'Contractor' },
+  ]
 
   // Fetch user profile from database
   const fetchProfile = async () => {
@@ -5790,26 +5799,7 @@ export default function AdminPortalPage() {
               <div className="space-y-4">
                 {/* Header */}
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[#94A3B8] text-sm">Configure which tabs each role can view and edit</p>
-                  </div>
-                </div>
-
-                {/* Role selector */}
-                <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-4">
-                  <label className="block text-[#94A3B8] text-sm mb-2">Select Role</label>
-                  <select
-                    value={selectedPermissionsRole}
-                    onChange={e => setSelectedPermissionsRole(e.target.value)}
-                    className="w-full md:w-64 px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="employee">Employee</option>
-                    <option value="location_partner">Location Partner</option>
-                    <option value="referral_partner">Referral Partner</option>
-                    <option value="channel_partner">Channel Partner</option>
-                    <option value="contractor">Contractor</option>
-                  </select>
+                  <p className="text-[#94A3B8] text-sm">Configure which tabs each role can view (V) and edit (E)</p>
                 </div>
 
                 {/* Loading state */}
@@ -5820,7 +5810,7 @@ export default function AdminPortalPage() {
                   </div>
                 )}
 
-                {/* Permissions by portal */}
+                {/* Permissions Table */}
                 {!permissionsLoading && permissionsTabs.length > 0 && (
                   <div className="space-y-6">
                     {/* Group tabs by portal */}
@@ -5839,38 +5829,55 @@ export default function AdminPortalPage() {
                           <div className="px-4 py-3 bg-[#0A0F2C] border-b border-[#2D3B5F]">
                             <h3 className="text-white font-medium">{portalLabel}</h3>
                           </div>
-                          <div className="divide-y divide-[#2D3B5F]">
-                            {portalTabs.map(tab => {
-                              const perm = getPermission(tab.tab_key)
-                              return (
-                                <div key={tab.tab_key} className="flex items-center justify-between p-4">
-                                  <div>
-                                    <span className="text-white">{tab.tab_name}</span>
-                                    <span className="text-[#64748B] text-sm ml-2">({tab.tab_key})</span>
-                                  </div>
-                                  <div className="flex items-center gap-6">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={perm.canView}
-                                        onChange={e => saveRolePermission(tab.tab_key, e.target.checked, perm.canEdit)}
-                                        className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9]"
-                                      />
-                                      <span className="text-[#94A3B8] text-sm">Can View</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={perm.canEdit}
-                                        onChange={e => saveRolePermission(tab.tab_key, perm.canView, e.target.checked)}
-                                        className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9]"
-                                      />
-                                      <span className="text-[#94A3B8] text-sm">Can Edit</span>
-                                    </label>
-                                  </div>
-                                </div>
-                              )
-                            })}
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead>
+                                <tr className="border-b border-[#2D3B5F]">
+                                  <th className="text-left px-4 py-3 text-[#94A3B8] text-sm font-medium w-48">Tab</th>
+                                  {ALL_ROLES.map(role => (
+                                    <th key={role.id} className="px-2 py-3 text-center">
+                                      <span className="text-[#94A3B8] text-xs font-medium">{role.label}</span>
+                                      <div className="flex justify-center gap-1 mt-1 text-[#64748B] text-[10px]">
+                                        <span>V</span>
+                                        <span>E</span>
+                                      </div>
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#2D3B5F]">
+                                {portalTabs.map(tab => (
+                                  <tr key={tab.tab_key} className="hover:bg-[#2D3B5F]/20">
+                                    <td className="px-4 py-3">
+                                      <span className="text-white text-sm">{tab.tab_name}</span>
+                                    </td>
+                                    {ALL_ROLES.map(role => {
+                                      const perm = getPermission(role.id, tab.tab_key)
+                                      return (
+                                        <td key={role.id} className="px-2 py-3">
+                                          <div className="flex justify-center gap-1">
+                                            <input
+                                              type="checkbox"
+                                              checked={perm.canView}
+                                              onChange={e => saveRolePermission(role.id, tab.tab_key, e.target.checked, perm.canEdit)}
+                                              className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9] focus:ring-[#0EA5E9] cursor-pointer"
+                                              title={`${role.label} can view ${tab.tab_name}`}
+                                            />
+                                            <input
+                                              type="checkbox"
+                                              checked={perm.canEdit}
+                                              onChange={e => saveRolePermission(role.id, tab.tab_key, perm.canView, e.target.checked)}
+                                              className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#10B981] focus:ring-[#10B981] cursor-pointer"
+                                              title={`${role.label} can edit ${tab.tab_name}`}
+                                            />
+                                          </div>
+                                        </td>
+                                      )
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       )
