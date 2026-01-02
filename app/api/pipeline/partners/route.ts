@@ -131,16 +131,67 @@ export async function GET(request: NextRequest) {
 
     // Fetch all partner types in parallel
     const [lpResult, rpResult, cpResult, relpResult, conResult] = await Promise.all([
-      supabase.from('location_partners').select('*').neq('pipeline_stage', 'inactive').order('created_at', { ascending: false }).limit(200),
+      supabase.from('location_partners').select('*').neq('pipeline_stage', 'inactive').order('created_at', { ascending: false }).limit(500),
       supabase.from('referral_partners').select('*').neq('pipeline_stage', 'inactive').order('created_at', { ascending: false }).limit(100),
       supabase.from('channel_partners').select('*').neq('pipeline_stage', 'inactive').order('created_at', { ascending: false }).limit(100),
       supabase.from('relationship_partners').select('*').neq('pipeline_stage', 'inactive').order('created_at', { ascending: false }).limit(100),
       supabase.from('contractors').select('*').neq('pipeline_stage', 'inactive').order('created_at', { ascending: false }).limit(100),
     ])
 
+    // Group location_partners by clerk_user_id
+    const locationPartners = lpResult.data || []
+    const groupedByClerk = new Map<string, any[]>()
+    const ungroupedPartners: any[] = []
+
+    for (const lp of locationPartners) {
+      if (lp.clerk_user_id) {
+        const existing = groupedByClerk.get(lp.clerk_user_id) || []
+        existing.push(lp)
+        groupedByClerk.set(lp.clerk_user_id, existing)
+      } else {
+        ungroupedPartners.push(lp)
+      }
+    }
+
+    // Transform grouped location partners
+    const groupedLocationPartners: any[] = []
+    for (const [clerkUserId, partners] of groupedByClerk) {
+      // Sort by created_at to get the earliest (primary) partner first
+      partners.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      const primary = partners[0]
+      const transformed = transformLocationPartner(primary)
+
+      // Add all location_partner records as nested array
+      transformed.locationPartners = partners.map(p => transformLocationPartner(p))
+      transformed.venueCount = partners.length
+      transformed.clerkUserId = clerkUserId
+
+      // Use the most advanced pipeline stage among all partners
+      const stageOrder = ['application', 'initial_review', 'discovery_call', 'post_call_review', 'site_survey', 'agreement', 'payment_setup', 'trial_pending', 'trial_active', 'contract', 'active']
+      let maxStageIndex = -1
+      for (const p of partners) {
+        const idx = stageOrder.indexOf(p.pipeline_stage)
+        if (idx > maxStageIndex) {
+          maxStageIndex = idx
+          transformed.stage = p.pipeline_stage
+        }
+      }
+
+      groupedLocationPartners.push(transformed)
+    }
+
+    // Transform ungrouped location partners (no clerk_user_id)
+    const ungroupedTransformed = ungroupedPartners.map(p => {
+      const transformed = transformLocationPartner(p)
+      transformed.locationPartners = [transformed]
+      transformed.venueCount = 1
+      return transformed
+    })
+
     // Transform and combine all partners
     const allPartners = [
-      ...(lpResult.data || []).map(p => transformLocationPartner(p)),
+      ...groupedLocationPartners,
+      ...ungroupedTransformed,
       ...(rpResult.data || []).map(p => {
         const type = p.partner_type === 'channel' ? 'Channel Partner' : p.partner_type === 'relationship' ? 'Relationship Partner' : 'Referral Partner'
         return transformReferralPartner(p, type)
