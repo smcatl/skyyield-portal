@@ -874,6 +874,9 @@ export default function AdminPortalPage() {
   const [editingDropdown, setEditingDropdown] = useState<any | null>(null)
   const [showDropdownModal, setShowDropdownModal] = useState(false)
   const [newOptionLabel, setNewOptionLabel] = useState('')
+  const [expandedDropdowns, setExpandedDropdowns] = useState<Set<string>>(new Set())
+  const [editingDropdownItem, setEditingDropdownItem] = useState<any | null>(null)
+  const [showDropdownItemModal, setShowDropdownItemModal] = useState(false)
 
   // Payments state
   const [paymentsViewType, setPaymentsViewType] = useState<'paymentHistory' | 'invoiceHistory' | 'paymentDetails'>('paymentHistory')
@@ -1543,6 +1546,37 @@ export default function AdminPortalPage() {
     } catch (err) {
       console.error('Error deleting dropdown:', err)
     }
+  }
+
+  // Update dropdown item
+  const updateDropdownItem = async (item: any) => {
+    try {
+      const res = await fetch('/api/admin/settings/dropdowns', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: item.id, label: item.label, value: item.value, description: item.description }),
+      })
+      if (res.ok) {
+        fetchDbDropdowns()
+        setShowDropdownItemModal(false)
+        setEditingDropdownItem(null)
+      }
+    } catch (err) {
+      console.error('Error updating dropdown item:', err)
+    }
+  }
+
+  // Toggle dropdown expansion
+  const toggleDropdownExpanded = (id: string) => {
+    setExpandedDropdowns(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
   }
 
   // Send user invite
@@ -4466,61 +4500,121 @@ export default function AdminPortalPage() {
                 {/* Database dropdowns */}
                 {!dropdownsLoading && dbDropdowns.length > 0 && (
                   <div className="space-y-4">
-                    {dbDropdowns.map(dropdown => (
-                      <div key={dropdown.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h3 className="text-white font-medium">{dropdown.name}</h3>
-                            <p className="text-[#64748B] text-sm">{dropdown.slug} • {dropdown.category || 'general'} • {(dropdown.items || []).length} options</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => { setEditingDropdown(dropdown); setShowDropdownModal(true) }}
-                              className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteDropdown(dropdown.id)}
-                              className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        {/* Options list with delete */}
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {(dropdown.items || []).map((item: any) => (
-                            <span key={item.id} className="flex items-center gap-1 px-2 py-1 bg-[#0A0F2C] text-[#94A3B8] rounded text-xs group">
-                              {item.label}
-                              <button
-                                onClick={() => deleteDropdownItem(item.id)}
-                                className="text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 ml-1"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                        {/* Add new option inline */}
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="New option"
-                            value={editingDropdown?.id === dropdown.id ? newOptionLabel : ''}
-                            onChange={e => { setEditingDropdown(dropdown); setNewOptionLabel(e.target.value) }}
-                            onKeyDown={e => { if (e.key === 'Enter' && newOptionLabel) addDropdownItem(dropdown.id, newOptionLabel) }}
-                            className="flex-1 px-3 py-1 bg-[#0A0F2C] border border-[#2D3B5F] rounded text-white text-sm"
-                          />
-                          <button
-                            onClick={() => { if (newOptionLabel) addDropdownItem(dropdown.id, newOptionLabel) }}
-                            className="px-3 py-1 bg-[#0EA5E9] text-white rounded text-sm"
+                    {dbDropdowns.map(dropdown => {
+                      const isExpanded = expandedDropdowns.has(dropdown.id)
+                      return (
+                        <div key={dropdown.id} className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl overflow-hidden">
+                          {/* Header - clickable to expand/collapse */}
+                          <div
+                            className="flex items-center justify-between p-4 cursor-pointer hover:bg-[#2D3B5F]/30 transition-colors"
+                            onClick={() => toggleDropdownExpanded(dropdown.id)}
                           >
-                            Add
-                          </button>
+                            <div className="flex items-center gap-3">
+                              <ChevronDown className={`w-5 h-5 text-[#64748B] transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                              <div>
+                                <h3 className="text-white font-medium">{dropdown.name}</h3>
+                                <div className="flex items-center gap-2 text-[#64748B] text-sm">
+                                  <span>{dropdown.slug}</span>
+                                  <span>•</span>
+                                  <span>{dropdown.category || 'general'}</span>
+                                  <span>•</span>
+                                  <span>{(dropdown.items || []).length} options</span>
+                                  {dropdown.used_in_forms && dropdown.used_in_forms.length > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-[#0EA5E9]">Used in {dropdown.used_in_forms.length} form(s)</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={() => { setEditingDropdown(dropdown); setShowDropdownModal(true) }}
+                                className="p-2 bg-[#2D3B5F] text-[#94A3B8] rounded-lg hover:bg-[#3D4B6F]"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteDropdown(dropdown.id)}
+                                className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Expanded content */}
+                          {isExpanded && (
+                            <div className="border-t border-[#2D3B5F] p-4 space-y-4">
+                              {/* Used in forms */}
+                              {dropdown.used_in_forms && dropdown.used_in_forms.length > 0 && (
+                                <div className="flex items-center gap-2 text-sm">
+                                  <span className="text-[#64748B]">Used in:</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {dropdown.used_in_forms.map((form: string) => (
+                                      <span key={form} className="px-2 py-0.5 bg-[#0EA5E9]/20 text-[#0EA5E9] rounded text-xs">{form}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Options list with edit/delete */}
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[#94A3B8] text-sm font-medium">Options</span>
+                                  <span className="text-[#64748B] text-xs">{(dropdown.items || []).length} total</span>
+                                </div>
+                                <div className="grid gap-2">
+                                  {(dropdown.items || []).map((item: any) => (
+                                    <div key={item.id} className="flex items-center justify-between p-2 bg-[#0A0F2C] rounded-lg group">
+                                      <div>
+                                        <span className="text-white text-sm">{item.label}</span>
+                                        {item.description && (
+                                          <p className="text-[#64748B] text-xs">{item.description}</p>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={() => { setEditingDropdownItem(item); setShowDropdownItemModal(true) }}
+                                          className="p-1 text-[#94A3B8] hover:text-white"
+                                        >
+                                          <Edit className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          onClick={() => deleteDropdownItem(item.id)}
+                                          className="p-1 text-red-400 hover:text-red-300"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Add new option */}
+                              <div className="flex gap-2 pt-2 border-t border-[#2D3B5F]">
+                                <input
+                                  type="text"
+                                  placeholder="Add new option..."
+                                  value={editingDropdown?.id === dropdown.id ? newOptionLabel : ''}
+                                  onChange={e => { setEditingDropdown(dropdown); setNewOptionLabel(e.target.value) }}
+                                  onKeyDown={e => { if (e.key === 'Enter' && newOptionLabel) addDropdownItem(dropdown.id, newOptionLabel) }}
+                                  className="flex-1 px-3 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white text-sm"
+                                />
+                                <button
+                                  onClick={() => { if (newOptionLabel && editingDropdown?.id === dropdown.id) addDropdownItem(dropdown.id, newOptionLabel) }}
+                                  className="flex items-center gap-1 px-4 py-2 bg-[#0EA5E9] text-white rounded-lg text-sm hover:bg-[#0EA5E9]/80"
+                                >
+                                  <Plus className="w-4 h-4" /> Add Option
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
 
@@ -4608,6 +4702,31 @@ export default function AdminPortalPage() {
                             className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white h-20"
                           />
                         </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Used In Forms</label>
+                          <div className="flex flex-wrap gap-2">
+                            {['Partner Application', 'Venue Registration', 'Contractor Signup', 'Contact Form', 'Survey Form'].map(form => {
+                              const usedForms = editingDropdown.used_in_forms || []
+                              const isSelected = usedForms.includes(form)
+                              return (
+                                <label key={form} className="flex items-center gap-2 px-3 py-1.5 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg cursor-pointer hover:border-[#0EA5E9]">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={e => {
+                                      const newForms = e.target.checked
+                                        ? [...usedForms, form]
+                                        : usedForms.filter((f: string) => f !== form)
+                                      setEditingDropdown({ ...editingDropdown, used_in_forms: newForms })
+                                    }}
+                                    className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9]"
+                                  />
+                                  <span className="text-white text-sm">{form}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
                       </div>
                       <div className="flex justify-end gap-3 mt-6">
                         <button
@@ -4618,6 +4737,59 @@ export default function AdminPortalPage() {
                         </button>
                         <button
                           onClick={() => saveDropdown(editingDropdown)}
+                          className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit Dropdown Item Modal */}
+                {showDropdownItemModal && editingDropdownItem && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-[#1A1F3A] border border-[#2D3B5F] rounded-xl p-6 w-full max-w-md">
+                      <h3 className="text-lg font-semibold text-white mb-4">Edit Option</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Label</label>
+                          <input
+                            type="text"
+                            value={editingDropdownItem.label}
+                            onChange={e => setEditingDropdownItem({ ...editingDropdownItem, label: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Value</label>
+                          <input
+                            type="text"
+                            value={editingDropdownItem.value || ''}
+                            onChange={e => setEditingDropdownItem({ ...editingDropdownItem, value: e.target.value })}
+                            placeholder="auto-generated from label"
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Description (optional)</label>
+                          <input
+                            type="text"
+                            value={editingDropdownItem.description || ''}
+                            onChange={e => setEditingDropdownItem({ ...editingDropdownItem, description: e.target.value })}
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-3 mt-6">
+                        <button
+                          onClick={() => { setShowDropdownItemModal(false); setEditingDropdownItem(null) }}
+                          className="px-4 py-2 bg-[#2D3B5F] text-white rounded-lg hover:bg-[#3D4B6F]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => updateDropdownItem(editingDropdownItem)}
                           className="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80"
                         >
                           Save
