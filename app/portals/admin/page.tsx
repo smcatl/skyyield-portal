@@ -4950,29 +4950,44 @@ export default function AdminPortalPage() {
                             className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[#94A3B8] text-sm mb-2">Slug</label>
-                            <input
-                              type="text"
-                              value={editingStage.slug}
-                              onChange={e => setEditingStage({ ...editingStage, slug: e.target.value })}
-                              placeholder="auto-generated"
-                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[#94A3B8] text-sm mb-2">Partner Type</label>
-                            <select
-                              value={editingStage.partner_type}
-                              onChange={e => setEditingStage({ ...editingStage, partner_type: e.target.value })}
-                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
-                            >
-                              <option value="location_partner">Location Partner</option>
-                              <option value="referral_partner">Referral Partner</option>
-                              <option value="channel_partner">Channel Partner</option>
-                              <option value="contractor">Contractor</option>
-                            </select>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Slug</label>
+                          <input
+                            type="text"
+                            value={editingStage.slug}
+                            onChange={e => setEditingStage({ ...editingStage, slug: e.target.value })}
+                            placeholder="auto-generated"
+                            className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[#94A3B8] text-sm mb-2">Partner Types</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { value: 'location_partner', label: 'Location Partner' },
+                              { value: 'referral_partner', label: 'Referral Partner' },
+                              { value: 'channel_partner', label: 'Channel Partner' },
+                              { value: 'contractor', label: 'Contractor' },
+                            ].map(pt => {
+                              const partnerTypes = editingStage.partner_types || (editingStage.partner_type ? [editingStage.partner_type] : [])
+                              const isChecked = partnerTypes.includes(pt.value)
+                              return (
+                                <label key={pt.value} className="flex items-center gap-2 p-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg cursor-pointer hover:border-[#0EA5E9]">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={e => {
+                                      const newTypes = e.target.checked
+                                        ? [...partnerTypes, pt.value]
+                                        : partnerTypes.filter((t: string) => t !== pt.value)
+                                      setEditingStage({ ...editingStage, partner_types: newTypes, partner_type: newTypes[0] || '' })
+                                    }}
+                                    className="w-4 h-4 rounded border-[#2D3B5F] bg-[#0A0F2C] text-[#0EA5E9]"
+                                  />
+                                  <span className="text-white text-sm">{pt.label}</span>
+                                </label>
+                              )
+                            })}
                           </div>
                         </div>
                         <div>
@@ -5010,10 +5025,12 @@ export default function AdminPortalPage() {
                             <option value="">None</option>
                             <option value="send_email">Send Email</option>
                             <option value="schedule_call">Schedule Call</option>
-                            <option value="send_agreement">Send Agreement</option>
                             <option value="create_task">Create Task</option>
+                            <option value="send_agreement">Send Agreement</option>
+                            <option value="notify_admin">Notify Admin</option>
                           </select>
                         </div>
+                        {/* Send Email - Email Template dropdown */}
                         {editingStage.action_type === 'send_email' && (
                           <div>
                             <label className="block text-[#94A3B8] text-sm mb-2">Email Template</label>
@@ -5029,6 +5046,7 @@ export default function AdminPortalPage() {
                             </select>
                           </div>
                         )}
+                        {/* Schedule Call - Calendly Link dropdown */}
                         {editingStage.action_type === 'schedule_call' && (
                           <div>
                             <label className="block text-[#94A3B8] text-sm mb-2">Calendly Link</label>
@@ -5042,6 +5060,93 @@ export default function AdminPortalPage() {
                                 <option key={l.id} value={l.id}>{l.name}</option>
                               ))}
                             </select>
+                          </div>
+                        )}
+                        {/* Create Task - Task type and assignee fields */}
+                        {editingStage.action_type === 'create_task' && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-[#94A3B8] text-sm mb-2">Task Type</label>
+                              <select
+                                value={editingStage.task_type || ''}
+                                onChange={e => setEditingStage({ ...editingStage, task_type: e.target.value })}
+                                className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                              >
+                                <option value="">Select task type...</option>
+                                <option value="follow_up">Follow Up</option>
+                                <option value="review">Review Application</option>
+                                <option value="onboarding">Onboarding Task</option>
+                                <option value="document_collection">Document Collection</option>
+                                <option value="site_visit">Site Visit</option>
+                                <option value="contract_review">Contract Review</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[#94A3B8] text-sm mb-2">Assign To</label>
+                              <select
+                                value={editingStage.task_assignee || ''}
+                                onChange={e => setEditingStage({ ...editingStage, task_assignee: e.target.value })}
+                                className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                              >
+                                <option value="">Auto-assign (round robin)</option>
+                                <option value="partner_manager">Partner Manager</option>
+                                <option value="sales_team">Sales Team</option>
+                                <option value="operations">Operations</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                        {/* Send Agreement - Agreement template dropdown */}
+                        {editingStage.action_type === 'send_agreement' && (
+                          <div>
+                            <label className="block text-[#94A3B8] text-sm mb-2">Agreement Template</label>
+                            <select
+                              value={editingStage.agreement_template_id || ''}
+                              onChange={e => setEditingStage({ ...editingStage, agreement_template_id: e.target.value })}
+                              className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                            >
+                              <option value="">Select agreement...</option>
+                              <option value="location_partner_agreement">Location Partner Agreement</option>
+                              <option value="referral_partner_agreement">Referral Partner Agreement</option>
+                              <option value="channel_partner_agreement">Channel Partner Agreement</option>
+                              <option value="contractor_agreement">Contractor Agreement</option>
+                              <option value="nda">Non-Disclosure Agreement</option>
+                            </select>
+                          </div>
+                        )}
+                        {/* Notify Admin - Notification options */}
+                        {editingStage.action_type === 'notify_admin' && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-[#94A3B8] text-sm mb-2">Notification Type</label>
+                              <select
+                                value={editingStage.notification_type || ''}
+                                onChange={e => setEditingStage({ ...editingStage, notification_type: e.target.value })}
+                                className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                              >
+                                <option value="">Select type...</option>
+                                <option value="email">Email</option>
+                                <option value="slack">Slack</option>
+                                <option value="sms">SMS</option>
+                                <option value="in_app">In-App Notification</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[#94A3B8] text-sm mb-2">Notify</label>
+                              <select
+                                value={editingStage.notify_recipient || ''}
+                                onChange={e => setEditingStage({ ...editingStage, notify_recipient: e.target.value })}
+                                className="w-full px-4 py-2 bg-[#0A0F2C] border border-[#2D3B5F] rounded-lg text-white"
+                              >
+                                <option value="">Select recipient...</option>
+                                <option value="all_admins">All Admins</option>
+                                <option value="partner_managers">Partner Managers</option>
+                                <option value="sales_lead">Sales Lead</option>
+                                <option value="operations_lead">Operations Lead</option>
+                              </select>
+                            </div>
                           </div>
                         )}
                       </div>
