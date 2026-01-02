@@ -16,6 +16,7 @@ import {
 } from '@/components/portal'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import CRMTab from '@/components/admin/crm/CRMTab'
+import { useRolePermissions } from '@/hooks/useRolePermissions'
 
 type TabType = 'overview' | 'clients' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
 
@@ -57,6 +58,9 @@ function ChannelPartnerPortalContent() {
     totalClients: 0, activeClients: 0, totalVenues: 0, activeVenues: 0,
     totalDevices: 0, onlineDevices: 0, totalDataGB: 0, myEarnings: 0, pendingPayments: 0,
   })
+
+  // Role permissions
+  const { canView, canEdit } = useRolePermissions()
 
   useEffect(() => {
     if (!isLoaded) return
@@ -175,17 +179,22 @@ function ChannelPartnerPortalContent() {
 
   const hasCalculatorSubscription = (user.unsafeMetadata as any)?.calculatorSubscription === true
   const referralCode = `CH-${user.id?.slice(-6).toUpperCase()}`
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'clients', label: 'My Clients', icon: Building2 },
-    { id: 'venues', label: 'Venues', icon: MapPin },
-    { id: 'devices', label: 'Devices', icon: Wifi },
-    { id: 'materials', label: 'Materials', icon: FileText },
-    { id: 'calculator', label: 'Calculator', icon: Calculator },
-    { id: 'payments', label: 'Payments', icon: Wallet },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+
+  // Define all tabs with permission keys
+  const allTabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3, permKey: 'cp_dashboard' },
+    { id: 'clients', label: 'My Clients', icon: Building2, permKey: 'cp_clients' },
+    { id: 'venues', label: 'Venues', icon: MapPin, permKey: 'cp_venues' },
+    { id: 'devices', label: 'Devices', icon: Wifi, permKey: 'cp_devices' },
+    { id: 'materials', label: 'Materials', icon: FileText, permKey: 'cp_materials' },
+    { id: 'calculator', label: 'Calculator', icon: Calculator, permKey: 'cp_calculator' },
+    { id: 'payments', label: 'Payments', icon: Wallet, permKey: 'cp_earnings' },
+    { id: 'settings', label: 'Settings', icon: Settings, permKey: 'cp_settings' },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp, permKey: 'cp_analytics' },
   ]
+
+  // Filter tabs based on user's role permissions
+  const tabs = allTabs.filter(tab => canView(tab.permKey))
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0F2C] to-[#0B0E28] pt-20">
@@ -360,7 +369,7 @@ function ChannelPartnerPortalContent() {
         {activeTab === 'materials' && <TrainingSection items={materials} loading={loading} title="Materials & Resources" showProgress={true} />}
         {activeTab === 'calculator' && <FullCalculator isSubscribed={hasCalculatorSubscription} />}
         {activeTab === 'payments' && <PartnerPayments partnerId={partnerId} partnerType="channel_partner" />}
-        {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="channel_partner" showCompanyInfo={true} showPaymentSettings={true} showNotifications={true} />}
+        {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="channel_partner" showCompanyInfo={true} showPaymentSettings={true} showNotifications={true} readOnly={!canEdit('cp_settings')} />}
         {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="channel_partner" showReferrals={true} showDataUsage={true} />}
       </div>
     </div>

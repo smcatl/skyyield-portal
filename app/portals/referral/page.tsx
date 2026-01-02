@@ -79,7 +79,7 @@ function ReferralPartnerPortalContent() {
   const [copied, setCopied] = useState(false)
 
   // Role permissions
-  const { canView } = useRolePermissions()
+  const { canView, canEdit } = useRolePermissions()
 
   const allTabs = [
     { id: 'overview', label: 'Overview', icon: Users, permKey: 'rp_dashboard' },
@@ -540,12 +540,13 @@ function ReferralPartnerPortalContent() {
         )}
 
         {activeTab === 'settings' && (
-          <PartnerSettings 
-            partnerId={partnerData?.id || ''} 
+          <PartnerSettings
+            partnerId={partnerData?.id || ''}
             partnerType="referral_partner"
             showCompanyInfo={true}
             showPaymentSettings={true}
             showNotifications={true}
+            readOnly={!canEdit('rp_settings')}
           />
         )}
       </div>

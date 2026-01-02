@@ -45,6 +45,7 @@ interface PartnerSettingsProps {
   showCompanyInfo?: boolean
   showPaymentSettings?: boolean
   showNotifications?: boolean
+  readOnly?: boolean
 }
 
 // Column name mappings per partner type
@@ -117,6 +118,7 @@ export default function PartnerSettings({
   showCompanyInfo = true,
   showPaymentSettings = true,
   showNotifications = true,
+  readOnly = false,
 }: PartnerSettingsProps) {
   const { user } = useUser()
   const [activeSection, setActiveSection] = useState<'personal' | 'company' | 'notifications' | 'payment' | 'security'>('personal')
@@ -715,18 +717,25 @@ export default function PartnerSettings({
                   Settings saved successfully
                 </div>
               )}
-              <button
-                onClick={saveSettings}
-                disabled={saving}
-                className="ml-auto flex items-center gap-2 px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
+              {readOnly ? (
+                <div className="ml-auto flex items-center gap-2 px-4 py-2 bg-[#2D3B5F]/50 text-[#94A3B8] rounded-lg">
+                  <Shield className="w-4 h-4" />
+                  View Only - Contact admin to make changes
+                </div>
+              ) : (
+                <button
+                  onClick={saveSettings}
+                  disabled={saving}
+                  className="ml-auto flex items-center gap-2 px-6 py-2 bg-[#0EA5E9] text-white rounded-lg hover:bg-[#0EA5E9]/80 transition-colors disabled:opacity-50"
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              )}
             </div>
           )}
         </div>

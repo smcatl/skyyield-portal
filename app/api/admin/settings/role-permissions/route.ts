@@ -42,16 +42,41 @@ const DEFAULT_TABS = [
   // ===== CHANNEL PARTNER PORTAL =====
   { tab_key: 'cp_dashboard', tab_name: 'Overview', portal: 'channel_partner', section: 'Channel Partner Portal' },
   { tab_key: 'cp_clients', tab_name: 'My Clients', portal: 'channel_partner', section: 'Channel Partner Portal' },
-  { tab_key: 'cp_earnings', tab_name: 'Earnings', portal: 'channel_partner', section: 'Channel Partner Portal' },
-  { tab_key: 'cp_documents', tab_name: 'Documents', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_venues', tab_name: 'Venues', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_devices', tab_name: 'Devices', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_materials', tab_name: 'Materials', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_calculator', tab_name: 'Calculator', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_earnings', tab_name: 'Payments', portal: 'channel_partner', section: 'Channel Partner Portal' },
+  { tab_key: 'cp_analytics', tab_name: 'Analytics', portal: 'channel_partner', section: 'Channel Partner Portal' },
   { tab_key: 'cp_settings', tab_name: 'Settings', portal: 'channel_partner', section: 'Channel Partner Portal' },
 
+  // ===== RELATIONSHIP PARTNER PORTAL =====
+  { tab_key: 'relp_dashboard', tab_name: 'Overview', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+  { tab_key: 'relp_introductions', tab_name: 'Introductions', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+  { tab_key: 'relp_venues', tab_name: 'Venues', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+  { tab_key: 'relp_devices', tab_name: 'Devices', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+  { tab_key: 'relp_materials', tab_name: 'Materials', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+  { tab_key: 'relp_calculator', tab_name: 'Calculator', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+  { tab_key: 'relp_earnings', tab_name: 'Payments', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+  { tab_key: 'relp_analytics', tab_name: 'Analytics', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+  { tab_key: 'relp_settings', tab_name: 'Settings', portal: 'relationship_partner', section: 'Relationship Partner Portal' },
+
   // ===== CONTRACTOR PORTAL =====
-  { tab_key: 'contractor_dashboard', tab_name: 'Overview', portal: 'contractor', section: 'Contractor Portal' },
-  { tab_key: 'contractor_jobs', tab_name: 'My Jobs', portal: 'contractor', section: 'Contractor Portal' },
-  { tab_key: 'contractor_schedule', tab_name: 'Schedule', portal: 'contractor', section: 'Contractor Portal' },
-  { tab_key: 'contractor_earnings', tab_name: 'Earnings', portal: 'contractor', section: 'Contractor Portal' },
-  { tab_key: 'contractor_settings', tab_name: 'Settings', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'con_dashboard', tab_name: 'Overview', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'con_jobs', tab_name: 'My Jobs', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'con_schedule', tab_name: 'Schedule', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'con_earnings', tab_name: 'Earnings', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'con_documents', tab_name: 'Documents', portal: 'contractor', section: 'Contractor Portal' },
+  { tab_key: 'con_settings', tab_name: 'Settings', portal: 'contractor', section: 'Contractor Portal' },
+
+  // ===== EMPLOYEE PORTAL =====
+  { tab_key: 'emp_dashboard', tab_name: 'Overview', portal: 'employee', section: 'Employee Portal' },
+  { tab_key: 'emp_tasks', tab_name: 'My Tasks', portal: 'employee', section: 'Employee Portal' },
+  { tab_key: 'emp_schedule', tab_name: 'Schedule', portal: 'employee', section: 'Employee Portal' },
+  { tab_key: 'emp_documents', tab_name: 'Documents', portal: 'employee', section: 'Employee Portal' },
+  { tab_key: 'emp_directory', tab_name: 'Directory', portal: 'employee', section: 'Employee Portal' },
+  { tab_key: 'emp_admin', tab_name: 'Admin Access', portal: 'employee', section: 'Employee Portal' },
+  { tab_key: 'emp_settings', tab_name: 'Settings', portal: 'employee', section: 'Employee Portal' },
 ]
 
 // GET - List permissions for a role or all roles

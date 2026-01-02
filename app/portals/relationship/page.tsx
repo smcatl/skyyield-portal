@@ -16,6 +16,7 @@ import {
 } from '@/components/portal'
 import { PortalSwitcher } from '@/components/portal/PortalSwitcher'
 import CRMTab from '@/components/admin/crm/CRMTab'
+import { useRolePermissions } from '@/hooks/useRolePermissions'
 
 type TabType = 'overview' | 'introductions' | 'venues' | 'devices' | 'materials' | 'calculator' | 'payments' | 'settings' | 'analytics'
 
@@ -57,6 +58,9 @@ function RelationshipPartnerPortalContent() {
     totalIntroductions: 0, convertedIntroductions: 0, pendingIntroductions: 0,
     totalVenues: 0, activeVenues: 0, totalDevices: 0, onlineDevices: 0, totalDataGB: 0,
   })
+
+  // Role permissions
+  const { canView, canEdit } = useRolePermissions()
 
   useEffect(() => {
     if (!isLoaded) return
@@ -175,17 +179,22 @@ function RelationshipPartnerPortalContent() {
 
   const hasCalculatorSubscription = (user.unsafeMetadata as any)?.calculatorSubscription === true
   const referralCode = `RP-${user.id?.slice(-6).toUpperCase()}`
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'introductions', label: 'Introductions', icon: Handshake },
-    { id: 'venues', label: 'Venues', icon: MapPin },
-    { id: 'devices', label: 'Devices', icon: Wifi },
-    { id: 'materials', label: 'Materials', icon: FileText },
-    { id: 'calculator', label: 'Calculator', icon: Calculator },
-    { id: 'payments', label: 'Payments', icon: Wallet },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+
+  // Define all tabs with permission keys
+  const allTabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3, permKey: 'relp_dashboard' },
+    { id: 'introductions', label: 'Introductions', icon: Handshake, permKey: 'relp_introductions' },
+    { id: 'venues', label: 'Venues', icon: MapPin, permKey: 'relp_venues' },
+    { id: 'devices', label: 'Devices', icon: Wifi, permKey: 'relp_devices' },
+    { id: 'materials', label: 'Materials', icon: FileText, permKey: 'relp_materials' },
+    { id: 'calculator', label: 'Calculator', icon: Calculator, permKey: 'relp_calculator' },
+    { id: 'payments', label: 'Payments', icon: Wallet, permKey: 'relp_earnings' },
+    { id: 'settings', label: 'Settings', icon: Settings, permKey: 'relp_settings' },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp, permKey: 'relp_analytics' },
   ]
+
+  // Filter tabs based on user's role permissions
+  const tabs = allTabs.filter(tab => canView(tab.permKey))
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -366,7 +375,7 @@ function RelationshipPartnerPortalContent() {
         {activeTab === 'materials' && <TrainingSection items={materials} loading={loading} title="Materials & Resources" showProgress={true} />}
         {activeTab === 'calculator' && <FullCalculator isSubscribed={hasCalculatorSubscription} />}
         {activeTab === 'payments' && <PartnerPayments partnerId={partnerId} partnerType="relationship_partner" />}
-        {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="relationship_partner" showCompanyInfo={false} showPaymentSettings={true} showNotifications={true} />}
+        {activeTab === 'settings' && <PartnerSettings partnerId={partnerId} partnerType="relationship_partner" showCompanyInfo={false} showPaymentSettings={true} showNotifications={true} readOnly={!canEdit('relp_settings')} />}
         {activeTab === 'analytics' && <PartnerAnalytics partnerId={partnerId} partnerType="relationship_partner" showReferrals={true} showDataUsage={true} />}
       </div>
     </div>

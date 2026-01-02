@@ -448,12 +448,13 @@ function LocationPartnerPortalContent() {
         )}
 
         {activeTab === 'settings' && (
-          <PartnerSettings 
-            partnerId={partnerData?.id || ''} 
+          <PartnerSettings
+            partnerId={partnerData?.id || ''}
             partnerType="location_partner"
             showCompanyInfo={true}
             showPaymentSettings={true}
             showNotifications={true}
+            readOnly={!canEdit('lp_settings')}
           />
         )}
       </div>
